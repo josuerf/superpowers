@@ -354,6 +354,10 @@ export type {
 	CompletenessReport,
 } from "./completeness/types";
 
+// Spec review parsing
+export { parseSpecReviewReport } from "./reviewers/spec-review-parser";
+export type { SpecReviewReport } from "./types";
+
 // Dead code detection
 export { detectDeadCode, formatDeadCodeMarkdown } from "./deadcode/detector";
 export { buildImportGraph, getImporters } from "./deadcode/import-graph";
