@@ -99,11 +99,15 @@ Include learned patterns in implementer and reviewer prompts:
 
 After each implementer completes:
 
-1. Main Agent spawns ReviewerAgent subagent with the diff and relevant stack modules.
-2. ReviewerAgent analyzes -> generates structured report.
-3. If issues found -> Main Agent delegates fixes to the same implementer subagent.
-4. Implementer fixes -> re-runs verify-local -> returns.
-5. ReviewerAgent re-reviews only affected files -> approves or repeats loop.
+1. Main Agent spawns Spec Reviewer subagent with the diff and task requirements.
+2. Spec Reviewer analyzes → generates structured report with `<!-- SPEC_REVIEW_REPORT -->` JSON block.
+3. Main Agent parses the JSON report using `parseSpecReviewReport()`.
+4. If spec review FAILS → return to implementer and re-review.
+5. If spec review PASSES → save report to `.harness/reviews/<feature>/<task-id>/spec-review.json`.
+6. Main Agent spawns Quality Reviewer subagent, injecting the spec review findings into the prompt (replace `<spec-review-report-json>` with the actual JSON content).
+7. Quality Reviewer analyzes → generates structured report.
+8. If quality FAILS → return to implementer and re-review.
+9. If quality PASSES → mark task complete.
 
 After all tasks in a wave complete:
 
