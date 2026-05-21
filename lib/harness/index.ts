@@ -146,13 +146,14 @@ export async function verify(
 
 		// Complexity check (verify-local)
 		if (config.complexity.enabled) {
-			results.complexity = await validateComplexity(
+			const complexityResult = await validateComplexity(
 				cwd,
 				stack,
 				config.complexity,
 				config.timeout.verifyLocal * 1000,
 			);
-			if (!results.complexity.passed && config.failOn.lint === "error") {
+			(results as any).complexity = complexityResult;
+			if (!complexityResult.passed && config.failOn.lint === "error") {
 				const report = buildReport({
 					feature,
 					mode: options.mode,
