@@ -22,8 +22,13 @@ describe("validateComplexity", () => {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-complexity-"));
 	});
 
-	afterEach(() => {
-		fs.rmSync(tmpDir, { recursive: true, force: true });
+	afterEach(async () => {
+		await new Promise(resolve => setTimeout(resolve, 100));
+		try {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		} catch {
+			// ignore cleanup errors
+		}
 	});
 
 	it("returns pass for stacks without a dedicated tool", async () => {
