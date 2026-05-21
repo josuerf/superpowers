@@ -10,6 +10,26 @@ const TOOLS = [
   { name: 'checkov', package: 'checkov' },
   { name: 'bandit', package: 'bandit' },
   { name: 'gosec', package: 'gosec' },
+  {
+    name: 'jscpd',
+    package: 'jscpd',
+    cmd: 'jscpd --version',
+    installCmd: 'npm install -g jscpd',
+  },
+  {
+    name: 'radon',
+    package: 'radon',
+    cmd: 'radon --version',
+    installCmd: 'pip install radon',
+    platform: 'python',
+  },
+  {
+    name: 'gocyclo',
+    package: 'gocyclo',
+    cmd: 'gocyclo -version',
+    installCmd: 'go install github.com/fzipp/gocyclo/cmd/gocyclo@latest',
+    platform: 'go',
+  },
 ];
 
 async function main() {
