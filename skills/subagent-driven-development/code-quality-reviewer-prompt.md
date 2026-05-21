@@ -15,6 +15,19 @@ Task tool (superpowers-prepared:code-reviewer):
   DESCRIPTION: <task summary>
 ```
 
+**Spec Review Findings (injected by Main Agent):**
+
+The spec reviewer has already verified compliance with requirements. Their findings are provided below:
+
+<!-- SPEC_REVIEW_FINDINGS -->
+<spec-review-report-json>
+<!-- /SPEC_REVIEW_FINDINGS -->
+
+The spec reviewer verified: <requirements_met>
+The spec reviewer noted concerns: <concerns>
+
+**Your focus:** The spec reviewer already checked scope compliance. Focus on: code quality, architecture, error handling, edge cases not covered by the spec review, test quality, and any gaps the spec reviewer did not address. Do not repeat scope verifications already done.
+
 **In addition to standard code quality concerns, the reviewer should check:**
 - Does each file have one clear responsibility with a well-defined interface?
 - Are units decomposed so they can be understood and tested independently?
