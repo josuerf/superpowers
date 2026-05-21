@@ -38,6 +38,52 @@ export interface IStackHandler {
 	domainChecks(domain: "frontend" | "backend" | "infra"): DomainCheck[];
 }
 
+export interface DuplicationConfig {
+	enabled: boolean;
+	maxDuplication: number;
+	minLines: number;
+	minTokens: number;
+	ignorePatterns: string[];
+}
+
+export interface ComplexityConfig {
+	enabled: boolean;
+	thresholds: Record<string, number>;
+}
+
+export interface DuplicationResult {
+	passed: boolean;
+	duplicationPercent: number;
+	totalDuplicationLines: number;
+	errors: ParsedError[];
+	warnings: string[];
+	duration: number;
+}
+
+export interface ComplexityResult {
+	passed: boolean;
+	maxComplexityFound: number;
+	violations: Array<{
+		file: string;
+		line: number;
+		name: string;
+		complexity: number;
+		threshold: number;
+	}>;
+	duration: number;
+}
+
+export interface SpecReviewReport {
+	taskId: string;
+	verdict: "PASS" | "FAIL";
+	requirements_met: string[];
+	requirements_missing: string[];
+	extra_scope: string[];
+	files_reviewed: string[];
+	concerns: string[];
+	timestamp: string;
+}
+
 export interface HarnessConfig {
 	coverageMin: number;
 	securityScan: {
@@ -54,6 +100,8 @@ export interface HarnessConfig {
 		coverage: "error" | "warning";
 		security: "error" | "warning" | "human_review";
 	};
+	duplication: DuplicationConfig;
+	complexity: ComplexityConfig;
 }
 
 export interface WorkspaceProject {
@@ -92,6 +140,8 @@ export interface VerifyReport {
 		tests: { passed: number; total: number; framework: string };
 		coverage: { percentage: number; target: number; filesBelow: number };
 		patterns?: { violations: number; blocked: number; warned: number };
+		duplication?: { percentage: number; passed: boolean };
+		complexity?: { maxFound: number; passed: boolean };
 		security?: {
 			decision: "APPROVE" | "BLOCK" | "NEEDS_HUMAN_REVIEW" | "NOT_ANALYZED";
 			totalFindings: number;

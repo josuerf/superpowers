@@ -16,6 +16,27 @@ const DEFAULT_CONFIG: HarnessConfig = {
 	domainSpecific: {},
 	timeout: { verifyLocal: 30, verifyAll: 300 },
 	failOn: { lint: "error", coverage: "warning", security: "error" },
+	duplication: {
+		enabled: true,
+		maxDuplication: 5,
+		minLines: 5,
+		minTokens: 50,
+		ignorePatterns: ["**/*.test.ts", "**/*.spec.ts", "**/node_modules/**", "**/*.min.js"],
+	},
+	complexity: {
+		enabled: true,
+		thresholds: {
+			"react-nextjs": 10,
+			"node-express": 10,
+			"node-fastify": 10,
+			"node-elysia": 10,
+			"java-springboot": 10,
+			"csharp-dotnet": 15,
+			"csharp-aspnet": 15,
+			"python-fastapi": 10,
+			"go-std": 10,
+		},
+	},
 };
 
 export function loadProjectConfig(projectRoot: string): HarnessConfig {
