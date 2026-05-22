@@ -505,6 +505,8 @@ The Agentic Development Harness is an automated verification and review system t
 
 **CLI** — `npx ts-node tools/harness/cli.ts <command>` with commands: `local`, `all`, `security`, `completeness`, `deadcode`, `duplication`, `complexity`, `explain-drift`, `scan`, `install-tools`
 
+**Config** — `.harness.config.json` at project root customizes all of the above. See [full reference](docs/superpowers/harness-config.md) for all options with defaults.
+
 
 ### Patterns System
 
