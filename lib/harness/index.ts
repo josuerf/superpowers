@@ -43,6 +43,8 @@ import {
 } from "./reviewers/parser";
 import * as path from "node:path";
 import { validatePatterns } from "./validators/patterns";
+import { validateDuplication } from "./validators/duplication";
+import { validateComplexity } from "./validators/complexity";
 import { PatternCatalog } from "../patterns/catalog";
 import { loadPatternsConfig, resolveWikiPaths } from "../patterns/config";
 
@@ -142,6 +144,28 @@ export async function verify(
 			return { ...report, secOpsDecision, harnessAction };
 		}
 
+		// Complexity check (verify-local)
+		if (config.complexity.enabled) {
+			const complexityResult = await validateComplexity(
+				cwd,
+				stack,
+				config.complexity,
+				config.timeout.verifyLocal * 1000,
+			);
+			(results as any).complexity = complexityResult;
+			if (!complexityResult.passed && config.failOn.lint === "error") {
+				const report = buildReport({
+					feature,
+					mode: options.mode,
+					results,
+					coverageTarget: config.coverageMin,
+					harnessAction,
+				});
+				saveReport(report, path.join(cwd, ".harness", "reports"));
+				return { ...report, secOpsDecision, harnessAction };
+			}
+		}
+
 		results.test = await validateTests(cwd, stack);
 		if (!results.test.passed) {
 			const report = buildReport({
@@ -204,6 +228,32 @@ export async function verify(
 		}
 
 		if (options.mode === "verify-all") {
+			// Duplication check (verify-all only)
+			if (config.duplication.enabled) {
+				const dupResult = await validateDuplication(
+					cwd,
+					config.duplication,
+					config.timeout.verifyAll * 1000,
+				);
+				results.duplication = {
+					passed: dupResult.passed,
+					errors: dupResult.errors,
+					warnings: dupResult.warnings,
+					duration: dupResult.duration,
+				};
+				if (!dupResult.passed && config.failOn.security === "error") {
+					const report = buildReport({
+						feature,
+						mode: options.mode,
+						results,
+						coverageTarget: config.coverageMin,
+						harnessAction,
+					});
+					saveReport(report, path.join(cwd, ".harness", "reports"));
+					return { ...report, secOpsDecision, harnessAction };
+				}
+			}
+
 			const secResult = await validateSecurity(
 				cwd,
 				config.securityScan.tools,
@@ -353,6 +403,10 @@ export type {
 	ACEvidence,
 	CompletenessReport,
 } from "./completeness/types";
+
+// Spec review parsing
+export { parseSpecReviewReport } from "./reviewers/spec-review-parser";
+export type { SpecReviewReport } from "./types";
 
 // Dead code detection
 export { detectDeadCode, formatDeadCodeMarkdown } from "./deadcode/detector";

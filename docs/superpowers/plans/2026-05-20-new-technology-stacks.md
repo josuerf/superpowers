@@ -17,7 +17,7 @@
 - Reference: `lib/harness/stacks/csharp-aspnet.ts`
 - Reference: `lib/harness/stacks/base.ts`
 
-- [ ] **Step 1: Write the stack handler**
+- [x] **Step: Write the stack handler**
 
 ```typescript
 import * as fs from "node:fs";
@@ -146,7 +146,7 @@ function getAllFiles(
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/stacks/csharp-dotnet.ts
@@ -161,7 +161,7 @@ git commit -m "feat: add csharp-dotnet stack handler for modern .NET 8/9"
 - Create: `lib/harness/stacks/node-fastify.ts`
 - Reference: `lib/harness/stacks/node-express.ts`
 
-- [ ] **Step 1: Write the stack handler**
+- [x] **Step: Write the stack handler**
 
 ```typescript
 import * as fs from "node:fs";
@@ -222,7 +222,7 @@ export class NodeFastifyStack extends BaseStackHandler {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/stacks/node-fastify.ts
@@ -237,7 +237,7 @@ git commit -m "feat: add node-fastify stack handler"
 - Create: `lib/harness/stacks/node-elysia.ts`
 - Reference: `lib/harness/stacks/node-express.ts`
 
-- [ ] **Step 1: Write the stack handler**
+- [x] **Step: Write the stack handler**
 
 ```typescript
 import * as fs from "node:fs";
@@ -298,7 +298,7 @@ export class NodeElysiaStack extends BaseStackHandler {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/stacks/node-elysia.ts
@@ -313,7 +313,7 @@ git commit -m "feat: add node-elysia stack handler"
 - Create: `lib/harness/stacks/java-springboot.ts`
 - Reference: `lib/harness/stacks/csharp-aspnet.ts`
 
-- [ ] **Step 1: Write the stack handler**
+- [x] **Step: Write the stack handler**
 
 ```typescript
 import * as fs from "node:fs";
@@ -411,7 +411,7 @@ export class JavaSpringBootStack extends BaseStackHandler {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/stacks/java-springboot.ts
@@ -426,7 +426,7 @@ git commit -m "feat: add java-springboot stack handler"
 - Create: `lib/harness/reviewers/stacks/csharp-dotnet.md`
 - Reference: `lib/harness/reviewers/stacks/csharp-aspnet.md`
 
-- [ ] **Step 1: Write the reviewer rules**
+- [x] **Step: Write the reviewer rules**
 
 ```markdown
 # C# / Modern .NET (8/9) Specific Evaluation Rules
@@ -465,7 +465,7 @@ git commit -m "feat: add java-springboot stack handler"
 - **Environment Configuration**: Separate `appsettings.Development.json` and `appsettings.Production.json`. Environment variables override file config in production.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/reviewers/stacks/csharp-dotnet.md
@@ -480,7 +480,7 @@ git commit -m "feat: add csharp-dotnet reviewer rules"
 - Create: `lib/harness/reviewers/stacks/node-fastify.md`
 - Reference: `lib/harness/reviewers/stacks/node-express.md`
 
-- [ ] **Step 1: Write the reviewer rules**
+- [x] **Step: Write the reviewer rules**
 
 ```markdown
 # Node.js / Fastify Specific Evaluation Rules
@@ -521,7 +521,7 @@ git commit -m "feat: add csharp-dotnet reviewer rules"
 - **Zero Secrets**: Environment variables with startup validation. Reject hardcoded API keys, database passwords, or JWT secrets. Use dotenv in development, secret managers in production.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/reviewers/stacks/node-fastify.md
@@ -535,7 +535,7 @@ git commit -m "feat: add node-fastify reviewer rules"
 **Files:**
 - Create: `lib/harness/reviewers/stacks/node-elysia.md`
 
-- [ ] **Step 1: Write the reviewer rules**
+- [x] **Step: Write the reviewer rules**
 
 ```markdown
 # ElysiaJS (Bun) Specific Evaluation Rules
@@ -579,7 +579,7 @@ git commit -m "feat: add node-fastify reviewer rules"
 - **OpenAPI Generation**: Swagger/OpenAPI auto-generated from TypeBox schemas. Keep documentation in sync with implementation.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/reviewers/stacks/node-elysia.md
@@ -593,7 +593,7 @@ git commit -m "feat: add node-elysia reviewer rules"
 **Files:**
 - Create: `lib/harness/reviewers/stacks/java-springboot.md`
 
-- [ ] **Step 1: Write the reviewer rules**
+- [x] **Step: Write the reviewer rules**
 
 ```markdown
 # Java / Spring Boot 3.x (Java 21) Specific Evaluation Rules
@@ -647,7 +647,7 @@ git commit -m "feat: add node-elysia reviewer rules"
 - **Test Slices**: `@WebMvcTest` for controller tests, `@DataJpaTest` for repository tests. Reject full context loading for unit tests.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/reviewers/stacks/java-springboot.md
@@ -661,7 +661,7 @@ git commit -m "feat: add java-springboot reviewer rules"
 **Files:**
 - Modify: `lib/harness/discovery.ts`
 
-- [ ] **Step 1: Add new stack detectors**
+- [x] **Step: Add new stack detectors**
 
 Replace the `STACK_DETECTORS` constant (lines 10-20) with:
 
@@ -685,7 +685,7 @@ const STACK_DETECTORS: Record<string, { files: string[]; deps?: string[] }> = {
 
 Note: `csharp-dotnet` is placed before `csharp-aspnet` so modern .NET projects match first.
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/discovery.ts
@@ -699,7 +699,7 @@ git commit -m "feat: add new stack detectors to discovery"
 **Files:**
 - Modify: `lib/harness/reviewers/loader.ts`
 
-- [ ] **Step 1: Add to `STACK_FILE_MAP`**
+- [x] **Step: Add to `STACK_FILE_MAP`**
 
 Replace lines 5-14 with:
 
@@ -720,7 +720,7 @@ const STACK_FILE_MAP: Record<string, string> = {
 };
 ```
 
-- [ ] **Step 2: Add file extension mappings to `resolveStacksForFiles`**
+- [x] **Step: Add file extension mappings to `resolveStacksForFiles`**
 
 In the `resolveStacksForFiles` function, add these checks after the existing extension checks (around line 102-113):
 
@@ -758,7 +758,7 @@ if (
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/reviewers/loader.ts
@@ -772,7 +772,7 @@ git commit -m "feat: add new stack mappings to reviewer loader"
 **Files:**
 - Modify: `lib/harness/validators/lint.ts`
 
-- [ ] **Step 1: Add new stack commands to `cmdMap`**
+- [x] **Step: Add new stack commands to `cmdMap`**
 
 Replace lines 10-17 with:
 
@@ -791,7 +791,7 @@ const cmdMap: Record<string, string> = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/validators/lint.ts
@@ -805,7 +805,7 @@ git commit -m "feat: add lint commands for new stacks"
 **Files:**
 - Modify: `lib/harness/validators/typecheck.ts`
 
-- [ ] **Step 1: Add new stack commands to `cmdMap`**
+- [x] **Step: Add new stack commands to `cmdMap`**
 
 Replace lines 10-17 with:
 
@@ -824,7 +824,7 @@ const cmdMap: Record<string, string> = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/validators/typecheck.ts
@@ -838,7 +838,7 @@ git commit -m "feat: add typecheck commands for new stacks"
 **Files:**
 - Modify: `lib/harness/validators/test.ts`
 
-- [ ] **Step 1: Add new stack commands to `cmdMap`**
+- [x] **Step: Add new stack commands to `cmdMap`**
 
 Replace lines 11-18 with:
 
@@ -857,7 +857,7 @@ const cmdMap: Record<string, string> = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/validators/test.ts
@@ -871,7 +871,7 @@ git commit -m "feat: add test commands for new stacks"
 **Files:**
 - Modify: `lib/harness/validators/coverage.ts`
 
-- [ ] **Step 1: Add new stack commands to `cmdMap`**
+- [x] **Step: Add new stack commands to `cmdMap`**
 
 Replace lines 11-21 with:
 
@@ -895,7 +895,7 @@ const cmdMap: Record<string, string> = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/validators/coverage.ts
@@ -909,7 +909,7 @@ git commit -m "feat: add coverage commands for new stacks"
 **Files:**
 - Modify: `lib/harness/validators/integration.ts`
 
-- [ ] **Step 1: Add new stack commands to `cmdMap`**
+- [x] **Step: Add new stack commands to `cmdMap`**
 
 Replace lines 10-19 with:
 
@@ -931,7 +931,7 @@ const cmdMap: Record<string, string> = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step: Commit**
 
 ```bash
 git add lib/harness/validators/integration.ts
@@ -942,7 +942,7 @@ git commit -m "feat: add integration test commands for new stacks"
 
 ### Task 16: Run Typecheck and Tests
 
-- [ ] **Step 1: Run TypeScript typecheck**
+- [x] **Step: Run TypeScript typecheck**
 
 ```bash
 npx tsc --noEmit
@@ -950,7 +950,7 @@ npx tsc --noEmit
 
 Expected: No errors. If there are errors, fix type mismatches in the new stack handlers.
 
-- [ ] **Step 2: Run existing tests**
+- [x] **Step: Run existing tests**
 
 ```bash
 npx jest --passWithNoTests
@@ -958,7 +958,7 @@ npx jest --passWithNoTests
 
 Expected: All existing tests pass. New stacks don't break existing functionality.
 
-- [ ] **Step 3: Verify file structure**
+- [x] **Step: Verify file structure**
 
 ```bash
 ls lib/harness/stacks/
@@ -969,7 +969,7 @@ Expected output:
 - `stacks/`: base.ts, csharp-aspnet.ts, csharp-dotnet.ts, go-std.ts, java-springboot.ts, node-elysia.ts, node-express.ts, node-fastify.ts, python-fastapi.ts, react-nextjs.ts, terraform.ts
 - `reviewers/stacks/`: csharp-aspnet.md, csharp-dotnet.md, go-std.md, java-springboot.md, node-drizzle-typeorm.md, node-elysia.md, node-express.md, node-fastify.md, node-nestjs.md, react-nextjs.md, terraform.md
 
-- [ ] **Step 4: Final commit**
+- [x] **Step: Final commit**
 
 ```bash
 git add -A

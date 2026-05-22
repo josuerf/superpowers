@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { verify } from "../../lib/harness/index.js";
+import { verify, loadProjectConfig, detectStack } from "../../lib/harness/index.js";
+import { validateDuplication } from "../../lib/harness/validators/duplication.js";
+import { validateComplexity } from "../../lib/harness/validators/complexity.js";
 import {
 	verifyCompleteness,
 	formatCompletenessMarkdown,
@@ -91,6 +93,48 @@ async function main() {
 		const report = detectDeadCode({ taskFiles, projectRoot: getProjectRoot() });
 		console.log(formatDeadCodeMarkdown(report));
 		process.exit(report.summary.dead === 0 ? 0 : 1);
+	}
+
+	if (command === "duplication") {
+		const config = loadProjectConfig(getProjectRoot());
+		const thresholdOverride = args.indexOf("--threshold");
+		if (thresholdOverride !== -1 && args[thresholdOverride + 1]) {
+			config.duplication.maxDuplication = parseInt(args[thresholdOverride + 1], 10);
+		}
+		const report = await validateDuplication(getProjectRoot(), config.duplication);
+		console.log(`Duplication: ${report.duplicationPercent.toFixed(1)}% (threshold: ${config.duplication.maxDuplication}%)`);
+		console.log(`Total duplicated lines: ${report.totalDuplicationLines}`);
+		if (report.errors.length > 0) {
+			console.log(`\n${report.errors.length} error(s):`);
+			report.errors.forEach((e, i) => console.log(`  ${i + 1}. ${e.file}:${e.line} - ${e.message}`));
+		}
+		if (report.warnings.length > 0) {
+			console.log(`\n${report.warnings.length} warning(s):`);
+			report.warnings.forEach((w, i) => console.log(`  ${i + 1}. ${w}`));
+		}
+		process.exit(report.passed ? 0 : 1);
+	}
+
+	if (command === "complexity") {
+		const config = loadProjectConfig(getProjectRoot());
+		const stack = detectStack(getProjectRoot());
+		if (!stack) {
+			console.error("Could not detect stack. Use --stack to specify.");
+			process.exit(1);
+		}
+		const stackOverride = args.indexOf("--stack");
+		const targetStack = stackOverride !== -1 && args[stackOverride + 1] ? args[stackOverride + 1] : stack;
+		const thresholdOverride = args.indexOf("--threshold");
+		if (thresholdOverride !== -1 && args[thresholdOverride + 1]) {
+			config.complexity.thresholds[targetStack] = parseInt(args[thresholdOverride + 1], 10);
+		}
+		const report = await validateComplexity(getProjectRoot(), targetStack, config.complexity);
+		console.log(`Complexity (stack: ${targetStack}): max found = ${report.maxComplexityFound} (threshold: ${config.complexity.thresholds[targetStack] || 10})`);
+		if (report.violations.length > 0) {
+			console.log(`\n${report.violations.length} violation(s):`);
+			report.violations.forEach((v, i) => console.log(`  ${i + 1}. ${v.file}:${v.line} - ${v.name} (complexity: ${v.complexity})`));
+		}
+		process.exit(report.passed ? 0 : 1);
 	}
 
 	const verifyMode = modeMap[command] || "verify-local";

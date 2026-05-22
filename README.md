@@ -473,8 +473,8 @@ The Agentic Development Harness is an automated verification and review system t
 
 | Pipeline | Steps |
 |----------|-------|
-| `verify-local` (fast) | lint → typecheck → test → coverage → patterns |
-| `verify-all` (full) | verify-local + security → integration → domain-specific → migration |
+| `verify-local` (fast) | lint → typecheck → complexity → test → coverage → patterns |
+| `verify-all` (full) | verify-local + duplication → security → integration → domain-specific → migration |
 
 **Completeness Guarantees** — Verifies that all acceptance criteria from specs are implemented:
 - **Spec Parser** — Extracts acceptance criteria from multiple spec formats (markdown, JSON, structured text)
@@ -491,7 +491,19 @@ The Agentic Development Harness is an automated verification and review system t
 - **Semantic Diff** — Compares spec requirements against actual implementation, identifying missing, partial, divergent, and extra requirements
 - **Gap Classifier** — Categorizes drift by severity (critical-drift, warning, informational) and generates correction tasks
 
-**CLI** — `npx ts-node tools/harness/cli.ts <command>` with commands: `local`, `all`, `security`, `completeness`, `deadcode`, `explain-drift`, `scan`, `install-tools`
+**Code Duplication Detection** — Static analysis for duplicated code blocks:
+- **jscpd Integration** — Runs jscpd with configurable thresholds, ignores test files and node_modules
+- **Duplication Validator** — Reports file:line of duplicated blocks, blocks build when threshold exceeded
+
+**Cyclomatic Complexity Analysis** — Per-stack complexity gate:
+- **TS/JS:** eslint-plugin-complexity
+- **Java:** PMD design rules
+- **C#:** Microsoft.CodeAnalysis.Metrics
+- **Python:** radon
+- **Go:** gocyclo
+- **Complexity Validator** — Reports function:file:line:complexity, blocks build when threshold exceeded
+
+**CLI** — `npx ts-node tools/harness/cli.ts <command>` with commands: `local`, `all`, `security`, `completeness`, `deadcode`, `duplication`, `complexity`, `explain-drift`, `scan`, `install-tools`
 
 
 ### Patterns System

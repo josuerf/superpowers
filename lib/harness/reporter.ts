@@ -51,6 +51,26 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 		warnings: [],
 		duration: 0,
 	};
+	const patternsResult = results.patterns || {
+		passed: true,
+		errors: [],
+		warnings: [],
+		duration: 0,
+	};
+	const duplicationResult = (results as any).duplication || {
+		passed: true,
+		errors: [],
+		warnings: [],
+		duration: 0,
+		duplicationPercent: 0,
+	};
+	const complexityResult = (results as any).complexity || {
+		passed: true,
+		errors: [],
+		warnings: [],
+		duration: 0,
+		maxComplexityFound: 0,
+	};
 
 	const totalDuration = Object.values(results).reduce(
 		(sum, r) => sum + r.duration,
@@ -62,12 +82,17 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 		...typecheckResult.errors,
 		...testResult.errors,
 		...coverageResult.errors,
+		...patternsResult.errors,
+		...duplicationResult.errors,
 	];
 	const allWarnings = [
 		...lintResult.warnings,
 		...typecheckResult.warnings,
 		...testResult.warnings,
 		...coverageResult.warnings,
+		...patternsResult.warnings,
+		...duplicationResult.warnings,
+		...complexityResult.warnings,
 	];
 
 	const report: VerifyReport = {
@@ -107,6 +132,14 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 						falsePositives: 0,
 						needsInvestigation: 0,
 					},
+			duplication: (results as any).duplication ? {
+				percentage: (results as any).duplication.duplicationPercent || 0,
+				passed: (results as any).duplication.passed,
+			} : undefined,
+			complexity: (results as any).complexity ? {
+				maxFound: (results as any).complexity.maxComplexityFound || 0,
+				passed: (results as any).complexity.passed,
+			} : undefined,
 		},
 		issues: allErrors.map((e) => ({
 			file: e.file,
