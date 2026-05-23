@@ -10,7 +10,7 @@ Add superpowers to the `plugin` array in your `opencode.json` (global or project
 
 ```json
 {
-  "plugin": ["superpowers@git+https://github.com/josuerf/superpowers-prepared.git"]
+  "plugin": ["git@github.com:josuerf/superpowers.git"]
 }
 ```
 

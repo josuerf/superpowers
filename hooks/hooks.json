@@ -27,6 +27,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-activator.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/capture-hook.js\"",
+            "async": false
           }
         ]
       }
@@ -38,6 +43,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/track-edits.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-task-validation.js\"",
+            "async": false
           }
         ]
       },
@@ -71,18 +81,6 @@
         ]
       }
     ],
-    "PostTaskValidation": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-task-validation.js\"",
-            "async": false
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -108,17 +106,6 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/bash-compress-hook.js\""
-          }
-        ]
-      }
-    ],
-    "PostUserFeedback": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/capture-hook.js\"",
-            "async": false
           }
         ]
       }

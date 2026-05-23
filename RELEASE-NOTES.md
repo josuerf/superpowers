@@ -1,6 +1,28 @@
 # Superpowers Optimized Release Notes
 
-## v6.6.1 (2026-05-08)
+## v6.7.0 (2026-05-22)
+
+Harness quality gates, learning harness, completeness/deadcode/drift analysis, multi-stack support, and hook compatibility fix for Claude Code.
+
+### New Features
+
+**Harness quality gates** — Three new validation dimensions wired into the verify pipeline: duplication detection via jscpd with configurable thresholds, multi-stack complexity validation via radon (Python) and gocyclo (Go), and an automated spec review system that produces structured JSON output and injects findings back into the quality reviewer prompt. Each gate has its own CLI command (`duplication`, `complexity`, `spec-review`) and is accessible through `npx ts-node tools/harness/cli.ts`.
+
+**Learning harness (patterns system)** — Full pattern lifecycle management: catalog CRUD with global/project wiki support, trigger-based capture hook that detects user corrections and classifies them via LLM, a validator with BLOCK/WARN severity, a wiki linter that detects contradictions, stale entries, orphans, and duplicates, and a ContextEnvelope injector that formats relevant patterns into review checklists. CLI tools support lint, query, stats, promote, archive, and supersede operations.
+
+**Completeness/deadcode/drift analysis** — Three new harness modules: the completeness verifier parses specs into acceptance criteria and maps them to implementation code, the deadcode detector builds an import graph with reachability analysis, and the drift analyzer computes semantic diffs between spec and code. All three are exposed via CLI and integrated into the verify pipeline.
+
+**Multi-stack expansion** — New stack detectors and reviewer rules for Java Spring Boot, Node.js Fastify, Node.js Elysia, and C# .NET, including stack-specific test, lint, typecheck, coverage, and integration test commands.
+
+**Config auto-generation** — The session-start hook now auto-generates `.harness.config.json` with sensible defaults when the file does not exist. Full configuration reference added to `docs/superpowers/harness-config.md`.
+
+### Fixes
+
+**Claude Code hook compatibility** — `PostTaskValidation` and `PostUserFeedback` were not valid hook names in the current Claude Code schema, causing plugin load failures. Both were migrated to their valid equivalents: `PostTaskValidation` merged into `PostToolUse` (Edit|Write matcher) and `PostUserFeedback` merged into `UserPromptSubmit`. The `post-task-validation.js` and `capture-hook.js` scripts are unchanged.
+
+### Changes
+
+**Version sync** — All plugin manifests previously drifted at `6.0.0` while the VERSION file was at `6.6.x`. This release syncs every file to a single version: `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `gemini-extension.json`, `plugin.universal.yaml`, and `VERSION`.
 
 Context pressure gate, Tailwind v4 reference, plan-level security flag, stub scan, and cleaner docs paths.
 
