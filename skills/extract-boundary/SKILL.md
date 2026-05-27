@@ -86,7 +86,10 @@ As a [actor], I want [goal], so that [value].
 
 ## After Implementation
 
-Run `npx ts-node tools/harness/cli.ts completeness --spec path/to/spec.md` to verify all ACs are implemented.
+Run the verification command using the plugin root path (choose the appropriate one for your OS/shell):
+- **Linux/macOS (bash/zsh):** `npx ts-node "$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts" completeness --spec path/to/spec.md`
+- **Windows (CMD):** `npx ts-node "%CLAUDE_PLUGIN_ROOT%\tools\harness\cli.ts" completeness --spec path/to/spec.md`
+- **Windows (PowerShell):** `npx ts-node "$env:CLAUDE_PLUGIN_ROOT\tools\harness\cli.ts" completeness --spec path/to/spec.md`
 ```
 
 ## Hard Rules

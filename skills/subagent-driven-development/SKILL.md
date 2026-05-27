@@ -90,7 +90,7 @@ digraph sdd_process {
 Before dispatching any implementer subagent:
 
 1. Invoke `extract-boundary` to gather minimal context for the task's files.
-2. Include in the implementer prompt: "After each change, run `npx ts-node tools/harness/cli.ts local` to verify."
+2. Include in the implementer prompt: "After each change, run the verification command using the appropriate path for your OS/shell (Linux/macOS: `npx ts-node \"$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts\" local`; Windows CMD: `npx ts-node \"%CLAUDE_PLUGIN_ROOT%\\tools\\harness\\cli.ts\" local`; Windows PowerShell: `npx ts-node \"$env:CLAUDE_PLUGIN_ROOT\\tools\\harness\\cli.ts\" local`) to verify."
 
 ### Pattern Injection
 Include learned patterns in implementer and reviewer prompts:
@@ -112,7 +112,11 @@ After each implementer completes:
 After all tasks in a wave complete:
 
 1. Main Agent merges all branches.
-2. Main Agent runs `npx ts-node tools/harness/cli.ts all` (verify-all).
+2. Main Agent runs the verification command using the appropriate path for your OS/shell:
+   - **Linux/macOS (bash/zsh):** `npx ts-node "$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts" all`
+   - **Windows (CMD):** `npx ts-node "%CLAUDE_PLUGIN_ROOT%\tools\harness\cli.ts" all`
+   - **Windows (PowerShell):** `npx ts-node "$env:CLAUDE_PLUGIN_ROOT\tools\harness\cli.ts" all`
+   (verify-all).
 3. If verify-all fails -> delegate fixes to relevant subagents.
 4. If verify-all passes -> proceed to `finishing-a-development-branch`.
 

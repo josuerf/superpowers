@@ -47,7 +47,10 @@ Full semantic diff between spec and implementation — identifies missing, parti
 
 ## Execution
 
-1. Run: `npx ts-node tools/harness/cli.ts <command> [--spec path/to/spec.md] [--root /path/to/project]`
+1. Run the harness command using the appropriate path for your OS/shell:
+   - **Linux/macOS (bash/zsh):** `npx ts-node "$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
+   - **Windows (CMD):** `npx ts-node "%CLAUDE_PLUGIN_ROOT%\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
+   - **Windows (PowerShell):** `npx ts-node "$env:CLAUDE_PLUGIN_ROOT\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
 2. Inspect exit code and output.
 3. If failed, read the report at `.harness/reports/<feature>/<timestamp>-verify-report.md`
 4. Return structured errors to the agent for fixing.
