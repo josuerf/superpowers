@@ -86,10 +86,11 @@ As a [actor], I want [goal], so that [value].
 
 ## After Implementation
 
-Run the verification command using the plugin root path (choose the appropriate one for your OS/shell):
-- **Linux/macOS (bash/zsh):** `npx ts-node "$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts" completeness --spec path/to/spec.md`
-- **Windows (CMD):** `npx ts-node "%CLAUDE_PLUGIN_ROOT%\tools\harness\cli.ts" completeness --spec path/to/spec.md`
-- **Windows (PowerShell):** `npx ts-node "$env:CLAUDE_PLUGIN_ROOT\tools\harness\cli.ts" completeness --spec path/to/spec.md`
+Run the verification command using the plugin root path (choose the appropriate one for your OS/shell and agent):
+- **Linux/macOS (bash/zsh):** `npx ts-node "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" completeness --spec path/to/spec.md`
+- **Windows (CMD):** Use the first set env var among `%CLAUDE_PLUGIN_ROOT%`, `%QWEN_PLUGIN_ROOT%`, `%CURSOR_PLUGIN_ROOT%`, `%CODEX_PLUGIN_ROOT%`, then append `\tools\harness\cli.ts`
+- **Windows (PowerShell):** `npx ts-node "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" completeness --spec path/to/spec.md`
+If no plugin root env var is set, resolve from the superpowers-prepared plugin directory (the parent of the hooks/ directory).
 ```
 
 ## Hard Rules

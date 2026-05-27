@@ -90,7 +90,11 @@ digraph sdd_process {
 Before dispatching any implementer subagent:
 
 1. Invoke `extract-boundary` to gather minimal context for the task's files.
-2. Include in the implementer prompt: "After each change, run the verification command using the appropriate path for your OS/shell (Linux/macOS: `npx ts-node \"$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts\" local`; Windows CMD: `npx ts-node \"%CLAUDE_PLUGIN_ROOT%\\tools\\harness\\cli.ts\" local`; Windows PowerShell: `npx ts-node \"$env:CLAUDE_PLUGIN_ROOT\\tools\\harness\\cli.ts\" local`) to verify."
+2. Include in the implementer prompt: "After each change, run the verification command using the appropriate path for your OS/shell and agent:
+   - **Linux/macOS (bash/zsh):** `npx ts-node \"${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts\" local`
+   - **Windows (CMD):** Use the first set env var among `%CLAUDE_PLUGIN_ROOT%`, `%QWEN_PLUGIN_ROOT%`, `%CURSOR_PLUGIN_ROOT%`, `%CODEX_PLUGIN_ROOT%`, then append `\tools\harness\cli.ts`
+   - **Windows (PowerShell):** `npx ts-node \"$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts\" local`
+   If no plugin root env var is set, resolve from the superpowers-prepared plugin directory (the parent of the hooks/ directory)."
 
 ### Pattern Injection
 Include learned patterns in implementer and reviewer prompts:
@@ -112,11 +116,11 @@ After each implementer completes:
 After all tasks in a wave complete:
 
 1. Main Agent merges all branches.
-2. Main Agent runs the verification command using the appropriate path for your OS/shell:
-   - **Linux/macOS (bash/zsh):** `npx ts-node "$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts" all`
-   - **Windows (CMD):** `npx ts-node "%CLAUDE_PLUGIN_ROOT%\tools\harness\cli.ts" all`
-   - **Windows (PowerShell):** `npx ts-node "$env:CLAUDE_PLUGIN_ROOT\tools\harness\cli.ts" all`
-   (verify-all).
+2. Main Agent runs the verification command using the appropriate path for your OS/shell and agent:
+   - **Linux/macOS (bash/zsh):** `npx ts-node "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" all`
+   - **Windows (CMD):** Use the first set env var among `%CLAUDE_PLUGIN_ROOT%`, `%QWEN_PLUGIN_ROOT%`, `%CURSOR_PLUGIN_ROOT%`, `%CODEX_PLUGIN_ROOT%`, then append `\tools\harness\cli.ts`
+   - **Windows (PowerShell):** `npx ts-node "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" all`
+   If no plugin root env var is set, resolve from the superpowers-prepared plugin directory.
 3. If verify-all fails -> delegate fixes to relevant subagents.
 4. If verify-all passes -> proceed to `finishing-a-development-branch`.
 

@@ -47,10 +47,11 @@ Full semantic diff between spec and implementation — identifies missing, parti
 
 ## Execution
 
-1. Run the harness command using the appropriate path for your OS/shell:
-   - **Linux/macOS (bash/zsh):** `npx ts-node "$CLAUDE_PLUGIN_ROOT/tools/harness/cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
-   - **Windows (CMD):** `npx ts-node "%CLAUDE_PLUGIN_ROOT%\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
-   - **Windows (PowerShell):** `npx ts-node "$env:CLAUDE_PLUGIN_ROOT\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
+1. Run the harness command using the appropriate path for your OS/shell and agent:
+   - **Linux/macOS (bash/zsh):** `npx ts-node "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
+   - **Windows (CMD):** Use the first set env var among `%CLAUDE_PLUGIN_ROOT%`, `%QWEN_PLUGIN_ROOT%`, `%CURSOR_PLUGIN_ROOT%`, `%CODEX_PLUGIN_ROOT%`, then append `\tools\harness\cli.ts`
+   - **Windows (PowerShell):** `npx ts-node "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
+   If no plugin root env var is set, resolve from the superpowers-prepared plugin directory (the parent of the hooks/ directory).
 2. Inspect exit code and output.
 3. If failed, read the report at `.harness/reports/<feature>/<timestamp>-verify-report.md`
 4. Return structured errors to the agent for fixing.
