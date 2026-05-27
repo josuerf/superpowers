@@ -6,7 +6,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd session-start",
 						"async": false
 					}
 				]
@@ -15,7 +15,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" context-engine.js",
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd context-engine.js",
 						"async": true
 					}
 				]
@@ -26,11 +26,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" skill-activator.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd skill-activator.js"
 					},
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" capture-hook.js",
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd capture-hook.js",
 						"async": false
 					}
 				]
@@ -42,11 +42,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" track-edits.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd track-edits.js"
 					},
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" post-task-validation.js",
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd post-task-validation.js",
 						"async": false
 					}
 				]
@@ -56,7 +56,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" track-session-stats.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd track-session-stats.js"
 					}
 				]
 			}
@@ -66,7 +66,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" stop-reminders.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd stop-reminders.js"
 					}
 				]
 			}
@@ -76,7 +76,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" subagent-guard.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd subagent-guard.js"
 					}
 				]
 			}
@@ -87,7 +87,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" safety/block-dangerous-commands.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd safety/block-dangerous-commands.js"
 					}
 				]
 			},
@@ -96,7 +96,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" safety/protect-secrets.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd safety/protect-secrets.js"
 					}
 				]
 			},
@@ -105,7 +105,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd\" bash-compress-hook.js"
+						"command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-node-hook.cmd bash-compress-hook.js"
 					}
 				]
 			}
