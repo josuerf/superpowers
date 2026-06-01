@@ -53,18 +53,20 @@ CMDBLOCK
 # Resolution strategy mirrors Windows batch section above.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_NAME="${1}"                                                                                                             
+shift
 
 # Try agent-specific env vars first
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-    exec node "${CLAUDE_PLUGIN_ROOT}/hooks/${1}" "${@:2}"
+    exec node "${CLAUDE_PLUGIN_ROOT}/hooks/${SCRIPT_NAME}" "$@"
 elif [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
-    exec node "${CURSOR_PLUGIN_ROOT}/hooks/${1}" "${@:2}"
+    exec node "${CURSOR_PLUGIN_ROOT}/hooks/${SCRIPT_NAME}" "$@"
 elif [ -n "${QWEN_PLUGIN_ROOT:-}" ]; then
-    exec node "${QWEN_PLUGIN_ROOT}/hooks/${1}" "${@:2}"
+    exec node "${QWEN_PLUGIN_ROOT}/hooks/${SCRIPT_NAME}" "$@"
 elif [ -n "${CODEX_PLUGIN_ROOT:-}" ]; then
-    exec node "${CODEX_PLUGIN_ROOT}/hooks/${1}" "${@:2}"
+    exec node "${CODEX_PLUGIN_ROOT}/hooks/${SCRIPT_NAME}" "$@"
 fi
 
 # Fallback: resolve from this script's own directory
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-exec node "${PLUGIN_ROOT}/hooks/${1}" "${@:2}"
+exec node "${PLUGIN_ROOT}/hooks/${SCRIPT_NAME}" "$@"

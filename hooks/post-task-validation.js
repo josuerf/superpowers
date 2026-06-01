@@ -21,7 +21,7 @@ function main() {
       const data = JSON.parse(input);
       const modifiedFiles = data.modified_files || [];
       if (modifiedFiles.length === 0) {
-        process.stdout.write('{}');
+        process.stdout.write('');
         return;
       }
 
@@ -40,7 +40,7 @@ function main() {
       const cliPath = path.join(__dirname, '..', 'tools', 'harness', 'cli.ts');
       try {
         execSync(`npx ts-node "${cliPath}" local`, { cwd: projectRoot, stdio: 'pipe' });
-        process.stdout.write(JSON.stringify({ decision: 'allow', reason: 'Validation passed' }));
+        process.stdout.write('');
       } catch (error) {
         const output = error.stderr?.toString() || error.stdout?.toString() || 'Validation failed';
         process.stdout.write(JSON.stringify({
@@ -49,7 +49,7 @@ function main() {
         }));
       }
     } catch (_) {
-      process.stdout.write('{}');
+      process.stdout.write('');
     }
   });
 }

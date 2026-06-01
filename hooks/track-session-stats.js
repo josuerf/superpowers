@@ -106,7 +106,7 @@ async function main() {
     const { tool_name, tool_input } = data;
 
     if (tool_name !== 'Skill') {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -122,7 +122,7 @@ async function main() {
     // Silently ignore
   }
 
-  process.stdout.write('{}');
+  process.stdout.write('');
 }
 
 if (require.main === module) {

@@ -27,7 +27,7 @@ const { RULES, NEVER_COMPRESS } = require('./compression-rules');
 
 // ── Global disable check ──
 if (process.env.SP_NO_COMPRESS === '1') {
-  process.stdout.write('{}');
+  process.stdout.write('');
   process.exit(0);
 }
 
@@ -80,13 +80,13 @@ async function main() {
 
     // Only handle Bash tool calls
     if (tool_name !== 'Bash') {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
     const cmd = (tool_input?.command || '').trim();
     if (!cmd) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -94,7 +94,7 @@ async function main() {
     const projectDir = cwd || process.cwd();
     try {
       if (fs.existsSync(path.join(projectDir, '.sp-no-compress'))) {
-        process.stdout.write('{}');
+        process.stdout.write('');
         return;
       }
     } catch {}
@@ -102,26 +102,26 @@ async function main() {
     // ── RTK coexistence ──
     // If RTK is already handling this command, don't double-compress
     if (/^rtk(\s|\.exe\s)/.test(cmd)) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
     // ── Never-compress list ──
     if (NEVER_COMPRESS.some(pattern => pattern.test(cmd))) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
     // ── Find matching compression rule ──
     const rule = RULES.find(r => r.match.test(cmd));
     if (!rule) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
     // ── Adaptive re-run detection ──
     if (shouldSkipForRerun(cmd, session_id)) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -147,7 +147,7 @@ async function main() {
     }));
   } catch (e) {
     // Fail-open: any error lets the original command through unchanged
-    process.stdout.write('{}');
+    process.stdout.write('');
   }
 }
 

@@ -260,7 +260,7 @@ function main() {
     const data = readJsonStdin();
     process.stdout.write(JSON.stringify(evaluatePayload(data)));
   } catch {
-    process.stdout.write('{}');
+    process.stdout.write('');
   }
 }
 

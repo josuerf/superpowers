@@ -37,7 +37,7 @@ try {
   RULES = JSON.parse(fs.readFileSync(rulesPath, 'utf8')).rules || [];
 } catch (e) {
   // If rules can't be loaded, hook is a no-op
-  process.stdout.write('{}');
+  process.stdout.write('');
   process.exit(0);
 }
 
@@ -502,7 +502,7 @@ async function main() {
 
     // Micro-task fast path: skip all enrichment entirely
     if (isMicroTask(prompt)) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -534,7 +534,7 @@ async function main() {
 
     // Nothing to inject
     if (!skillContext && !memoryContext && !knownIssuesContext) {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -549,7 +549,7 @@ async function main() {
       },
     }));
   } catch {
-    process.stdout.write('{}');
+    process.stdout.write('');
   }
 }
 

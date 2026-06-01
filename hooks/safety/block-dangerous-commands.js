@@ -84,7 +84,7 @@ async function main() {
     const { tool_name, tool_input, session_id, cwd, permission_mode } = data;
 
     if (tool_name !== 'Bash') {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -104,10 +104,10 @@ async function main() {
       return;
     }
 
-    process.stdout.write('{}');
+    process.stdout.write('');
   } catch (e) {
     log({ level: 'ERROR', error: e.message });
-    process.stdout.write('{}');
+    process.stdout.write('');
   }
 }
 

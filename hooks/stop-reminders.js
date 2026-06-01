@@ -381,7 +381,7 @@ async function main() {
     const data = JSON.parse(input);
     process.stdout.write(JSON.stringify(evaluatePayload(data)));
   } catch {
-    process.stdout.write('{}');
+    process.stdout.write('');
   }
 }
 

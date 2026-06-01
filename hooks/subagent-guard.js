@@ -113,10 +113,10 @@ function main() {
       }
 
       // No violation — allow subagent to stop normally
-      process.stdout.write('{}');
+      process.stdout.write('');
     } catch (_) {
       // Parse failure — allow stop (never break the pipeline)
-      process.stdout.write('{}');
+      process.stdout.write('');
     }
   });
 }
