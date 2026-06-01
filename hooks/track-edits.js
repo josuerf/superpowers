@@ -160,7 +160,7 @@ async function main() {
 
     // Only track Edit and Write operations
     if (tool_name !== 'Edit' && tool_name !== 'Write') {
-      process.stdout.write('{}');
+      process.stdout.write('');
       return;
     }
 
@@ -188,7 +188,7 @@ async function main() {
     // Silently ignore parse errors
   }
 
-  process.stdout.write('{}');
+  process.stdout.write('');
 }
 
 if (require.main === module) {

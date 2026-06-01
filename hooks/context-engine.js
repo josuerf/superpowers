@@ -87,7 +87,7 @@ async function main() {
   // Bail silently if not a git repo
   const gitDir = run('git rev-parse --git-dir', cwd);
   if (!gitDir) {
-    process.stdout.write('{}');
+    process.stdout.write('');
     return;
   }
 
@@ -197,7 +197,7 @@ async function main() {
     // Silently ignore write errors — never block session start
   }
 
-  process.stdout.write('{}');
+  process.stdout.write('');
 }
 
 main();

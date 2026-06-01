@@ -22,13 +22,13 @@ function main() {
       const cwd = data.cwd || process.cwd();
 
       if (!userMessage) {
-        process.stdout.write(JSON.stringify({ decision: 'allow', reason: 'No user message' }));
+        process.stdout.write('');
         return;
       }
 
       const triggersPath = path.join(__dirname, 'capture-patterns.json');
       if (!fs.existsSync(triggersPath)) {
-        process.stdout.write(JSON.stringify({ decision: 'allow', reason: 'No triggers config' }));
+        process.stdout.write('');
         return;
       }
 
@@ -38,7 +38,7 @@ function main() {
       );
 
       if (!matchedTrigger) {
-        process.stdout.write(JSON.stringify({ decision: 'allow', reason: 'No correction detected' }));
+        process.stdout.write('');
         return;
       }
 
@@ -98,7 +98,7 @@ function main() {
 
       process.stdout.write(JSON.stringify(output));
     } catch (_) {
-      process.stdout.write(JSON.stringify({ decision: 'allow', reason: 'Hook error' }));
+      process.stdout.write('');
     }
   });
 }
