@@ -2,7 +2,10 @@
 /**
  * Stop Hook — Deterministic Completion-Time Quality Gates
  *
- * Runs verify-all when significant uncommitted changes exist at session stop.
+ * Runs verify-all when significant uncommitted changes THAT THIS SESSION MADE
+ * exist at session stop. The gate is scoped to files edited via Write/Edit/
+ * MultiEdit/NotebookEdit in the current transcript, so pre-existing uncommitted
+ * changes already in the working tree when the session opened never trigger it.
  * This makes quality gates deterministic (hook-based) rather than skill-dependent.
  *
  * Input:  stdin JSON with { session_id, cwd, ... }
@@ -96,6 +99,66 @@ function getUncommittedSourceFiles(cwd) {
   } catch {
     return [];
   }
+}
+
+// Editing tools whose targets count as "changes this session made".
+const SESSION_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+
+// Resolve a git/transcript path to a comparable absolute form. git status emits
+// repo-relative forward-slash paths; the transcript stores absolute paths. Both
+// route through path.resolve(cwd, ...); on Windows we lowercase since the FS is
+// case-insensitive.
+function normalizePath(cwd, p) {
+  let abs = path.resolve(cwd || process.cwd(), p);
+  if (process.platform === 'win32') abs = abs.toLowerCase();
+  return abs;
+}
+
+// Returns a Set of normalized absolute paths edited via Write/Edit/MultiEdit/
+// NotebookEdit in this session's transcript. Returns null (NOT an empty Set)
+// when the transcript is missing or unreadable, so the caller can tell apart
+// "session edited nothing" (empty Set → nothing to verify, skip the gate) from
+// "we don't know what the session changed" (null → fall back to whole-tree).
+function getSessionEditedFiles(transcriptPath, cwd) {
+  if (!transcriptPath) return null;
+  let content;
+  try {
+    content = fs.readFileSync(transcriptPath, 'utf8');
+  } catch {
+    return null;
+  }
+
+  const edited = new Set();
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    let entry;
+    try {
+      entry = JSON.parse(trimmed);
+    } catch {
+      continue; // tolerate partial/non-JSON lines
+    }
+
+    const blocks =
+      entry && entry.message && Array.isArray(entry.message.content)
+        ? entry.message.content
+        : Array.isArray(entry && entry.content)
+          ? entry.content
+          : [];
+
+    for (const block of blocks) {
+      if (!block || block.type !== 'tool_use' || !SESSION_EDIT_TOOLS.has(block.name)) {
+        continue;
+      }
+      const input = block.input || {};
+      const fp = input.file_path || input.notebook_path;
+      if (typeof fp === 'string' && fp.length > 0) {
+        edited.add(normalizePath(cwd, fp));
+      }
+    }
+  }
+  return edited;
 }
 
 function runVerifyAll(cwd) {
@@ -194,7 +257,19 @@ async function main() {
     const cwd = data.cwd || process.cwd();
 
     // Check for significant uncommitted source changes
-    const sourceFiles = getUncommittedSourceFiles(cwd);
+    const uncommitted = getUncommittedSourceFiles(cwd);
+
+    // Scope the gate to files THIS session actually edited. When the transcript
+    // is readable we intersect with it: an empty intersection (the session made
+    // no edits — e.g. the user just asked a question) means there is nothing to
+    // verify and we exit clean, so pre-existing uncommitted changes no longer
+    // trap the user. If the transcript is unavailable we fall back to the whole
+    // working tree so the gate still works on harnesses that omit transcript_path.
+    const sessionEdited = getSessionEditedFiles(data.transcript_path, cwd);
+    const sourceFiles =
+      sessionEdited === null
+        ? uncommitted
+        : uncommitted.filter((f) => sessionEdited.has(normalizePath(cwd, f)));
 
     if (sourceFiles.length < MIN_FILES_FOR_VERIFY) {
       process.stdout.write('{}');
@@ -250,6 +325,9 @@ if (require.main === module) {
     shouldFire,
     setGuard,
     getUncommittedSourceFiles,
+    getSessionEditedFiles,
+    normalizePath,
+    SESSION_EDIT_TOOLS,
     runVerifyAll,
     buildBlockReason,
     runCarrascoGate,
