@@ -39,7 +39,7 @@ function main() {
 
       const cliPath = path.join(__dirname, '..', 'tools', 'harness', 'cli.ts');
       try {
-        execSync(`npx ts-node "${cliPath}" local`, { cwd: projectRoot, stdio: 'pipe' });
+        execSync(`npx tsx "${cliPath}" local`, { cwd: projectRoot, stdio: 'pipe' });
         process.stdout.write('');
       } catch (error) {
         const output = error.stderr?.toString() || error.stdout?.toString() || 'Validation failed';
