@@ -90,6 +90,13 @@
       "intentPatterns": ["review\\s+(my|the|this)\\s+code", "check\\s+(this|these)\\s+(before|for)", "look\\s+(over|at)\\s+(my|the|this)\\s+(code|implementation|changes|diff|tests?|pr|pull.?request|files?|codebase|repo)", "(is|are)\\s+(this|these)\\s+secure", "security\\s+review", "check\\s+(for\\s+)?vulnerabilit"]
     },
     {
+      "skill": "carrasco-review",
+      "type": "workflow",
+      "priority": "medium",
+      "keywords": ["carrasco", "rigorous review", "strict review", "strict code review", "review hard", "harsh review", "enforce standards", "aggressive review"],
+      "intentPatterns": ["(carrasco|rigorous|strict|harsh|aggressive)\\s+(code\\s+)?review", "review\\s+(my|the|this).{0,20}(rigorous|strict|hard|against\\s+(our|the)\\s+standards)", "enforce\\s+(the\\s+|our\\s+)?(coding\\s+)?standards", "review\\s+(each|every)\\s+file\\s+(rigorous|strict|hard)"]
+    },
+    {
       "skill": "receiving-code-review",
       "type": "workflow",
       "priority": "medium",

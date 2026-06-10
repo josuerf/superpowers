@@ -31,6 +31,28 @@ describe('loadProjectConfig', () => {
     expect(config.coverageMin).toBe(90);
     expect(config.securityScan.enabled).toBe(true);
   });
+
+  test('default reviewAggressiveness is carrasco with standards block', () => {
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.reviewAggressiveness.level).toBe('carrasco');
+    expect(config.reviewAggressiveness.standards.autoDetect).toBe(true);
+    expect(Array.isArray(config.reviewAggressiveness.carrasco.focusCategories)).toBe(true);
+  });
+
+  test('deep-merges a partial reviewAggressiveness without wiping nested defaults', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { level: 'strict', standards: { paths: ['docs/arch.md'] } } })
+    );
+    const config = loadProjectConfig(TEST_DIR);
+    // overridden values
+    expect(config.reviewAggressiveness.level).toBe('strict');
+    expect(config.reviewAggressiveness.standards.paths).toEqual(['docs/arch.md']);
+    // nested defaults preserved
+    expect(config.reviewAggressiveness.standards.autoDetect).toBe(true);
+    expect(config.reviewAggressiveness.carrasco.focusCategories.length).toBeGreaterThan(0);
+    expect(config.reviewAggressiveness.chunking.maxFilesPerChunk).toBe(10);
+  });
 });
 
 describe('loadWorkspaceConfig', () => {

@@ -84,6 +84,70 @@ export interface SpecReviewReport {
 	timestamp: string;
 }
 
+export type ReviewAggressivenessLevel = "standard" | "strict" | "carrasco";
+
+export interface ReviewAggressivenessConfig {
+	enabled: boolean;
+	level: ReviewAggressivenessLevel;
+	chunking: {
+		enabled: boolean;
+		maxFilesPerChunk: number;
+		maxLinesPerChunk: number;
+		byTopic: boolean;
+	};
+	carrasco: {
+		redTeamEnabled: boolean;
+		redTeamParallel: boolean;
+		requireReproducibleTrigger: boolean;
+		focusCategories: string[];
+		severityThreshold: "Critical" | "High" | "Medium";
+	};
+	standards: {
+		autoDetect: boolean;
+		paths: string[];
+	};
+	reportOutput: {
+		saveToHarness: boolean;
+		format: "markdown" | "json" | "both";
+	};
+}
+
+export interface ReviewChunk {
+	id: string;
+	topic: string;
+	files: string[];
+	stacks: string[];
+	estimatedLines: number;
+	diff: string;
+	prompt: string;
+}
+
+export interface ReviewPlan {
+	feature: string;
+	level: ReviewAggressivenessLevel;
+	generatedAt: string;
+	totalFiles: number;
+	totalChunks: number;
+	stacks: string[];
+	chunks: ReviewChunk[];
+}
+
+export interface AggregatedReviewReport {
+	feature: string;
+	level: ReviewAggressivenessLevel;
+	timestamp: string;
+	harness_action: HarnessAction | "APPROVE";
+	metrics: {
+		total_findings: number;
+		critical_high_count: number;
+		chunks_reviewed: number;
+		chunks_unparseable: number;
+	};
+	asi_target: AsiTarget | null;
+	findings: ReviewerFinding[];
+	unparseableChunks: string[];
+}
+
 export interface HarnessConfig {
 	coverageMin: number;
 	securityScan: {
@@ -102,6 +166,7 @@ export interface HarnessConfig {
 	};
 	duplication: DuplicationConfig;
 	complexity: ComplexityConfig;
+	reviewAggressiveness: ReviewAggressivenessConfig;
 }
 
 export interface WorkspaceProject {

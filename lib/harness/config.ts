@@ -37,14 +37,75 @@ const DEFAULT_CONFIG: HarnessConfig = {
 			"go-std": 10,
 		},
 	},
+	reviewAggressiveness: {
+		enabled: true,
+		level: "carrasco",
+		chunking: {
+			enabled: true,
+			maxFilesPerChunk: 10,
+			maxLinesPerChunk: 2000,
+			byTopic: true,
+		},
+		carrasco: {
+			redTeamEnabled: true,
+			redTeamParallel: true,
+			requireReproducibleTrigger: true,
+			focusCategories: [
+				"logic-bugs",
+				"adversarial-inputs",
+				"state-corruption",
+				"concurrency-timing",
+				"resource-exhaustion",
+				"error-cascading",
+				"assumption-violations",
+				"production-context-assumptions",
+			],
+			severityThreshold: "High",
+		},
+		standards: {
+			autoDetect: true,
+			paths: [],
+		},
+		reportOutput: {
+			saveToHarness: true,
+			format: "both",
+		},
+	},
 };
+
+// Deep-merge a user-provided reviewAggressiveness block over the defaults so a
+// partial config (e.g. just `{ "level": "strict" }`) does not wipe nested
+// defaults like focusCategories or chunking. A plain `{ ...default, ...raw }`
+// would replace the whole nested object.
+function mergeReviewAggressiveness(
+	base: HarnessConfig["reviewAggressiveness"],
+	override: unknown,
+): HarnessConfig["reviewAggressiveness"] {
+	if (typeof override !== "object" || override === null) return base;
+	const o = override as Record<string, unknown>;
+	const obj = (v: unknown): Record<string, unknown> =>
+		typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+	return {
+		...base,
+		...o,
+		chunking: { ...base.chunking, ...obj(o.chunking) },
+		carrasco: { ...base.carrasco, ...obj(o.carrasco) },
+		standards: { ...base.standards, ...obj(o.standards) },
+		reportOutput: { ...base.reportOutput, ...obj(o.reportOutput) },
+	} as HarnessConfig["reviewAggressiveness"];
+}
 
 export function loadProjectConfig(projectRoot: string): HarnessConfig {
 	const configPath = path.join(projectRoot, ".harness.config.json");
 	if (!fs.existsSync(configPath)) return DEFAULT_CONFIG;
 	try {
 		const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-		return { ...DEFAULT_CONFIG, ...raw };
+		const merged = { ...DEFAULT_CONFIG, ...raw };
+		merged.reviewAggressiveness = mergeReviewAggressiveness(
+			DEFAULT_CONFIG.reviewAggressiveness,
+			raw.reviewAggressiveness,
+		);
+		return merged;
 	} catch {
 		return DEFAULT_CONFIG;
 	}
