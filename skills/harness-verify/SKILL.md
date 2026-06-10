@@ -67,6 +67,10 @@ Full semantic diff between spec and implementation — identifies missing, parti
 | `deadcode --files=a.ts,b.ts` | dead code detection |
 | `explain-drift [--spec path]` | spec vs implementation drift |
 
+## Rigorous Code Review (Carrasco)
+
+This skill runs the deterministic validation gates (lint, types, tests, coverage, security, etc.). For the **technology-aware, standards-enforcing code review** — aggressive subagents ("carrascos") reviewing each chunk against the project's established standards and architecture — use the **`carrasco-review`** skill, configured via `.harness.config.json` (`reviewAggressiveness`). Its verdict is saved to `.harness/reviews/` and enforced at session stop by `verify-on-stop`.
+
 ## Hard Rules
 
 - Do not claim success without fresh command output.

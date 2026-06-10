@@ -1,5 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type { ReviewAggressivenessConfig } from "../types";
+import { buildAggressivenessDirectives } from "./aggressiveness";
 const REVIEWERS_DIR = path.resolve(__dirname);
 const STACKS_DIR = path.join(REVIEWERS_DIR, "stacks");
 const STACK_FILE_MAP: Record<string, string> = {
@@ -170,10 +172,21 @@ export function detectOrmFromDiff(gitDiff: string): string[] {
 	return orms;
 }
 
+export interface BuildReviewerPromptOptions {
+	/**
+	 * When provided, the matching aggressiveness directives (level posture,
+	 * workspace-standards enforcement, adversarial focus, severity policy) are
+	 * appended as the governing instructions. Omitting it preserves the
+	 * original (standard) reviewer prompt exactly.
+	 */
+	aggressiveness?: ReviewAggressivenessConfig;
+}
+
 export function buildReviewerPrompt(
 	changedFiles: string[],
 	gitDiff: string,
 	stacks?: string[],
+	options?: BuildReviewerPromptOptions,
 ): string {
 	const resolvedStacks = stacks ?? [
 		...resolveStacksForFiles(changedFiles),
@@ -195,5 +208,12 @@ export function buildReviewerPrompt(
 		"```",
 		"",
 	].join("\n");
-	return `${contextHeader}\n\n${basePrompt}`;
+	const prompt = `${contextHeader}\n\n${basePrompt}`;
+	if (options?.aggressiveness && options.aggressiveness.level !== "standard") {
+		const directives = buildAggressivenessDirectives(options.aggressiveness);
+		if (directives.trim().length > 0) {
+			return `${prompt}\n\n---\n\n${directives}`;
+		}
+	}
+	return prompt;
 }

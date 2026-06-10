@@ -1,7 +1,7 @@
 // lib/harness/deadcode/reachability.ts
 
 import type { SymbolInfo, ReachabilityResult } from "./types";
-import type { ImportEdge, getImporters } from "./import-graph";
+import { ImportEdge, getImporters } from "./import-graph";
 
 const ENTRY_POINT_PATTERNS = [
 	/[\\/]pages[\\/].*\.(ts|tsx|js)$/,

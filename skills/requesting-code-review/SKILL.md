@@ -19,6 +19,10 @@ Dispatch a code reviewer subagent to catch issues before they cascade. The revie
 - After major refactor/feature work
 - Before merge or PR finalization
 
+## Rigorous standards-enforcing pass
+
+When you want a hard, technology-aware review that enforces the project's established standards as blocking requirements — and especially when the harness is configured (`.harness.config.json` → `reviewAggressiveness`) — use the **`carrasco-review`** skill instead of (or in addition to) the dispatch below. It chunks the changes by topic, runs one aggressive carrasco subagent per chunk in parallel, respects the host workspace architecture, and writes a blocking verdict to `.harness/reviews/`. The carrasco gate is also enforced at session stop by `verify-on-stop`.
+
 ## How
 
 1. Determine review range (`BASE_SHA` -> `HEAD_SHA`).

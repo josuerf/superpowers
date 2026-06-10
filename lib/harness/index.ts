@@ -390,6 +390,47 @@ export {
 	formatReviewerDecisionMarkdown,
 } from "./reviewers/parser";
 
+// Carrasco review — aggressiveness, chunking, planning, aggregation
+export {
+	buildAggressivenessDirectives,
+	getLevelDirective,
+	getFocusGuidance,
+	getSeverityPolicy,
+	getStandardsDirective,
+	getReproducibleTriggerDirective,
+} from "./reviewers/aggressiveness";
+export { chunkChangedFiles, topicOf } from "./reviewers/chunker";
+export type { ChunkFileInput, ChunkResult } from "./reviewers/chunker";
+export {
+	buildReviewPlan,
+	splitDiffByFile,
+	countChangedLines,
+} from "./reviewers/planner";
+export type { BuildReviewPlanOptions } from "./reviewers/planner";
+export {
+	aggregateCarrascoResponses,
+	formatAggregatedMarkdown,
+	saveCarrascoReview,
+	computeDiffFingerprint,
+	getHeadSha,
+	evaluateGateStatus,
+	reviewsDir,
+	featureReviewDir,
+} from "./reviewers/aggregator";
+export type {
+	CarrascoResponse,
+	SavedDecision,
+	GateStatus,
+	GateOutcome,
+} from "./reviewers/aggregator";
+export type {
+	ReviewChunk,
+	ReviewPlan,
+	AggregatedReviewReport,
+	ReviewAggressivenessConfig,
+	ReviewAggressivenessLevel,
+} from "./types";
+
 // Completeness verification
 export {
 	verifyCompleteness,

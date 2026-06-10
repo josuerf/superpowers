@@ -27,3 +27,5 @@ triage/
 # Harness workspace config (auto-generated)
 .harness-workspace.json
 .superpowers
+
+dist

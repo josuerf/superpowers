@@ -1,5 +1,19 @@
 #!/usr/bin/env node
-import { verify, loadProjectConfig, detectStack } from "../../lib/harness/index.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { spawnSync } from "node:child_process";
+import {
+	verify,
+	loadProjectConfig,
+	detectStack,
+	extractFeatureName,
+	buildReviewPlan,
+	aggregateCarrascoResponses,
+	saveCarrascoReview,
+	evaluateGateStatus,
+	featureReviewDir,
+	type CarrascoResponse,
+} from "../../lib/harness/index.js";
 import { validateDuplication } from "../../lib/harness/validators/duplication.js";
 import { validateComplexity } from "../../lib/harness/validators/complexity.js";
 import {
@@ -54,7 +68,183 @@ function getProjectRoot(): string {
 	return process.cwd();
 }
 
+function getFlag(name: string): string | undefined {
+	const i = args.indexOf(name);
+	return i !== -1 && args[i + 1] ? args[i + 1] : undefined;
+}
+
+// Files we never feed to a reviewer — generated/vendored/lock artifacts that
+// would only bloat the diff. Mirrors the spirit of verify-on-stop's exclusions.
+const REVIEW_EXCLUDE = [
+	/(^|[\\/])node_modules[\\/]/,
+	/(^|[\\/])dist[\\/]/,
+	/[\\/]?package-lock\.json$/,
+	/[\\/]?pnpm-lock\.yaml$/,
+	/[\\/]?yarn\.lock$/,
+	/[\\/]?bun\.lockb$/,
+	/\.min\.(js|css)$/,
+	/\.map$/,
+];
+
+function gitOut(cwd: string, gitArgs: string[]): string | null {
+	const res = spawnSync("git", gitArgs, {
+		cwd,
+		encoding: "utf8",
+		timeout: 10000,
+		maxBuffer: 50 * 1024 * 1024,
+	});
+	if (res.status !== 0 || res.error) return null;
+	return res.stdout ?? "";
+}
+
+function gatherChangedFiles(cwd: string, base?: string): string[] {
+	const range = base || "HEAD";
+	const files = new Set<string>();
+	const tracked = gitOut(cwd, ["diff", "--name-only", range]);
+	if (tracked) {
+		for (const f of tracked.split("\n").map((s) => s.trim()).filter(Boolean)) {
+			files.add(f);
+		}
+	}
+	const untracked = gitOut(cwd, ["ls-files", "--others", "--exclude-standard"]);
+	if (untracked) {
+		for (const f of untracked.split("\n").map((s) => s.trim()).filter(Boolean)) {
+			files.add(f);
+		}
+	}
+	return [...files].filter((f) => !REVIEW_EXCLUDE.some((re) => re.test(f)));
+}
+
+async function runReview(): Promise<void> {
+	const sub = args[1] || "plan";
+	const cwd = getProjectRoot();
+	const config = loadProjectConfig(cwd);
+	const ra = config.reviewAggressiveness;
+	const feature = getFlag("--feature") || extractFeatureName(cwd);
+	const dir = featureReviewDir(cwd, feature);
+
+	if (sub === "gate-status") {
+		if (!ra.enabled) {
+			console.log(
+				JSON.stringify({
+					gate: "pass",
+					action: null,
+					reason: "carrasco review disabled in config",
+				}),
+			);
+			process.exit(0);
+		}
+		const status = evaluateGateStatus(cwd, feature);
+		console.log(JSON.stringify(status));
+		process.exit(status.gate === "pass" ? 0 : 1);
+	}
+
+	if (!ra.enabled) {
+		console.log("Carrasco review is disabled (reviewAggressiveness.enabled=false).");
+		process.exit(0);
+	}
+
+	if (sub === "plan") {
+		const base = getFlag("--base");
+		const changedFiles = gatherChangedFiles(cwd, base);
+		if (changedFiles.length === 0) {
+			console.log("No changed files to review.");
+			process.exit(0);
+		}
+		const gitDiff = gitOut(cwd, base ? ["diff", base] : ["diff", "HEAD"]) || "";
+		const plan = buildReviewPlan({
+			feature,
+			changedFiles,
+			gitDiff,
+			config: ra,
+			generatedAt: new Date().toISOString(),
+		});
+
+		fs.mkdirSync(dir, { recursive: true });
+		fs.mkdirSync(path.join(dir, "prompts"), { recursive: true });
+		fs.mkdirSync(path.join(dir, "responses"), { recursive: true });
+		fs.writeFileSync(
+			path.join(dir, "plan.json"),
+			`${JSON.stringify(plan, null, 2)}\n`,
+		);
+		for (const chunk of plan.chunks) {
+			fs.writeFileSync(
+				path.join(dir, "prompts", `${chunk.id}.md`),
+				`${chunk.prompt}\n`,
+			);
+		}
+
+		console.log(`Carrasco review plan — feature: ${feature} | level: ${plan.level}`);
+		console.log(
+			`${plan.totalFiles} file(s) → ${plan.totalChunks} chunk(s) | stacks: ${plan.stacks.join(", ") || "universal"}`,
+		);
+		for (const chunk of plan.chunks) {
+			console.log(
+				`  ${chunk.id} [${chunk.topic}] — ${chunk.files.length} file(s), ~${chunk.estimatedLines} changed lines, stacks: ${chunk.stacks.join(", ") || "universal"}`,
+			);
+		}
+		console.log(`\nPlan saved to: ${path.join(dir, "plan.json")}`);
+		console.log(`Per-chunk prompts: ${path.join(dir, "prompts")}/`);
+		console.log(
+			`Dispatch one carrasco subagent per chunk, then write each response to ${path.join(dir, "responses")}/<chunk-id>.txt and run: review aggregate --feature ${feature}`,
+		);
+		process.exit(0);
+	}
+
+	if (sub === "aggregate") {
+		const responsesDir = path.join(dir, "responses");
+		if (!fs.existsSync(responsesDir)) {
+			console.error(`No responses directory at ${responsesDir}. Run 'review plan' first.`);
+			process.exit(1);
+		}
+		const responses: CarrascoResponse[] = fs
+			.readdirSync(responsesDir)
+			.filter((f) => f.endsWith(".txt") || f.endsWith(".md"))
+			.sort()
+			.map((f) => ({
+				chunkId: f.replace(/\.(txt|md)$/, ""),
+				text: fs.readFileSync(path.join(responsesDir, f), "utf8"),
+			}));
+		if (responses.length === 0) {
+			console.error(`No carrasco responses found in ${responsesDir}.`);
+			process.exit(1);
+		}
+
+		const report = aggregateCarrascoResponses(
+			feature,
+			responses,
+			ra,
+			new Date().toISOString(),
+		);
+		if (ra.reportOutput.saveToHarness) {
+			const saved = saveCarrascoReview(cwd, report, ra);
+			console.log(`Report saved to: ${saved.dir}`);
+		}
+
+		console.log(`\nCarrasco verdict: ${report.harness_action}`);
+		console.log(
+			`  Findings: ${report.metrics.total_findings} | Critical/High: ${report.metrics.critical_high_count} | Chunks: ${report.metrics.chunks_reviewed}`,
+		);
+		if (report.metrics.chunks_unparseable > 0) {
+			console.log(
+				`  ⚠️ Unparseable chunks: ${report.unparseableChunks.join(", ")}`,
+			);
+		}
+		if (report.harness_action === "BLOCK") process.exit(2);
+		if (report.harness_action === "NEEDS_HUMAN_REVIEW") process.exit(3);
+		process.exit(0);
+	}
+
+	console.error(`Unknown review subcommand: ${sub}. Use plan | aggregate | gate-status.`);
+	process.exit(1);
+}
+
 async function main() {
+	if (command === "review") {
+		await runReview();
+		return;
+	}
+
 	if (command === "explain-drift") {
 		const specPath = findSpecPath();
 		if (!specPath) {
