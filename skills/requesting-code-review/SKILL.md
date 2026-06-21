@@ -42,6 +42,7 @@ When you want a hard, technology-aware review that enforces the project's establ
 ## Security Review (Built-In)
 
 When changes touch security-relevant areas, the code review **must** include a security pass. This is not a separate step — it's part of every review where applicable.
+Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md](code-reviewer.md)
 
 **Triggers automatically when changes touch:**
 - Authentication or authorization flows
@@ -124,3 +125,10 @@ When the red team report contains Critical or High findings, run the auto-fix pi
 ## Output Requirement
 
 Review must include severity, file references, security findings (if applicable), and merge readiness verdict.
+
+**If reviewer wrong:**
+- Push back with technical reasoning
+- Show code/tests that prove it works
+- Request clarification
+
+See template at: [code-reviewer.md](code-reviewer.md)

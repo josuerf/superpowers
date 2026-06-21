@@ -33,13 +33,13 @@ The subagent prompt must include a structured preamble with:
 ### Learned Patterns
 - Query patterns catalog for relevant entries based on detected module type
 - Include error patterns and good practices that apply to this module
-- Format using `lib/patterns/injector.ts` → `formatPatternsForContext()`
+- Format using `${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/lib/patterns/injector.ts` → `formatPatternsForContext()`
 
 ## Execution
 
 1. Identify the files the subagent will modify.
 2. Load the relevant spec/user story file.
-3. Extract acceptance criteria using the spec parser (`lib/harness/completeness/spec-parser.ts`).
+3. Extract acceptance criteria using the spec parser (`${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/lib/harness/completeness/spec-parser.ts`).
 4. For each file, find:
    - Direct imports (what it consumes)
    - Exported types/interfaces (what it provides)
@@ -100,3 +100,4 @@ If no plugin root env var is set, resolve from the superpowers-prepared plugin d
 - ALWAYS include acceptance criteria in the subagent prompt.
 - Keep context under 200 lines per subagent.
 - The subagent must know ALL ACs before starting work — never dispatch with partial context.
+- If the projects already has a patterns catalog (Search in CLAUDE.md or AGENTS.md), use it to inject relevant patterns or gotchas. If not, skip that step but use the CLI's commands to include the "Constraints" section in the prompt for any known constraints or patterns to follow.

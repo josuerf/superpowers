@@ -2,9 +2,16 @@
 
 Superpowers is a complete software development methodology for your coding agents, built on top of a set of composable skills and some initial instructions that make sure your agent uses them.
 
+
+## We're Hiring!
+
+We're hiring someone to help out full time with Superpowers community and code work. 
+You can read about the job at https://primeradiant.com/jobs/superpowers-community-engineer/
+If this sounds like someone you know, definitely send them our way.
+
 ## Quickstart
 
-Give your agent Superpowers: [Claude Code](#claude-code), [Codex CLI](#codex-cli), [Codex App](#codex-app), [Factory Droid](#factory-droid), [Gemini CLI](#gemini-cli), [OpenCode](#opencode), [Cursor](#cursor), [GitHub Copilot CLI](#github-copilot-cli).
+Give your agent Superpowers: [Claude Code](#claude-code), [Antigravity](#antigravity), [Codex App](#codex-app), [Codex CLI](#codex-cli), [Cursor](#cursor), [Factory Droid](#factory-droid), [Gemini CLI](#gemini-cli), [GitHub Copilot CLI](#github-copilot-cli), [Kimi Code](#kimi-code), [OpenCode](#opencode), [Pi](#pi).
 
 [![GitHub stars](https://img.shields.io/github/stars/josuerf/superpowers-prepared?style=for-the-badge&color=white)](https://github.com/josuerf/superpowers-prepared/stargazers)
 [![Version](https://img.shields.io/github/v/release/josuerf/superpowers-prepared?style=for-the-badge&color=white)](https://github.com/josuerf/superpowers-prepared/releases)
@@ -18,6 +25,8 @@ Give your agent Superpowers: [Claude Code](#claude-code), [Codex CLI](#codex-cli
 # Superpowers Optimized
 
 **The production-grade fork of obra/superpowers** — same trusted workflow, dramatically leaner, safer, and more intelligent.
+
+Once you say "go", it launches a *subagent-driven-development* process, having agents work through each engineering task, inspecting and reviewing their work, and continuing forward. It's not uncommon for your agent to work autonomously for a couple hours at a time without deviating from the plan you put together.
 
 Built on the trusted obra/superpowers workflow and refined through research into LLM agent behavior, it adds automatic 3-tier workflow routing, proactive safety hooks, self-consistency verification at critical decision points, cross-session memory, and adversarial red-teaming — everything the original does, plus the discipline layer it was missing.
 
@@ -62,22 +71,6 @@ See [Installation](#installation) for install, update, and uninstall commands on
 > Other plugins or custom skills/agents in your `.claude/skills/` and `.claude/agents/` folders may interfere if they cover overlapping domains. Duplicate or competing skills can cause trigger conflicts, contradictory instructions, and unnecessary **context bloat/rot**, which will degrade the model's performance.
 >
 > **For the best experience and peak AI reasoning, we recommend disabling or removing all other plugins and existing `SKILL.md` or `AGENTS.md` files.** This ensures a clean environment with zero risk of conflicting instructions.
-
-
----
-
-Upon initiating a session with your coding agent, the plugin immediately pauses to establish a precise understanding of your objective rather than proceeding directly to code. It collaborates with you through a structured dialogue to refine a clear, complete specification, presenting each element in concise, easily digestible segments for your review and approval.
-
-Once the design is approved, the agent constructs a detailed implementation plan that enforces genuine red/green TDD cycles, strict adherence to YAGNI and DRY principles, and token-efficient instructions that eliminate unnecessary verbosity.
-
-When you confirm to proceed, the plugin automatically routes the task to the appropriate workflow—either *subagent-driven-development* or *executing-plans*—and executes it through mandatory staged reviews: first verifying full specification compliance, then assessing code quality, and integrating security analysis (per OWASP guidelines) on any sensitive changes. For complex logic, the *red-team* agent conducts adversarial testing to surface concrete failure scenarios. Each critical finding is automatically converted by the auto-fix pipeline into a failing test, followed by a targeted fix and regression verification.
-
-**The agent evaluates relevant skills before every task.** These workflows are enforced as mandatory processes, never optional suggestions. Overhead remains strictly proportional to complexity:
-- **Micro-tasks** bypass all gates entirely
-- **Lightweight tasks** receive a single verification checkpoint
-- **Full-complexity tasks** engage the complete pipeline
-
----
 
 ## How It Works
 
@@ -235,7 +228,7 @@ Key findings that shaped this fork:
 - **Sequential batch fixing is fragile when findings share code.** Fixing all Critical/High findings in one pass without re-assessing between fixes can cause conflicts when multiple findings touch the same functions. An ASI (Actionable Side Information) approach — fix one finding, re-check affected files only, re-prioritize, repeat — prevents fix collisions and converges faster.
 - **Deliberation before brainstorming improves architectural decisions.** When the problem itself may be mis-framed or the options aren't well-defined yet, convening named stakeholder perspectives (each speaks once, without debate) surfaces convergence and live tension without forcing a premature choice. This prevents committing to solutions before the right question has been asked.
 
-**What we changed:** Social accountability framing was added to the `code-reviewer`, `red-team`, and `implementer` prompts. The auto-fix pipeline in `requesting-code-review` was rewritten as an ASI-guided iterative loop (fix one finding → targeted re-check of affected files only → re-assess remaining, identify new ASI → repeat). A new `deliberation` skill was added for complex architectural decisions where the problem needs reframing before brainstorming begins.
+**What we changed:** Social accountability framing was added to the `code-reviewer`, `red-team`, and `implementer` prompts. The auto-fix pipeline in `requesting-code-review` was rewritten as an ASI-guided iterative loop (fix one finding → targeted re-check of affected files only → re-prioritize → repeat). A new `deliberation` skill was added for complex architectural decisions where the problem needs reframing before brainstorming begins.
 
 ### Combined impact
 
@@ -535,6 +528,7 @@ The Patterns System captures, catalogs, and injects learned patterns from user f
 
 ---
 
+If you're using Superpowers in enterprise and could benefit from commercial support, additional tooling, or managed spending, please don't hesitate to drop us a line at sales@primeradiant.com.
 
 ## Installation
 
@@ -586,6 +580,27 @@ The Patterns System captures, catalogs, and injects learned patterns from user f
 Use the linked install doc as the single source of truth for the complete install/update flow on the current platform.
 
 For live Codex hooks, use `codex-cli 0.118.0` or newer. Older CLI builds may silently ignore the current `hooks.json` shape.
+
+### Antigravity
+
+Install Superpowers as a plugin from this repository:
+
+```bash
+agy plugin install https://github.com/obra/superpowers
+```
+
+Antigravity runs the plugin's session-start hook, so Superpowers is active from
+the first message. Reinstall with the same command to update.
+
+### Codex App
+
+Superpowers is available via the [official Codex plugin marketplace](https://github.com/openai/plugins).
+
+- In the Codex app, click on Plugins in the sidebar.
+- You should see `Superpowers` in the Coding section.
+- Click the `+` next to Superpowers and follow the prompts.
+
+### Codex CLI
 
 **Install** — tell the agent:
 ```
@@ -651,6 +666,34 @@ To disable startup auto-update checks for Codex/OpenCode/Gemini CLI:
 
 - Or search for "superpowers" in the plugin marketplace.
 
+### Factory Droid
+
+- Register the marketplace:
+
+  ```bash
+  droid plugin marketplace add https://github.com/obra/superpowers
+  ```
+
+- Install the plugin:
+
+  ```bash
+  droid plugin install superpowers@superpowers
+  ```
+
+### Gemini CLI
+
+- Install the extension:
+
+  ```bash
+  gemini extensions install https://github.com/obra/superpowers
+  ```
+
+- Update later:
+
+  ```bash
+  gemini extensions update superpowers
+  ```
+
 ### GitHub Copilot CLI
 
 - Register the marketplace:
@@ -666,6 +709,57 @@ To disable startup auto-update checks for Codex/OpenCode/Gemini CLI:
   ```
 
 ---
+
+### Kimi Code
+
+Superpowers is available in Kimi Code's plugin marketplace.
+
+- Open Kimi Code's plugin manager:
+
+  ```text
+  /plugins
+  ```
+
+- Go to `Marketplace` > `Superpowers` and install it.
+
+- Or install directly from this repository:
+
+  ```text
+  /plugins install https://github.com/obra/superpowers
+  ```
+
+- Detailed docs: [docs/README.kimi.md](docs/README.kimi.md)
+
+### OpenCode
+
+OpenCode uses its own plugin install; install Superpowers separately even if you
+already use it in another harness.
+
+- Tell OpenCode:
+
+  ```
+  Fetch and follow instructions from https://raw.githubusercontent.com/josuerf/superpowers-prepared/refs/heads/main/.opencode/INSTALL.md
+  ```
+
+- Detailed docs: [.opencode/INSTALL.md](.opencode/INSTALL.md)
+
+### Pi
+
+Install Superpowers as a Pi package from this repository:
+
+```bash
+pi install git:github.com/obra/superpowers
+```
+
+For local development, run Pi with this checkout loaded as a temporary package:
+
+```bash
+pi -e /path/to/superpowers
+```
+
+The Pi package loads the Superpowers skills and a small extension that injects the `using-superpowers` bootstrap at session startup and again after compaction. Pi has native skills, so no compatibility `Skill` tool is required. Subagent and task-list tools remain optional Pi companion packages.
+
+## The Basic Workflow
 
 
 ## Claude Opus 4.6's honest take:
@@ -735,11 +829,20 @@ The general contribution process for Superpowers is below. Keep in mind that we 
 
 **Modifying hooks:** Hook files (`hooks/hooks.json`, `hooks/codex-hooks.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`) are generated — never edit them directly. Edit `plugin.universal.yaml` at the repo root, then run `hookbridge compile` to regenerate. See [hookbridge](https://github.com/josuerf/Hookbridge) for the compiler tool.
 
+Skill-behavior tests use the drill eval harness from [superpowers-evals](https://github.com/prime-radiant-inc/superpowers-evals/), cloned into `evals/` — see `evals/README.md` for setup. Plugin-infrastructure tests live at `tests/` and run via the relevant `run-*.sh` or `npm test`.
+
+See `skills/writing-skills/SKILL.md` for the complete guide.
+
 
 ### License
 
 MIT License - see LICENSE file for details
 
+## Visual companion telemetry
+
+Because skills and plugins don't provide any feedback to creators, we have no idea how many of you are using Superpowers. By default, the Prime Radiant logo on brainstorming's optional visual companion feature is loaded from our website. It includes the version of Superpowers in use. It does not include any details about your project, prompt, or coding agent. We don't see your clicks or anything about what you're building. This helps us have a rough idea of how many folks are using Superpowers and which version of Superpowers they're using. It's 100% optional. To disable this, set the environment variable `SUPERPOWERS_DISABLE_TELEMETRY` to any true value. Superpowers also honors Claude Code's `DISABLE_TELEMETRY` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` opt-outs.
+
+## Community
 
 **Support**
 - Issues: https://github.com/josuerf/superpowers-prepared/issues
