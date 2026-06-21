@@ -1,5 +1,14 @@
 # Superpowers Optimized Release Notes
 
+## v6.10.0 (2026-06-21)
+
+Upstream sync with obra/superpowers and version bump.
+
+### Changes
+
+- Synced fork with upstream `obra/superpowers` main branch
+- Bumped version to 6.10.0 across all plugin manifests and VERSION file
+
 ## v6.7.0 (2026-05-22)
 
 Harness quality gates, learning harness, completeness/deadcode/drift analysis, multi-stack support, and hook compatibility fix for Claude Code.
