@@ -24,8 +24,27 @@ const LOG_DIR = path.join(
 const VERIFY_GUARD_FILE = path.join(LOG_DIR, 'verify-on-stop-fired.lock');
 const VERIFY_GUARD_TTL_MS = 5 * 60 * 1000; // 5 minutes between verification runs
 
-// Minimum files changed to trigger verification (avoids noise from single edits)
+// Default minimum files changed to trigger verification (avoids noise from
+// single edits). Overridable per-project via .harness.config.json — see
+// getMinFilesForVerify. A workspace harness can lower this to 1 to gate every
+// source edit; other projects keep the default by omitting the key.
 const MIN_FILES_FOR_VERIFY = 3;
+
+// Resolve the trigger threshold from .harness.config.json (verifyOnStop.minFiles)
+// at the project root. Falls back to MIN_FILES_FOR_VERIFY on any error — missing
+// file, parse failure, or a missing/non-integer/<1 value — so a broken or absent
+// config never changes gate behavior.
+function getMinFilesForVerify(cwd) {
+  try {
+    const configPath = path.join(cwd || process.cwd(), '.harness.config.json');
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const v = raw && raw.verifyOnStop && raw.verifyOnStop.minFiles;
+    if (typeof v === 'number' && Number.isInteger(v) && v >= 1) return v;
+    return MIN_FILES_FOR_VERIFY;
+  } catch {
+    return MIN_FILES_FOR_VERIFY;
+  }
+}
 
 // File patterns that should NOT trigger verification (config, docs, etc.)
 const EXCLUDED_PATTERNS = [
@@ -271,7 +290,7 @@ async function main() {
         ? uncommitted
         : uncommitted.filter((f) => sessionEdited.has(normalizePath(cwd, f)));
 
-    if (sourceFiles.length < MIN_FILES_FOR_VERIFY) {
+    if (sourceFiles.length < getMinFilesForVerify(cwd)) {
       process.stdout.write('{}');
       return;
     }
@@ -333,6 +352,7 @@ if (require.main === module) {
     runCarrascoGate,
     buildCarrascoBlockReason,
     MIN_FILES_FOR_VERIFY,
+    getMinFilesForVerify,
     EXCLUDED_PATTERNS,
   };
 }

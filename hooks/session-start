@@ -427,6 +427,7 @@ node -e "
     if (!fs.existsSync(p)) {
         const def = {
             coverageMin: 80,
+            verifyOnStop: { minFiles: 3 },
             securityScan: {
                 enabled: true,
                 tools: { semgrep: true, gitleaks: true, npmAudit: true, trivy: false }

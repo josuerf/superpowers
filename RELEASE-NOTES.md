@@ -1,5 +1,17 @@
 # Superpowers Optimized Release Notes
 
+## v6.11.0 (2026-06-24)
+
+Configurable verify-on-stop trigger threshold.
+
+### New Features
+
+**Configurable `verify-on-stop` threshold** — The Stop-gate's minimum-changed-files trigger (`MIN_FILES_FOR_VERIFY`, previously hardcoded to 3) is now configurable per project via `.harness.config.json` → `verifyOnStop.minFiles`. A workspace harness can lower it to `1` to route every source edit through the quality pipeline; projects that omit the key keep the default of 3, so existing behavior is unchanged. The field is documented in the `HarnessConfig` type (`lib/harness/types.ts`) and emitted by the session-start config auto-generator. The hook falls back to the default on any missing, malformed, or out-of-range value.
+
+### Changes
+
+- Bumped version to 6.11.0 across plugin manifests and the VERSION file.
+
 ## v6.10.0 (2026-06-21)
 
 Upstream sync with obra/superpowers and version bump.

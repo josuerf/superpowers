@@ -9,6 +9,7 @@ import type {
 
 const DEFAULT_CONFIG: HarnessConfig = {
 	coverageMin: 80,
+	verifyOnStop: { minFiles: 3 },
 	securityScan: {
 		enabled: true,
 		tools: { semgrep: true, gitleaks: true, npmAudit: true, trivy: false },
