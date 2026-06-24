@@ -53,6 +53,22 @@ describe('loadProjectConfig', () => {
     expect(config.reviewAggressiveness.carrasco.focusCategories.length).toBeGreaterThan(0);
     expect(config.reviewAggressiveness.chunking.maxFilesPerChunk).toBe(10);
   });
+
+  test('default verifyOnStop.minFiles is 3', () => {
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.verifyOnStop.minFiles).toBe(3);
+  });
+
+  test('honors a user-provided verifyOnStop.minFiles', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ verifyOnStop: { minFiles: 1 } })
+    );
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.verifyOnStop.minFiles).toBe(1);
+    // unrelated defaults preserved
+    expect(config.coverageMin).toBe(80);
+  });
 });
 
 describe('loadWorkspaceConfig', () => {

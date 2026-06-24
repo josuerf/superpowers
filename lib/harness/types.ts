@@ -150,6 +150,8 @@ export interface AggregatedReviewReport {
 
 export interface HarnessConfig {
 	coverageMin: number;
+	/** Min source files edited this session to trigger the verify-on-stop gate. Default 3. */
+	verifyOnStop: { minFiles: number };
 	securityScan: {
 		enabled: boolean;
 		tools: Record<string, boolean>;
