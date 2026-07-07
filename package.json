@@ -1,6 +1,6 @@
 {
   "name": "superpowers-prepared",
-  "version": "6.11.0",
+  "version": "6.12.0",
   "main": ".opencode/plugins/superpowers-prepared.js",
   "scripts": {
     "harness:local": "npx ts-node tools/harness/cli.ts local",
