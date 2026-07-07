@@ -11,7 +11,7 @@ description: >
 ---
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent to execute a specific task, skip this skill.
+If you were dispatched as a subagent to execute a specific task, ignore this skill.
 </SUBAGENT-STOP>
 
 <EXTREMELY-IMPORTANT>
@@ -19,177 +19,23 @@ If you think there is even a 1% chance a skill might apply to what you are doing
 
 IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
 
-This is not negotiable. This is not optional. You cannot rationalize your way out of this.
+This is not negotiable. You cannot rationalize your way out of this.
 </EXTREMELY-IMPORTANT>
 
-## How to Access Skills
+## The Rule
 
-**Never read skill files manually with file tools** — always use your platform's skill-loading mechanism so the skill is properly activated.
+**Invoke relevant or requested skills BEFORE any response or action** — including clarifying questions, exploring the codebase, or checking files. If it turns out wrong for the situation, you don't have to use it.
 
-**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you — follow it directly.
+**Before entering plan mode:** if you haven't already brainstormed, invoke the brainstorming skill first.
 
-**In Codex:** Skills load natively. Follow the instructions presented when a skill activates.
+Then announce "Using [skill] to [purpose]" and follow the skill exactly. If it has a checklist, create a todo per item.
 
-**In Copilot CLI:** Use the `skill` tool. Skills are auto-discovered from installed plugins.
+## Skill Priority
 
-**In Gemini CLI:** Skills activate via the `activate_skill` tool. Gemini loads skill metadata at session start and activates the full content on demand.
+When multiple skills apply, process skills come first — they set the approach, then implementation skills (frontend-design, etc.) carry it out. Brainstorming and systematic-debugging are Superpowers' most common process skills, but the rule holds for any of them.
 
-**In other environments:** Check your platform's documentation for how skills are loaded.
-
-## Platform Adaptation
-
-Skills speak in actions ("dispatch a subagent", "create a todo", "read a file") rather than naming any one runtime's tools. For per-platform tool equivalents and instructions-file conventions, see [claude-code-tools.md](references/claude-code-tools.md), [codex-tools.md](references/codex-tools.md), [copilot-tools.md](references/copilot-tools.md), [gemini-tools.md](references/gemini-tools.md), [pi-tools.md](references/pi-tools.md), and [antigravity-tools.md](references/antigravity-tools.md). Gemini CLI users get the tool mapping loaded automatically via GEMINI.md.
-
-## Trigger Conditions
-
-This skill MUST be invoked when any of the following occur:
-
-- A new session starts with a technical request
-- The user gives a new task or changes topic mid-session
-- Any technical work is about to begin without a skill selected
-- The user asks "what should I use" or "which workflow"
-
-**Exception:** Micro tasks (typo fix, single variable rename, 1-line config change) can skip the entry sequence entirely. Just do them.
-
-## When the User Names a Specific Skill
-
-If the user's prompt references a skill by name (e.g., "use brainstorming," "use context management," "run verification"), that is a **Skill tool invocation request**:
-
-1. Still complete Entry Sequence steps 1–6 (token-efficiency, staleness check, etc.) — these are always-on prerequisites, not routing.
-2. **Invoke the named skill via the `Skill` tool.** Do not re-implement the skill's purpose with ad-hoc agents, manual file reads, or improvised workflows. The skill contains tested, structured logic — use it.
-3. Skip complexity classification and routing (step 7) — the user already chose the route.
-
-This is the most common cause of entry sequence bypass: the AI interprets "use X skill" as a goal to achieve creatively rather than as a tool invocation. It is always a tool invocation.
-
-## Instruction Priority (highest to lowest)
-
-1. Explicit user instructions in the current conversation
-2. Project-level CLAUDE.md / AGENTS.md
-3. Superpowers skill instructions
-3. **Default system prompt** — lowest priority
-
-If CLAUDE.md, GEMINI.md, or AGENTS.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
-
-## Core Rule
-
-Before technical execution, select workflow skills explicitly and follow them.
-
-Technical execution includes code edits, debugging, planning, review, test status claims, and branch integration actions.
-
-## Entry Sequence
-
-1. Invoke `token-efficiency` at session start — applies to all sessions, always.
-2. **Fresh project gate** — evaluate both conditions in order:
-   - The user's request contains creation/build intent: any of "build", "create", "make", "implement", "scaffold", "set up", "write", "generate", "develop", "start"
-   - Run a filesystem check: `ls project-map.md 2>/dev/null` — gate only fires if the file does **not** exist
-
-   If both are true, **pause before proceeding** and tell the user exactly this:
-
-   > Before I start: this directory has no memory files set up yet. That matters for how well I perform across sessions.
-   >
-   > **Without setup, every future session on this project starts from scratch:**
-   > - I re-explore the project structure even if I mapped it last session
-   > - I re-read files I already understood
-   > - I may re-propose approaches that were already tried and rejected
-   > - I lose the "why" behind every decision the moment the session ends
-   >
-   > **A ~30-second setup changes that permanently:**
-   > - `git init` — enables staleness tracking so I only re-read files that actually changed *(creates `.git` only, nothing else)*
-   > - `project-map.md` — I read this at every future session start instead of re-exploring blind
-   > - `session-log.md` — auto-captures what was built and decided, so future sessions start with: *"I see from last session that X was rejected because Y — building with that constraint already applied"* instead of rediscovering it
-   >
-   > **Set this up before we build, or start immediately?**
-
-   Wait for the user's answer before continuing.
-   - **If they confirm:** run `git init --quiet` directly (do not ask again — the user just confirmed), then invoke `context-management` for map generation only. Return to step 3 when done. Note: `context-snapshot.json` will not be created in this session — the context-engine hook already ran at session start before git existed. It will be created on the next session start, provided the session is opened from this project's root directory. If no commits exist yet it will be mostly empty; it populates fully after the first commit.
-   - **If they decline:** proceed to step 3.
-
-   **Step 2b — Existing project memory check** (runs only when step 2 did NOT fire):
-   If the user's request is non-trivial (not micro) AND `project-map.md` does not exist AND the project has 10+ files:
-   - Mention once (do not block): *"Note: this project has no project-map.md. I'll work fine without it, but if you want faster orientation in future sessions, I can generate one after this task. Just say 'map this project'."*
-   - Do not repeat this notice in subsequent tasks within the same session.
-
-3. Classify the task as **micro**, **lightweight**, or **full** (see Complexity Classification below).
-4. If resuming work from a prior session, read `state.md` if it exists. Before ending any session where significant decisions were made (design choices, rejected approaches, non-obvious constraints discovered), invoke `context-management` to write a `[saved]` entry — even if the work is complete. This is the only mechanism that preserves the "why" across sessions.
-5. If `known-issues.md` exists at the project root, read it to avoid rediscovering known error→solution mappings.
-6. If `project-map.md` exists at the project root, read it to orient to the project structure without re-globbing or re-reading known files. The map tells you what exists and where — when you need a file's actual content (for modification, comparison, or debugging), read it directly with the Read tool. Staleness is detected automatically by the session-start hook: if the map is stale, a `<project-map-stale>` tag is injected into session context with the mismatched hashes. When you see that tag:
-   - **With git:** run `git diff --name-only <map_hash> HEAD` to find changed files. Re-read only those; everything else in the map is still valid. Update the corresponding Key Files entries in `project-map.md` and refresh the git hash and date in the header.
-   - **Without git:** compare the map's generation timestamp to the modification time of files listed in the map's Hot Files section. Re-read any that are newer than the map. Then update their Key Files entries and refresh the generation timestamp in the header.
-7. Follow the path for the classified complexity level.
-
-## Complexity Classification
-
-Classify every task into one of three levels. Do not invoke a separate skill for this — decide inline.
-
-### Hard overrides — check these first, before anything else
-
-If any of the following are true, classify as **full** immediately — do not evaluate the lightweight criteria:
-
-- The change adds, modifies, or removes a condition, gate, or trigger that determines when behavior fires
-- The change affects what the user sees or experiences (excluding cosmetic text changes to existing UI — e.g., updating a label, rewording a message, or changing static copy that doesn't alter flow or behavior)
-- The change modifies a file that other components depend on (routing rules, entry sequences, config registries, shared hooks)
-- The change introduces a path or outcome that didn't exist before
-
-**When in doubt, classify as full.** An unnecessary brainstorming session costs one extra round. Skipping brainstorming on a task that needed it ships a gap. The asymmetry is not equal — always err toward full.
-
-### Micro (skip everything)
-- Typo fix, single variable rename, 1-line config change
-- **Action:** Just do it. No skills needed.
-
-### Lightweight (fast path)
-All of these must be true:
-- Change scope is small (~2 files or fewer)
-- No new behavior or architecture change
-- No cross-module dependency risk
-- No migration or data-shape change
-
-**Before classifying as lightweight:** explicitly state in one sentence why each of the four criteria above is satisfied. Do not assume. If you cannot articulate any one of them clearly, classify as full.
-
-**Action:** Go directly to implementation. Only gate: invoke `verification-before-completion` when done. Skip brainstorming, planning, worktrees, and parallel dispatch.
-
-**Exception:** If a dedicated implementation skill exists for this specific task (check the Routing Guide), invoke it — lightweight skips workflow overhead, not implementation skills.
-
-### Full (complete pipeline)
-Anything that doesn't qualify as micro or lightweight.
-
-**Action:** Follow the Routing Guide below for the full skill pipeline.
-
-## EnterPlanMode Intercept
-
-If Claude is about to enter plan mode (`EnterPlanMode`), check whether brainstorming has been completed for the current task:
-
-- **No brainstorming done for this task**: invoke `brainstorming` first — plan mode without a validated design leads to plans built on unexamined assumptions.
-- **Brainstorming already completed and design approved**: proceed to plan mode / `writing-plans`.
-
-```dot
-digraph skill_flow {
-    "User message received" [shape=doublecircle];
-    "About to enter plan mode?" [shape=doublecircle];
-    "Already brainstormed?" [shape=diamond];
-    "Invoke brainstorming skill" [shape=box];
-    "Might any skill apply?" [shape=diamond];
-    "Invoke the skill" [shape=box];
-    "Announce: 'Using [skill] to [purpose]'" [shape=box];
-    "Has checklist?" [shape=diamond];
-    "Create a todo per item" [shape=box];
-    "Follow skill exactly" [shape=box];
-    "Respond (including clarifications)" [shape=doublecircle];
-
-    "About to enter plan mode?" -> "Already brainstormed?";
-    "Already brainstormed?" -> "Invoke brainstorming skill" [label="no"];
-    "Already brainstormed?" -> "Might any skill apply?" [label="yes"];
-    "Invoke brainstorming skill" -> "Might any skill apply?";
-
-    "User message received" -> "Might any skill apply?";
-    "Might any skill apply?" -> "Invoke the skill" [label="yes, even 1%"];
-    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
-    "Invoke the skill" -> "Announce: 'Using [skill] to [purpose]'";
-    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
-    "Has checklist?" -> "Create a todo per item" [label="yes"];
-    "Has checklist?" -> "Follow skill exactly" [label="no"];
-    "Create a todo per item" -> "Follow skill exactly";
-}
-```
+- "Let's build X" → superpowers:brainstorming first, then implementation skills.
+- "Fix this bug" → superpowers:systematic-debugging first, then domain skills.
 
 ## Routing Guide
 
@@ -241,26 +87,14 @@ When output feeds another agent/tool step, prefer JSON or YAML schemas defined b
 | "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
 | "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
 
-If a red flag appears, restart from Entry Sequence.
+## Platform Adaptation
 
-## Skill Priority
+If your harness appears here, read its reference file for special instructions:
 
-When multiple skills could apply, use this order:
-
-1. **Process skills first** (brainstorming, systematic-debugging) - these determine HOW to approach the task
-2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
-
-"Let's build X" → brainstorming first, then implementation skills.
-"Fix this bug" → systematic-debugging first, then domain-specific skills.
-
-## Skill Types
-
-**Rigid** (TDD, systematic-debugging): Follow exactly. Don't adapt away discipline.
-
-**Flexible** (patterns): Adapt principles to context.
-
-The skill itself tells you which.
+- Codex: `references/codex-tools.md`
+- Pi: `references/pi-tools.md`
+- Antigravity: `references/antigravity-tools.md`
 
 ## User Instructions
 
-Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+User instructions (CLAUDE.md, AGENTS.md, GEMINI.md, etc, direct requests) take precedence over skills, which in turn override default behavior. Only skip skill workflows or instructions when your human partner has explicitly told you to.
