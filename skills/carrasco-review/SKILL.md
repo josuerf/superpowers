@@ -22,8 +22,8 @@ Announce: `I'm running the carrasco-review skill.`
 
 ## Configuration (`.harness.config.json` → `reviewAggressiveness`)
 
-- `enabled` — master switch.
-- `level` — `standard` (current calibrated behavior) | `strict` | `carrasco` (default, uncompromising).
+- `enabled` — master switch. Defaults to `false`: this skill only runs the automated Stop-hook gate when a project opts in via `.harness.config.json`. Invoking the skill directly (e.g. "carrasco review") always works regardless of this flag.
+- `level` — `standard` (default, current calibrated behavior) | `strict` | `carrasco` (uncompromising — every finding treated as blocking).
 - `chunking` — `maxFilesPerChunk`, `maxLinesPerChunk`, `byTopic`. Chunking only kicks in when the change set exceeds a limit; otherwise all files are one chunk.
 - `carrasco` — `redTeamParallel` (dispatch chunks in parallel), `requireReproducibleTrigger`, `focusCategories`, `severityThreshold` (BLOCK if any finding ≥ this).
 - `standards` — `autoDetect` (read CLAUDE.md/AGENTS.md + neighboring code) and `paths` (authoritative standards/architecture docs to enforce).
@@ -44,14 +44,33 @@ Announce: `I'm running the carrasco-review skill.`
 
 5. **Report & act.**
    - Show the verdict and the report path (`.harness/reviews/<feature>/carrasco-review.md`).
-   - On **BLOCK**: fix findings **ASI-first** (start from the report's "Fix First" entry), then re-run from step 1 — the diff changes, so a fresh review is required. Repeat until no finding reaches the threshold.
+   - On **BLOCK**: fix findings **ASI-first** (start from the report's "Fix First" entry), then re-review with `review recheck` (step 6 below) — never re-run from step 1. Repeat until no finding reaches the threshold.
    - On **NEEDS_HUMAN_REVIEW**: surface the findings to your human partner for a decision; do not silently approve.
+
+6. **Recheck (after fixing findings) — scoped, not a full re-plan.** Run
+   `review recheck --feature <feature>` (add `--note "<one line: what you
+   changed, plus any new follow-up ask from your human partner>"`; add
+   `--chunks id-a,id-b` only if you want to target specific chunks instead of
+   the default of every chunk that didn't approve). This does **not**
+   recompute the whole plan:
+   - It reads the last decision's per-chunk verdicts and, for each chunk that
+     didn't approve, writes a new prompt containing only that chunk's prior
+     findings, the diff of just that chunk's files since the last review (the
+     fix — not the original diff again), and your note.
+   - Chunks that already approved are left untouched — their prompt and
+     response files are not regenerated.
+   - Dispatch one `superpowers-prepared:carrasco` subagent per chunk printed
+     by `recheck`, exactly as in step 2, then write each response to the same
+     `responses/<chunk-id>.txt` path.
+   - Run `review aggregate --feature <feature>` again — it merges the fresh
+     verdicts for rechecked chunks with the untouched ones automatically, no
+     extra flag needed.
 
 ## Running the CLI
 
 Use the harness CLI the same way as `harness-verify`, with the plugin-root env var for your harness:
 
-- **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" review <plan|aggregate|gate-status> [--feature <name>] [--base <sha>] [--root <project>]`
+- **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" review <plan|recheck|aggregate|gate-status> [--feature <name>] [--base <sha>] [--chunks <id,id>] [--note "<text>"] [--root <project>]`
 - **Linux/macOS:** `npx tsx "${CLAUDE_PLUGIN_ROOT:-...}/tools/harness/cli.ts" review <subcommand> [...]`
 
 If no plugin-root env var is set, resolve from the superpowers-prepared plugin directory (the parent of `hooks/`).
@@ -61,4 +80,5 @@ If no plugin-root env var is set, resolve from the superpowers-prepared plugin d
 - Dispatch the carrascos from the planner's per-chunk prompts — do not hand-write the review criteria. The rigor (level, focus categories, standards enforcement, severity policy) is baked into those prompts from the config.
 - Do not approve while the aggregate verdict is BLOCK. A passing run requires zero findings at or above `severityThreshold`.
 - Do not edit files inside a carrasco subagent — carrascos review and report only. Fixes happen in the main session after aggregation.
-- The verdict is tied to the exact change set (a fingerprint of the diff). If you change code after a passing review, the review is stale and must be re-run before the stop gate will pass.
+- The Stop-hook gate's verdict is tied to the exact change set (a whole-diff fingerprint). If you change code after a passing review, the gate treats it as stale.
+- After a BLOCK, do not re-run `review plan` from scratch and do not re-dispatch carrascos for chunks that already approved. Use `review recheck` (step 6) so only the chunks that had findings are re-reviewed, with a lean prompt (their prior findings + the fix diff + your note) instead of the full original chunk context.

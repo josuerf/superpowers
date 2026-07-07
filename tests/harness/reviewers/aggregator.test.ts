@@ -142,6 +142,48 @@ describe("aggregateCarrascoResponses", () => {
 		expect(report.metrics.total_findings).toBe(2);
 	});
 
+	test("records a per-chunk verdict for every parseable response, with files attached from the caller's map", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "BLOCK", [
+					{ severity: "High", file: "a.ts", line: 5 },
+				]),
+				decisionResponse("chunk-2", "APPROVE", []),
+			],
+			raConfig(),
+			TS,
+			{ "chunk-1": ["a.ts"], "chunk-2": ["b.ts"] },
+		);
+		expect(report.chunkVerdicts).toHaveLength(2);
+		const c1 = report.chunkVerdicts.find((c) => c.chunkId === "chunk-1")!;
+		expect(c1.action).toBe("BLOCK");
+		expect(c1.files).toEqual(["a.ts"]);
+		expect(c1.findings).toHaveLength(1);
+		const c2 = report.chunkVerdicts.find((c) => c.chunkId === "chunk-2")!;
+		expect(c2.action).toBe("APPROVE");
+	});
+
+	test("chunkVerdicts.files defaults to empty array when no map is provided", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[decisionResponse("chunk-1", "APPROVE", [])],
+			raConfig(),
+			TS,
+		);
+		expect(report.chunkVerdicts[0].files).toEqual([]);
+	});
+
+	test("unparseable chunks do not produce a chunkVerdict", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[{ chunkId: "chunk-1", text: "no decision block here" }],
+			raConfig(),
+			TS,
+		);
+		expect(report.chunkVerdicts).toHaveLength(0);
+	});
+
 	test("threshold Critical does not block on a High finding", () => {
 		const report = aggregateCarrascoResponses(
 			"feat",

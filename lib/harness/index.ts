@@ -405,8 +405,12 @@ export {
 	buildReviewPlan,
 	splitDiffByFile,
 	countChangedLines,
+	buildRecheckPrompt,
 } from "./reviewers/planner";
-export type { BuildReviewPlanOptions } from "./reviewers/planner";
+export type {
+	BuildReviewPlanOptions,
+	BuildRecheckPromptOptions,
+} from "./reviewers/planner";
 export {
 	aggregateCarrascoResponses,
 	formatAggregatedMarkdown,
@@ -429,6 +433,8 @@ export type {
 	AggregatedReviewReport,
 	ReviewAggressivenessConfig,
 	ReviewAggressivenessLevel,
+	ChunkVerdict,
+	ReviewerFinding,
 } from "./types";
 
 // Completeness verification

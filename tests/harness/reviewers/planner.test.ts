@@ -1,9 +1,13 @@
 import {
 	buildReviewPlan,
+	buildRecheckPrompt,
 	splitDiffByFile,
 	countChangedLines,
 } from "../../../lib/harness/reviewers/planner";
-import type { ReviewAggressivenessConfig } from "../../../lib/harness/types";
+import type {
+	ReviewAggressivenessConfig,
+	ReviewerFinding,
+} from "../../../lib/harness/types";
 
 const DIFF = `diff --git a/src/auth/login.ts b/src/auth/login.ts
 index 1111111..2222222 100644
@@ -117,5 +121,86 @@ describe("buildReviewPlan", () => {
 			generatedAt: "2026-06-10T00:00:00.000Z",
 		});
 		expect(plan.chunks[0].prompt).not.toContain("CARRASCO");
+	});
+});
+
+describe("buildRecheckPrompt", () => {
+	const priorFindings: ReviewerFinding[] = [
+		{
+			severity: "High",
+			file: "src/auth/login.ts",
+			line: 2,
+			issue: "logs a secret",
+			suggestion: "remove the console.log",
+		},
+	];
+	const fixDiff = `diff --git a/src/auth/login.ts b/src/auth/login.ts
+--- a/src/auth/login.ts
++++ b/src/auth/login.ts
+@@ -1,4 +1,3 @@
+ export function login() {
+-  console.log("hi");
+ }
+`;
+
+	test("includes only the targeted chunk's files, prior findings, and the fix diff — not an unrelated chunk's content", () => {
+		const prompt = buildRecheckPrompt({
+			chunkId: "chunk-1",
+			files: ["src/auth/login.ts"],
+			priorFindings,
+			freshDiff: fixDiff,
+			config: raConfig(),
+		});
+		expect(prompt).toContain("src/auth/login.ts");
+		expect(prompt).toContain("logs a secret");
+		expect(prompt).toContain("remove the console.log");
+		expect(prompt).toContain('console.log("hi");');
+		expect(prompt).not.toContain("src/billing/charge.ts");
+		expect(prompt).not.toContain("const fee");
+	});
+
+	test("includes the controller's note when provided", () => {
+		const prompt = buildRecheckPrompt({
+			chunkId: "chunk-1",
+			files: ["src/auth/login.ts"],
+			priorFindings,
+			freshDiff: fixDiff,
+			note: "Also verify the new rate-limit check requested in the follow-up.",
+			config: raConfig(),
+		});
+		expect(prompt).toContain("Also verify the new rate-limit check");
+	});
+
+	test("omits the note section when none is given", () => {
+		const prompt = buildRecheckPrompt({
+			chunkId: "chunk-1",
+			files: ["src/auth/login.ts"],
+			priorFindings,
+			freshDiff: fixDiff,
+			config: raConfig(),
+		});
+		expect(prompt).not.toContain("Note from the controller");
+	});
+
+	test("standard level produces no posture directive", () => {
+		const prompt = buildRecheckPrompt({
+			chunkId: "chunk-1",
+			files: ["src/auth/login.ts"],
+			priorFindings,
+			freshDiff: fixDiff,
+			config: raConfig({ level: "standard" }),
+		});
+		expect(prompt).not.toContain("CARRASCO");
+	});
+
+	test("handles a chunk with no prior findings recorded", () => {
+		const prompt = buildRecheckPrompt({
+			chunkId: "chunk-1",
+			files: ["src/auth/login.ts"],
+			priorFindings: [],
+			freshDiff: fixDiff,
+			config: raConfig(),
+		});
+		expect(prompt).toContain("no prior findings recorded");
 	});
 });

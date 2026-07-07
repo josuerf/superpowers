@@ -207,6 +207,17 @@ function runVerifyAll(cwd) {
   }
 }
 
+// The harness only knows how to verify a fixed list of app stacks (Next.js,
+// Express, FastAPI, ...). A pure tooling/plugin repo (no web/service
+// framework) makes `verify()` throw "Could not detect stack" on every
+// invocation — a config/environment gap, not a code-quality problem. Never
+// trap the user in a permanent block loop over something the harness itself
+// cannot evaluate; fail this specific case open like the other setup-error
+// cases in this file.
+function isUndetectedStackFailure(result) {
+  return /Could not detect stack for project/.test(result.stderr || '');
+}
+
 // Carrasco gate — ask the harness CLI whether a fresh, passing carrasco code
 // review exists for the current change set. This is cheap (fingerprint compare),
 // the single source of truth lives in TS, and it fails OPEN on any error so a
@@ -250,7 +261,13 @@ function buildCarrascoBlockReason(status, fileCount) {
 }
 
 function buildBlockReason(result, fileCount) {
-  const output = result.stdout || result.stderr || 'Verification failed with no output';
+  // The real failure reason usually lands on stderr (thrown errors, stack
+  // traces); stdout is often just progress banners ("Running verify-all...").
+  // Show both, stderr first, so a thin stdout banner never hides the actual
+  // error like it did before this fix.
+  const output =
+    [result.stderr, result.stdout].filter(Boolean).join('\n\n') ||
+    'Verification failed with no output';
   const truncated = output.length > 3000 ? output.slice(0, 3000) + '\n... (truncated)' : output;
 
   return [
@@ -324,6 +341,15 @@ async function main() {
       return;
     }
 
+    if (isUndetectedStackFailure(result)) {
+      console.error(
+        '[verify-on-stop] Harness could not detect a known stack for this project — nothing to verify, failing open.',
+      );
+      setGuard();
+      process.stdout.write('{}');
+      return;
+    }
+
     // Verification failed - block
     console.error('[verify-on-stop] Quality gates FAILED');
     setGuard();
@@ -349,6 +375,7 @@ if (require.main === module) {
     SESSION_EDIT_TOOLS,
     runVerifyAll,
     buildBlockReason,
+    isUndetectedStackFailure,
     runCarrascoGate,
     buildCarrascoBlockReason,
     MIN_FILES_FOR_VERIFY,
