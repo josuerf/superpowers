@@ -92,15 +92,6 @@ hooks:
     command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd subagent-guard.js"
     platforms: [claude-code]
 
-  # --- PostToolUse (PostTaskValidation) ---
-
-  # Claude Code: automatic validation after edits
-  - event: PostToolUse
-    matcher: "Edit|Write"
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd post-task-validation.js"
-    async: false
-    platforms: [claude-code]
-
   # --- PreToolUse ---
 
   # Claude Code: block dangerous bash commands

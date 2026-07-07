@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import type {
 	AggregatedReviewReport,
 	AsiTarget,
+	ChunkVerdict,
 	HarnessAction,
 	ReviewAggressivenessConfig,
 	ReviewerDecision,
@@ -42,10 +43,12 @@ export function aggregateCarrascoResponses(
 	responses: CarrascoResponse[],
 	config: ReviewAggressivenessConfig,
 	timestamp: string,
+	chunkFilesById: Record<string, string[]> = {},
 ): AggregatedReviewReport {
 	const findings: ReviewerFinding[] = [];
 	const unparseableChunks: string[] = [];
 	const decisions: ReviewerDecision[] = [];
+	const chunkVerdicts: ChunkVerdict[] = [];
 
 	for (const r of responses) {
 		const decision = parseReviewerResponse(r.text);
@@ -55,6 +58,12 @@ export function aggregateCarrascoResponses(
 		}
 		decisions.push(decision);
 		findings.push(...decision.findings);
+		chunkVerdicts.push({
+			chunkId: r.chunkId,
+			files: chunkFilesById[r.chunkId] ?? [],
+			action: decision.harness_action,
+			findings: decision.findings,
+		});
 	}
 
 	const minRank = thresholdRank(config.carrasco.severityThreshold);
@@ -98,6 +107,7 @@ export function aggregateCarrascoResponses(
 		asi_target: pickGlobalAsi(decisions, findings),
 		findings: sortFindings(findings),
 		unparseableChunks,
+		chunkVerdicts,
 	};
 }
 
@@ -233,6 +243,8 @@ export interface SavedDecision {
 	fingerprint: string | null;
 	headSha: string | null;
 	metrics: AggregatedReviewReport["metrics"];
+	/** Per-chunk verdicts from this decision — lets `review recheck` target only chunks that didn't approve. */
+	chunkVerdicts: ChunkVerdict[];
 }
 
 export function reviewsDir(cwd: string): string {
@@ -282,6 +294,7 @@ export function saveCarrascoReview(
 		fingerprint: computeDiffFingerprint(cwd),
 		headSha: getHeadSha(cwd),
 		metrics: report.metrics,
+		chunkVerdicts: report.chunkVerdicts,
 	};
 	fs.writeFileSync(result.decisionPath, `${JSON.stringify(decision, null, 2)}\n`);
 	return result;

@@ -43,11 +43,6 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/track-edits.js"
-          },
-          {
-            "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-task-validation.js",
-            "async": false
           }
         ]
       },

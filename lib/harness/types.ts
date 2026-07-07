@@ -132,6 +132,13 @@ export interface ReviewPlan {
 	chunks: ReviewChunk[];
 }
 
+export interface ChunkVerdict {
+	chunkId: string;
+	files: string[];
+	action: HarnessAction | "APPROVE";
+	findings: ReviewerFinding[];
+}
+
 export interface AggregatedReviewReport {
 	feature: string;
 	level: ReviewAggressivenessLevel;
@@ -146,6 +153,8 @@ export interface AggregatedReviewReport {
 	asi_target: AsiTarget | null;
 	findings: ReviewerFinding[];
 	unparseableChunks: string[];
+	/** Per-chunk verdict — lets a later recheck target only the chunks that didn't approve. */
+	chunkVerdicts: ChunkVerdict[];
 }
 
 export interface HarnessConfig {

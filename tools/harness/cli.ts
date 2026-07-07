@@ -8,11 +8,13 @@ import {
 	detectStack,
 	extractFeatureName,
 	buildReviewPlan,
+	buildRecheckPrompt,
 	aggregateCarrascoResponses,
 	saveCarrascoReview,
 	evaluateGateStatus,
 	featureReviewDir,
 	type CarrascoResponse,
+	type SavedDecision,
 } from "../../lib/harness/index.js";
 import { validateDuplication } from "../../lib/harness/validators/duplication.js";
 import { validateComplexity } from "../../lib/harness/validators/complexity.js";
@@ -191,6 +193,85 @@ async function runReview(): Promise<void> {
 		process.exit(0);
 	}
 
+	if (sub === "recheck") {
+		const decisionPath = path.join(dir, "decision.json");
+		if (!fs.existsSync(decisionPath)) {
+			console.error(`No prior review found for '${feature}' at ${decisionPath}. Run 'review plan' (and 'review aggregate') first.`);
+			process.exit(1);
+		}
+		let decision: SavedDecision;
+		try {
+			decision = JSON.parse(fs.readFileSync(decisionPath, "utf8"));
+		} catch {
+			console.error(`Could not parse ${decisionPath}.`);
+			process.exit(1);
+		}
+		if (!decision.chunkVerdicts || decision.chunkVerdicts.length === 0) {
+			console.error(
+				"The prior decision has no per-chunk verdicts (from an older review). Run a full 'review plan' instead.",
+			);
+			process.exit(1);
+		}
+
+		const explicitChunks = getFlag("--chunks");
+		const note = getFlag("--note");
+		const targetIds = explicitChunks
+			? explicitChunks.split(",").map((s) => s.trim()).filter(Boolean)
+			: decision.chunkVerdicts
+					.filter((c) => c.action !== "APPROVE")
+					.map((c) => c.chunkId);
+
+		if (targetIds.length === 0) {
+			console.log(
+				`No blocked chunks to recheck for '${feature}' — the last review already approved everything.`,
+			);
+			process.exit(0);
+		}
+
+		fs.mkdirSync(path.join(dir, "prompts"), { recursive: true });
+		fs.mkdirSync(path.join(dir, "responses"), { recursive: true });
+
+		const rechecked: string[] = [];
+		for (const chunkId of targetIds) {
+			const verdict = decision.chunkVerdicts.find((c) => c.chunkId === chunkId);
+			if (!verdict) {
+				console.error(`  Unknown chunk id '${chunkId}' — skipping (not in the last review).`);
+				continue;
+			}
+			const freshDiff =
+				verdict.files.length > 0
+					? gitOut(cwd, ["diff", "HEAD", "--", ...verdict.files]) || ""
+					: "";
+			const prompt = buildRecheckPrompt({
+				chunkId,
+				files: verdict.files,
+				priorFindings: verdict.findings,
+				freshDiff,
+				note,
+				config: ra,
+			});
+			fs.writeFileSync(path.join(dir, "prompts", `${chunkId}.md`), `${prompt}\n`);
+			const responsePath = path.join(dir, "responses", `${chunkId}.txt`);
+			if (fs.existsSync(responsePath)) fs.rmSync(responsePath);
+			rechecked.push(chunkId);
+		}
+
+		console.log(
+			`Recheck plan — feature: ${feature} | ${rechecked.length} of ${decision.chunkVerdicts.length} chunk(s) targeted`,
+		);
+		for (const id of rechecked) console.log(`  ${id}`);
+		console.log(
+			`\nDispatch ONE carrasco subagent per listed chunk with its prompt at ${path.join(dir, "prompts")}/<chunk-id>.md`,
+		);
+		console.log(
+			`Write each response to ${path.join(dir, "responses")}/<chunk-id>.txt, then run: review aggregate --feature ${feature}`,
+		);
+		console.log(
+			"Chunks not listed above keep their previous verdict — their response files are untouched and merge back in automatically.",
+		);
+		process.exit(0);
+	}
+
 	if (sub === "aggregate") {
 		const responsesDir = path.join(dir, "responses");
 		if (!fs.existsSync(responsesDir)) {
@@ -210,11 +291,23 @@ async function runReview(): Promise<void> {
 			process.exit(1);
 		}
 
+		let chunkFilesById: Record<string, string[]> = {};
+		const planPath = path.join(dir, "plan.json");
+		if (fs.existsSync(planPath)) {
+			try {
+				const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
+				for (const c of plan.chunks ?? []) chunkFilesById[c.id] = c.files;
+			} catch {
+				// plan.json is optional context for chunkVerdicts.files — ignore if unreadable
+			}
+		}
+
 		const report = aggregateCarrascoResponses(
 			feature,
 			responses,
 			ra,
 			new Date().toISOString(),
+			chunkFilesById,
 		);
 		if (ra.reportOutput.saveToHarness) {
 			const saved = saveCarrascoReview(cwd, report, ra);
@@ -235,7 +328,7 @@ async function runReview(): Promise<void> {
 		process.exit(0);
 	}
 
-	console.error(`Unknown review subcommand: ${sub}. Use plan | aggregate | gate-status.`);
+	console.error(`Unknown review subcommand: ${sub}. Use plan | recheck | aggregate | gate-status.`);
 	process.exit(1);
 }
 

@@ -56,5 +56,28 @@ D=$(mk); cfg "$D" '{"verifyOnStop":{"minFiles":"2"}}'; assert "minFiles:\"2\" ->
 # 7. Config present but no verifyOnStop key -> default 3
 D=$(mk); cfg "$D" '{"coverageMin":90}'; assert "no verifyOnStop key -> 3" "3" "$(resolve "$D")"; rm -rf "$D"
 
+echo ""
+echo "test-verify-on-stop: isUndetectedStackFailure / buildBlockReason"
+
+# 8. "Could not detect stack" on stderr -> treated as an undetected-stack failure (fail open)
+assert "undetected-stack stderr -> true" "true" "$(node -e "
+const m = require(process.argv[1]);
+process.stdout.write(String(m.isUndetectedStackFailure({ stderr: 'Error: Could not detect stack for project at /x' })));
+" "$HOOK")"
+
+# 9. A real lint/test failure is NOT mistaken for an undetected-stack failure
+assert "real failure stderr -> false" "false" "$(node -e "
+const m = require(process.argv[1]);
+process.stdout.write(String(m.isUndetectedStackFailure({ stderr: 'ESLint found 3 errors' })));
+" "$HOOK")"
+
+# 10. buildBlockReason must surface stderr (where thrown errors land), not just a thin stdout banner
+assert "block reason includes stderr detail" "true" "$(node -e "
+const m = require(process.argv[1]);
+const reason = m.buildBlockReason({ stdout: 'Running verify-all...', stderr: 'Error: something specific broke' }, 3);
+process.stdout.write(String(reason.includes('something specific broke')));
+" "$HOOK")"
+
+echo ""
 echo "test-verify-on-stop: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

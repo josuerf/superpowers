@@ -32,9 +32,10 @@ describe('loadProjectConfig', () => {
     expect(config.securityScan.enabled).toBe(true);
   });
 
-  test('default reviewAggressiveness is carrasco with standards block', () => {
+  test('default reviewAggressiveness is disabled, standard level, with standards block', () => {
     const config = loadProjectConfig(TEST_DIR);
-    expect(config.reviewAggressiveness.level).toBe('carrasco');
+    expect(config.reviewAggressiveness.enabled).toBe(false);
+    expect(config.reviewAggressiveness.level).toBe('standard');
     expect(config.reviewAggressiveness.standards.autoDetect).toBe(true);
     expect(Array.isArray(config.reviewAggressiveness.carrasco.focusCategories)).toBe(true);
   });

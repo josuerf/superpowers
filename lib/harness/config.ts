@@ -39,8 +39,8 @@ const DEFAULT_CONFIG: HarnessConfig = {
 		},
 	},
 	reviewAggressiveness: {
-		enabled: true,
-		level: "carrasco",
+		enabled: false,
+		level: "standard",
 		chunking: {
 			enabled: true,
 			maxFilesPerChunk: 10,
