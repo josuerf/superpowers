@@ -1,10 +1,24 @@
 # plugin.universal.yaml — single source of truth for superpowers-prepared
 # Compile with: hookbridge compile
 # (or before npm publish: node /path/to/hookbridge/hookbridge.js compile)
+#
+# IMPORTANT — this file had drifted from hooks/hooks.json and was resynced by
+# hand. Two fork-specific decisions must survive every recompile; diff the
+# generated hooks/hooks.json against this file before committing a compile:
+#
+#   1. Hooks invoke `bash`/`node` DIRECTLY, not the run-hook.cmd /
+#      run-node-hook.cmd polyglot wrappers. The wrappers broke under /bin/sh on
+#      Linux (see 3a19f20); calling the interpreter directly removes the
+#      polyglot problem entirely.
+#   2. The claude-code SessionStart hook MUST keep `shell: bash`. Without it,
+#      Claude Code on Windows hands the command to PowerShell or cmd.exe, whose
+#      parsers break on it (upstream #1751, #1918) and the bootstrap silently
+#      never loads. Covered by tests/hooks/test-session-start.sh — if the
+#      compiler drops unknown keys, re-add it and make that test pass.
 
 meta:
   name: superpowers-prepared
-  version: "6.7.3"
+  version: "6.12.1"
   description: "Workflow skills and hooks for Claude Code and Codex"
   author: "Jesse Vincent, forked by josuerf"
   homepage: "https://github.com/josuerf/superpowers-prepared"
@@ -16,16 +30,17 @@ meta:
 hooks:
   # --- SessionStart ---
 
-  # Claude Code: polyglot CMD/bash wrapper for cross-platform startup
+  # Claude Code: bootstrap via Git Bash (shell: bash is load-bearing on Windows)
   - event: SessionStart
     matcher: "startup|clear|compact"
-    command: "{PLUGIN_ROOT}/hooks/run-hook.cmd session-start"
+    command: 'bash "{PLUGIN_ROOT}/hooks/session-start"'
+    shell: bash
     async: false
     platforms: [claude-code]
 
   # Claude Code: async context engine
   - event: SessionStart
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd context-engine.js"
+    command: "node {PLUGIN_ROOT}/hooks/context-engine.js"
     async: true
     platforms: [claude-code]
 
@@ -39,12 +54,12 @@ hooks:
 
   # Claude Code: shared skill activator
   - event: UserPromptSubmit
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd skill-activator.js"
+    command: "node {PLUGIN_ROOT}/hooks/skill-activator.js"
     platforms: [claude-code]
 
   # Claude Code: pattern capture
   - event: UserPromptSubmit
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd capture-hook.js"
+    command: "node {PLUGIN_ROOT}/hooks/capture-hook.js"
     async: false
     platforms: [claude-code]
 
@@ -58,13 +73,13 @@ hooks:
   # Claude Code only: track file edits
   - event: PostToolUse
     matcher: "Edit|Write"
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd track-edits.js"
+    command: "node {PLUGIN_ROOT}/hooks/track-edits.js"
     platforms: [claude-code]
 
   # Claude Code only: track skill usage
   - event: PostToolUse
     matcher: "Skill"
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd track-session-stats.js"
+    command: "node {PLUGIN_ROOT}/hooks/track-session-stats.js"
     platforms: [claude-code]
 
   # Codex: reactive Bash output compression
@@ -75,9 +90,14 @@ hooks:
 
   # --- Stop ---
 
+  # Claude Code: end-of-session verify-all gate (harness)
+  - event: Stop
+    command: "node {PLUGIN_ROOT}/hooks/verify-on-stop.js"
+    platforms: [claude-code]
+
   # Claude Code: stop reminders
   - event: Stop
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd stop-reminders.js"
+    command: "node {PLUGIN_ROOT}/hooks/stop-reminders.js"
     platforms: [claude-code]
 
   # Codex: dedicated stop adapter
@@ -89,7 +109,7 @@ hooks:
 
   # Claude Code only: subagent guard
   - event: SubagentStop
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd subagent-guard.js"
+    command: "node {PLUGIN_ROOT}/hooks/subagent-guard.js"
     platforms: [claude-code]
 
   # --- PreToolUse ---
@@ -97,19 +117,19 @@ hooks:
   # Claude Code: block dangerous bash commands
   - event: PreToolUse
     matcher: "Bash"
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd safety/block-dangerous-commands.js"
+    command: "node {PLUGIN_ROOT}/hooks/safety/block-dangerous-commands.js"
     platforms: [claude-code]
 
   # Claude Code: protect secrets from file/bash ops
   - event: PreToolUse
     matcher: "Read|Edit|Write|Bash"
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd safety/protect-secrets.js"
+    command: "node {PLUGIN_ROOT}/hooks/safety/protect-secrets.js"
     platforms: [claude-code]
 
   # Claude Code: bash output compression
   - event: PreToolUse
     matcher: "Bash"
-    command: "{PLUGIN_ROOT}/hooks/run-node-hook.cmd bash-compress-hook.js"
+    command: "node {PLUGIN_ROOT}/hooks/bash-compress-hook.js"
     platforms: [claude-code]
 
   # Codex: dedicated pretool bash adapter
