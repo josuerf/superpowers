@@ -101,13 +101,14 @@ digraph brainstorming {
 - Propose 2-3 different approaches with trade-offs
 - Present options conversationally with your recommendation and reasoning
 - Lead with your recommended option and explain why
+- YAGNI ruthlessly - remove unnecessary features from every approach and design
 
 **Presenting the design:**
 
 - Once you believe you understand what you're building, present the design
 - Scale each section to its complexity: a few sentences if straightforward, up to 200-300 words if nuanced
 - Ask after each section whether it looks right so far
-- Cover: architecture, components, data flow, error handling, testing
+- Cover: scope and non-goals, architecture, components, data flow, interfaces/contracts, error handling, testing, and rollout or migration notes when the change needs them
 - Be ready to go back and clarify if something doesn't make sense
 
 **Design for isolation and clarity:**
@@ -154,31 +155,6 @@ Wait for the user's response. If they request changes, make them and re-run the 
 - Invoke the writing-plans skill to create a detailed implementation plan
 - Do NOT invoke any other skill. writing-plans is the next step.
 
-Wait for the user's response. If they request changes, make them and re-run the self-review. Only proceed once the user approves.
-
-- **One question at a time** - Don't overwhelm with multiple questions
-- **Multiple choice preferred** - Easier to answer than open-ended when possible
-- **YAGNI ruthlessly** - Remove unnecessary features from all designs
-- **Explore alternatives** - Always propose 2-3 approaches before settling
-- **Incremental validation** - Present design, get approval before moving on
-- **Be flexible** - Go back and clarify when something doesn't make sense
-
-## Design for Isolation and Clarity
-
-- Break the system into smaller units that each have one clear purpose, communicate through well-defined interfaces, and can be understood and tested independently.
-- For each unit, you should be able to answer: what does it do, how do you use it, and what does it depend on?
-- Smaller, well-bounded units are easier to reason about — you reason better about code you can hold in context at once, and your edits are more reliable when files are focused.
-
-## Design Contents
-
-Include:
-- Scope and non-goals
-- Architecture and data flow
-- Interfaces/contracts
-- Error handling
-- Testing strategy
-- Rollout or migration notes (if needed)
-
 ## Engineering Rigor
 
 Apply senior engineering judgment during design:
@@ -187,12 +163,6 @@ Apply senior engineering judgment during design:
 - Evaluate trade-offs explicitly (performance vs. readability, flexibility vs. simplicity).
 - Prioritize modularity, SOLID principles, and production-ready standards.
 - Flag architectural risks that will be expensive to fix later.
-
-## Interaction Rules
-
-- Batch all questions into a single turn; use multiple choice to reduce ambiguity.
-- Remove non-essential scope (YAGNI).
-- If user feedback conflicts with prior assumptions, revise design before proceeding.
 
 ## Exit Criteria
 

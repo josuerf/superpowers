@@ -143,6 +143,31 @@ for (const forbiddenText of forbiddenTexts) {
 
 echo "SessionStart hook output tests"
 
+# Registration shape: the hook must declare shell:"bash" so Claude Code on
+# Windows dispatches via Git Bash (or fails with an actionable error) instead
+# of PowerShell/cmd.exe, whose parsers break on the quoted command string
+# (PowerShell ParserError; cmd.exe quote-stripping on paths with metacharacters).
+# This fork invokes the polyglot's bash path directly instead of going through
+# the run-hook.cmd wrapper: the command must lead with the bareword `bash` (so
+# pre-2.1.81 clients that ignore `shell` still parse it) and quote the script
+# path (so profile dirs with spaces or metacharacters survive).
+if node -e '
+const hooks = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const entry = hooks.hooks.SessionStart[0].hooks[0];
+if (entry.shell !== "bash") {
+  console.error(`SessionStart hook shell is ${JSON.stringify(entry.shell)}, expected "bash"`);
+  process.exit(1);
+}
+if (!/^bash "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/session-start"$/.test(entry.command)) {
+  console.error(`unexpected SessionStart command shape: ${entry.command}`);
+  process.exit(1);
+}
+' "$REPO_ROOT/hooks/hooks.json"; then
+    pass "hooks.json registers SessionStart with shell:bash dispatch"
+else
+    fail "hooks.json registers SessionStart with shell:bash dispatch"
+fi
+
 claude_home="$(make_home claude-code)"
 assert_command_output \
     "Claude Code emits nested SessionStart additionalContext" \
