@@ -18,7 +18,7 @@
 
 meta:
   name: superpowers-prepared
-  version: "6.12.1"
+  version: "6.13.0"
   description: "Workflow skills and hooks for Claude Code and Codex"
   author: "Jesse Vincent, forked by josuerf"
   homepage: "https://github.com/josuerf/superpowers-prepared"
