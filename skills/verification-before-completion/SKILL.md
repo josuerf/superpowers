@@ -26,7 +26,8 @@ Before any completion claim:
 - "Bug is fixed"
 - "Build succeeds"
 - "Ready to merge"
-- Any equivalent wording
+- Any equivalent wording — paraphrases, synonyms, implications of success,
+  and ANY communication suggesting completion or correctness
 
 ## Not Acceptable
 

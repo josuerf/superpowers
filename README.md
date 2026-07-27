@@ -11,7 +11,7 @@ If this sounds like someone you know, definitely send them our way.
 
 ## Quickstart
 
-Give your agent Superpowers: [Claude Code](#claude-code), [Antigravity](#antigravity), [Codex App](#codex-app), [Codex CLI](#codex-cli), [Cursor](#cursor), [Factory Droid](#factory-droid), [GitHub Copilot CLI](#github-copilot-cli), [Kimi Code](#kimi-code), [OpenCode](#opencode), [Pi](#pi).
+Give your agent Superpowers: [Claude Code](#claude-code), [Antigravity](#antigravity), [Codex App](#codex-app), [Codex CLI](#codex-cli), [Cursor](#cursor), [Factory Droid](#factory-droid), [Gemini CLI](#gemini-cli), [GitHub Copilot CLI](#github-copilot-cli), [Kimi Code](#kimi-code), [OpenCode](#opencode), [Pi](#pi).
 
 [![GitHub stars](https://img.shields.io/github/stars/josuerf/superpowers-prepared?style=for-the-badge&color=white)](https://github.com/josuerf/superpowers-prepared/stargazers)
 [![Version](https://img.shields.io/github/v/release/josuerf/superpowers-prepared?style=for-the-badge&color=white)](https://github.com/josuerf/superpowers-prepared/releases)
@@ -678,6 +678,20 @@ To disable startup auto-update checks for Codex/OpenCode/Gemini CLI:
 
   ```bash
   droid plugin install superpowers@superpowers
+  ```
+
+### Gemini CLI
+
+- Install the extension:
+
+  ```bash
+  gemini extensions install https://github.com/obra/superpowers
+  ```
+
+- Update later:
+
+  ```bash
+  gemini extensions update superpowers
   ```
 
 ### GitHub Copilot CLI
