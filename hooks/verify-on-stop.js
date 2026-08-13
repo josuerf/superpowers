@@ -16,6 +16,29 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+// Absolute path to the harness CLI bundled with this plugin — resolved once
+// from this file's own location, not the target project's cwd, since the
+// harness lives inside the plugin install, not the user's repo.
+const CLI_PATH = path.join(__dirname, '..', 'tools', 'harness', 'cli.ts');
+
+// On Windows, npm-installed CLI shims (npx, tsc, ...) are `.cmd` files.
+// `spawnSync('npx', ...)` without a shell fails with ENOENT (bare `npx` isn't
+// a real executable — reproduced: status null, empty stdout/stderr, which
+// used to surface as the unhelpful "Verification failed with no output").
+// Passing `npx.cmd` directly instead throws EINVAL: Node refuses to spawn
+// .cmd/.bat files without `shell: true` (its fix for the batch-file argument
+// injection class of bugs). So `shell: true` is required here, which in turn
+// means Node does NOT escape `args` for us (see DEP0190) — each argument is
+// quoted below so paths with spaces (e.g. "C:\Users\Jane Doe\...") survive
+// the shell's tokenizing instead of being split into multiple arguments.
+function shellQuote(arg) {
+  const str = String(arg);
+  if (process.platform === 'win32') {
+    return /[\s"]/.test(str) ? `"${str.replace(/"/g, '\\"')}"` : str;
+  }
+  return /[\s"'$`\\]/.test(str) ? `'${str.replace(/'/g, "'\\''")}'` : str;
+}
+
 const LOG_DIR = path.join(
   process.env.HOME || process.env.USERPROFILE || '.',
   '.claude',
@@ -181,14 +204,13 @@ function getSessionEditedFiles(transcriptPath, cwd) {
 }
 
 function runVerifyAll(cwd) {
-  const cliPath = path.join(__dirname, '..', 'tools', 'harness', 'cli.ts');
-
   try {
-    const result = spawnSync('npx', ['tsx', cliPath, 'all'], {
+    const result = spawnSync('npx', ['tsx', CLI_PATH, 'all'].map(shellQuote), {
       cwd: cwd || process.cwd(),
       encoding: 'utf8',
       timeout: 180000, // 3 minutes for full verify-all
       maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+      shell: true,
     });
 
     return {
@@ -223,14 +245,18 @@ function isUndetectedStackFailure(result) {
 // the single source of truth lives in TS, and it fails OPEN on any error so a
 // broken setup never traps the user at session stop.
 function runCarrascoGate(cwd) {
-  const cliPath = path.join(__dirname, '..', 'tools', 'harness', 'cli.ts');
   try {
-    const result = spawnSync('npx', ['tsx', cliPath, 'review', 'gate-status', '--root', cwd], {
-      cwd: cwd || process.cwd(),
-      encoding: 'utf8',
-      timeout: 60000,
-      maxBuffer: 1024 * 1024,
-    });
+    const result = spawnSync(
+      'npx',
+      ['tsx', CLI_PATH, 'review', 'gate-status', '--root', cwd].map(shellQuote),
+      {
+        cwd: cwd || process.cwd(),
+        encoding: 'utf8',
+        timeout: 60000,
+        maxBuffer: 1024 * 1024,
+        shell: true,
+      },
+    );
     if (result.error || typeof result.stdout !== 'string') return { block: false };
     // gate-status prints a single JSON line; tolerate extra log lines.
     const line = result.stdout.trim().split('\n').filter(Boolean).pop() || '';
@@ -253,7 +279,7 @@ function buildCarrascoBlockReason(status, fileCount) {
     `Carrasco gate: ${status.reason} (${fileCount} source file(s) with uncommitted changes).`,
     '',
     'A rigorous, standards-enforcing code review is required before completing.',
-    'Run the "carrasco-review" skill (or: npx tsx tools/harness/cli.ts review plan, dispatch the carrascos, then review aggregate).',
+    `Run the "carrasco-review" skill (or: npx tsx "${CLI_PATH}" review plan, dispatch the carrascos, then review aggregate).`,
     '',
     'Fix any BLOCK findings and re-run the review, or commit/push to bypass this gate.',
     '</carrasco-review>',
@@ -274,7 +300,7 @@ function buildBlockReason(result, fileCount) {
     '<verify-on-stop>',
     `Quality gate failed: ${fileCount} source file(s) with uncommitted changes`,
     '',
-    'Run "npx tsx tools/harness/cli.ts all" to see full output and fix issues.',
+    `Run "npx tsx \\"${CLI_PATH}\\" all" to see full output and fix issues.`,
     '',
     'Output:',
     truncated,
