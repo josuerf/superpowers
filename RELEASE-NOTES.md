@@ -1,5 +1,34 @@
 # Superpowers Optimized Release Notes
 
+## v6.14.0 (2026-08-13)
+
+Sync with upstream `obra/superpowers` v6.3.0: Devin CLI and Hermes Agent support, a three-path router in brainstorming, and autonomous rulings in subagent-driven-development.
+
+### New Features
+
+**Devin CLI and Hermes Agent support** — Two new harnesses arrive from upstream, both retargeted to this fork. `.devin-plugin/plugin.json` and `.hermes-plugin/` register as `superpowers-prepared`, so the `superpowers-prepared:<skill>` references the fork's skills use between themselves resolve on those harnesses instead of silently failing. The Hermes bootstrap injects `using-superpowers` on the first turn via `pre_llm_call` and registers every skill with Hermes' native loader.
+
+**Three-path router in brainstorming** — Requests are now classified as **spike**, **bounded**, or **architectural** before the first question, and the classification is announced so it can be overridden. A spike presents its probe in a few sentences and reports a recommendation. A bounded change — a well-scoped edit to a flow that already exists in the repo — gets a short design in chat and skips both the spec file and the plan document. Architectural work keeps the full process. The approval gate never scales down: every path stops for explicit approval before implementation.
+
+**Quality Gates section** — The lighter paths drop artifacts, never verification. A bounded task ends where an architectural one ends: `harness-verify` (verify-local plus verify-deadcode), `carrasco-review` when the project opts in via `.harness.config.json` → `reviewAggressiveness.enabled`, and `verification-before-completion` with fresh output. Exit Criteria and the Red Flags table now cover all three paths.
+
+**Rulings instead of stalls in subagent-driven-development** — A running plan no longer waits on a human for plan conflicts, ambiguities, or plan defects. The controller decides, records `Ruling: <decision> — <why> — <cost if wrong>` in the ledger, and keeps going; every ruling surfaces in a "Rulings I made" list at the end. Only four things still stop execution: an irreversible or destructive operation, a security-sensitive action, a side effect outside the worktree, and a plan defect that leaves every path forward a guess. That last case now also writes to `state.md` so the next session picks it up. Also from upstream: batching small same-shape tasks into one dispatch, bounded waiting on dispatched subagents, and the no-subagents contract for implementers.
+
+**Worktree removal safety** — `finishing-a-development-branch` no longer reaches for `--force` when `git worktree remove` refuses. It lists what was never committed and asks whether to commit, move, or delete.
+
+### Changes
+
+- Installation instructions that install by repository now point at `josuerf/superpowers-prepared`: Antigravity, Devin CLI, Factory Droid, Gemini CLI, Kimi Code, Pi, and Hermes Agent. Grok Build CLI and GitHub Copilot CLI still install from upstream-owned marketplaces and now say so explicitly.
+- `scripts/bump-version.sh` handles YAML manifests (needs `yq` on PATH) and preflights every declared manifest before writing.
+- `.version-bump.json` declares the Devin and Hermes manifests; the `/release` command now reads that file as the source of truth instead of a hardcoded list.
+- `writing-plans` plan templates carry a **Spec:** field, so executors read the spec the plan argues from.
+
+### Fixes
+
+- **brainstorming structure** — Two defects from earlier syncs: the `## Hard Gate` heading had swallowed the skill's opening sentence, and `## Spec Self-Review` was labelling the section that is actually `## The Process` (the real Spec Self-Review lives under "After the Design"). In the process diagram, the declared node was `"Write design doc"` while every edge referenced `"Save design doc"`.
+- **README** — Removed duplicate Cursor and OpenCode installation sections inherited from an earlier sync, where the duplicates carried upstream's plugin name and the wrong install command. Replaced upstream's table of contents (which landed inside the badge block with anchors for sections this fork does not have) with an index of the fork's real sections, and merged the two `## Community` sections into one.
+- **Version desync** — The Devin and Hermes manifests arrived at 6.3.0 while the fork was at 6.13.0; `tests/devin/test-devin-plugin.sh` catches this class of drift by comparing against `package.json`.
+
 ## v6.11.0 (2026-06-24)
 
 Configurable verify-on-stop trigger threshold.
