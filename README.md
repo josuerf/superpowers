@@ -2,17 +2,6 @@
 
 Superpowers is a complete software development methodology for your coding agents, built on top of a set of composable skills and some initial instructions that make sure your agent uses them.
 
-
-## We're Hiring!
-
-We're hiring someone to help out full time with Superpowers community and code work. 
-You can read about the job at https://primeradiant.com/jobs/superpowers-community-engineer/
-If this sounds like someone you know, definitely send them our way.
-
-## Quickstart
-
-Give your agent Superpowers: [Claude Code](#claude-code), [Antigravity](#antigravity), [Codex App](#codex-app), [Codex CLI](#codex-cli), [Cursor](#cursor), [Factory Droid](#factory-droid), [Gemini CLI](#gemini-cli), [GitHub Copilot CLI](#github-copilot-cli), [Kimi Code](#kimi-code), [OpenCode](#opencode), [Pi](#pi).
-
 [![GitHub stars](https://img.shields.io/github/stars/josuerf/superpowers-prepared?style=for-the-badge&color=white)](https://github.com/josuerf/superpowers-prepared/stargazers)
 [![Version](https://img.shields.io/github/v/release/josuerf/superpowers-prepared?style=for-the-badge&color=white)](https://github.com/josuerf/superpowers-prepared/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-white?style=for-the-badge)](LICENSE)
@@ -59,6 +48,22 @@ Activate Superpowers Optimized and plan a secure user-authentication endpoint wi
 The agent will automatically route to the correct workflow, apply safety guards, and run an integrated security review during code review — no manual skill selection required.
 
 See [Installation](#installation) for install, update, and uninstall commands on all platforms.
+
+## Contents
+
+- [How It Works](#how-it-works)
+- [Research-Informed Design](#research-informed-design)
+- [Session Memory: The AI That Remembers](#session-memory-the-ai-that-remembers)
+- [Skills Library](#skills-library-28-skills)
+- [Installation](#installation)
+  - [Claude Code](#claude-code) · [Cursor](#cursor) · [Antigravity](#antigravity) · [Codex App](#codex-app) · [Codex CLI](#codex-cli) · [OpenCode](#opencode)
+  - [Devin CLI](#devin-cli) · [Factory Droid](#factory-droid) · [Gemini CLI](#gemini-cli) · [GitHub Copilot CLI](#github-copilot-cli) · [Grok Build CLI](#grok-build-cli) · [Kimi Code](#kimi-code) · [Pi](#pi) · [Hermes Agent](#hermes-agent)
+- [The Basic Workflow](#the-basic-workflow)
+- [Community](#community)
+- [What's Inside](#whats-inside)
+- [Philosophy](#philosophy)
+- [Contributing](#contributing)
+- [Visual companion telemetry](#visual-companion-telemetry)
 
 > [!NOTE]
 > **Codex parity boundary:** Claude Code gets the full 10-hook lifecycle. Codex now has verified live support for `SessionStart`, `UserPromptSubmit`, and `PreToolUse(Bash)` on macOS/Linux with `codex_hooks = true` and `codex-cli 0.118.0+` (tested on `0.118.0`). This repo now also ships a Codex-specific `PostToolUse(Bash)` smart-compress hook that can replace noisy Bash output after execution using the existing compression rules. `Stop` is implemented for Codex, but visible reminder surfacing should still be revalidated after install/update. Codex still does **not** expose Claude's `PostToolUse(Edit|Write|Skill)`, `SubagentStop`, `Read/Edit/Write` interception, or Claude's pre-execution Bash rewrite path, so full Claude parity is not possible today.
@@ -586,7 +591,7 @@ For live Codex hooks, use `codex-cli 0.118.0` or newer. Older CLI builds may sil
 Install Superpowers as a plugin from this repository:
 
 ```bash
-agy plugin install https://github.com/obra/superpowers
+agy plugin install https://github.com/josuerf/superpowers-prepared
 ```
 
 Antigravity runs the plugin's session-start hook, so Superpowers is active from
@@ -656,22 +661,26 @@ To disable startup auto-update checks for Codex/OpenCode/Gemini CLI:
 
 # Verify Installation
 
-### Cursor
+### Devin CLI
 
-- In Cursor Agent chat, install from marketplace:
+- Install the plugin from this repository:
 
-  ```text
-  /add-plugin superpowers
+  ```bash
+  devin plugins install josuerf/superpowers-prepared
   ```
 
-- Or search for "superpowers" in the plugin marketplace.
+- Update to the latest version with:
+
+  ```bash
+  devin plugins update superpowers-prepared
+  ```
 
 ### Factory Droid
 
 - Register the marketplace:
 
   ```bash
-  droid plugin marketplace add https://github.com/obra/superpowers
+  droid plugin marketplace add https://github.com/josuerf/superpowers-prepared
   ```
 
 - Install the plugin:
@@ -685,7 +694,7 @@ To disable startup auto-update checks for Codex/OpenCode/Gemini CLI:
 - Install the extension:
 
   ```bash
-  gemini extensions install https://github.com/obra/superpowers
+  gemini extensions install https://github.com/josuerf/superpowers-prepared
   ```
 
 - Update later:
@@ -708,6 +717,24 @@ To disable startup auto-update checks for Codex/OpenCode/Gemini CLI:
   copilot plugin install superpowers@superpowers-marketplace
   ```
 
+### Grok Build CLI
+
+> **Note:** xAI's official marketplace carries upstream `obra/superpowers`, not
+> this fork. Installing from it gives you the original plugin, without the hooks,
+> harness, and quality gates described above.
+
+- Install upstream Superpowers from xAI's official marketplace:
+
+  ```bash
+  grok plugin install superpowers@xai-official --trust
+  ```
+
+- Or open the marketplace in the TUI, search for Superpowers, and install it:
+
+  ```text
+  /marketplace
+  ```
+
 ---
 
 ### Kimi Code
@@ -725,30 +752,17 @@ Superpowers is available in Kimi Code's plugin marketplace.
 - Or install directly from this repository:
 
   ```text
-  /plugins install https://github.com/obra/superpowers
+  /plugins install https://github.com/josuerf/superpowers-prepared
   ```
 
 - Detailed docs: [docs/README.kimi.md](docs/README.kimi.md)
-
-### OpenCode
-
-OpenCode uses its own plugin install; install Superpowers separately even if you
-already use it in another harness.
-
-- Tell OpenCode:
-
-  ```
-  Fetch and follow instructions from https://raw.githubusercontent.com/josuerf/superpowers-prepared/refs/heads/main/.opencode/INSTALL.md
-  ```
-
-- Detailed docs: [.opencode/INSTALL.md](.opencode/INSTALL.md)
 
 ### Pi
 
 Install Superpowers as a Pi package from this repository:
 
 ```bash
-pi install git:github.com/obra/superpowers
+pi install git:github.com/josuerf/superpowers-prepared
 ```
 
 For local development, run Pi with this checkout loaded as a temporary package:
@@ -758,6 +772,18 @@ pi -e /path/to/superpowers
 ```
 
 The Pi package loads the Superpowers skills and a small extension that injects the `using-superpowers` bootstrap at session startup and again after compaction. Pi has native skills, so no compatibility `Skill` tool is required. Subagent and task-list tools remain optional Pi companion packages.
+
+### Hermes Agent
+
+Install Superpowers as a Hermes plugin from this repository:
+
+```bash
+hermes plugins install josuerf/superpowers-prepared --enable
+```
+
+Restart any active Hermes sessions after installing. Note: Hermes has no
+post-compaction hook, so a very long session that compacts over its first
+turn loses the bootstrap — start a fresh session if skills stop triggering.
 
 ## The Basic Workflow
 
@@ -782,6 +808,19 @@ The Pi package loads the Superpowers skills and a small extension that injects t
 7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
 
 **The agent checks for relevant skills before any task.** Mandatory workflows, not suggestions.
+
+## Community
+
+Superpowers Optimized is a fork of [Superpowers](https://github.com/obra/superpowers), built by [Jesse Vincent](https://blog.fsck.com) and the rest of the folks at [Prime Radiant](https://primeradiant.com).
+
+**This fork**
+- **Issues**: https://github.com/josuerf/superpowers-prepared/issues
+- **Discussions**: https://github.com/josuerf/superpowers-prepared/discussions
+
+**Upstream**
+- **Discord**: [Join us](https://discord.gg/35wsABTejz) for community support, questions, and sharing what you're building with Superpowers
+- **Issues**: https://github.com/obra/superpowers/issues
+- **Release announcements**: [Sign up](https://primeradiant.com/superpowers/) to get notified about new versions
 
 ## What's Inside
 
@@ -841,10 +880,3 @@ MIT License - see LICENSE file for details
 ## Visual companion telemetry
 
 Because skills and plugins don't provide any feedback to creators, we have no idea how many of you are using Superpowers. By default, the Prime Radiant logo on brainstorming's optional visual companion feature is loaded from our website. It includes the version of Superpowers in use. It does not include any details about your project, prompt, or coding agent. We don't see your clicks or anything about what you're building. This helps us have a rough idea of how many folks are using Superpowers and which version of Superpowers they're using. It's 100% optional. To disable this, set the environment variable `SUPERPOWERS_DISABLE_TELEMETRY` to any true value. Superpowers also honors Claude Code's `DISABLE_TELEMETRY` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` opt-outs.
-
-## Community
-
-**Support**
-- Issues: https://github.com/josuerf/superpowers-prepared/issues
-- Original: https://github.com/obra/superpowers
-- Discussions: https://github.com/josuerf/superpowers-prepared/discussions
