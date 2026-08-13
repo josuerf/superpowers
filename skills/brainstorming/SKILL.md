@@ -13,20 +13,98 @@ description: >
 
 Turn rough requests into an approved design before implementation.
 
+Start by classifying how much process the request needs, then work
+through your path: understand the context, refine the idea, present a
+design, and get your human partner's approval.
+
 ## Hard Gate
-Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
 
-Do not write code, edit files, or invoke implementation skills until design approval is explicit.
+<HARD-GATE>
+Do NOT invoke any implementation skill, write any code, scaffold any
+project, or take any implementation action until you have told your
+human partner what you intend and they have approved it. This applies
+to EVERY task on EVERY path below — the ceremony scales with the task;
+the approval gate never does.
+</HARD-GATE>
 
-## Anti-Pattern: "This Is Too Simple To Need A Design"
+## Three Paths
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+Before your first question, classify the request and say the
+classification out loud — "this looks bounded, so I'll present a short
+design here rather than write a spec" — so your human partner can
+override it:
+
+- **Spike** — a feasibility question ("can we...", "is it possible...",
+  "quick and dirty is fine") whose output is an answer, not code you
+  keep. Present the question and what you'll try in 2-3 sentences, get
+  a nod, then find out as cheaply as correctness allows. No design
+  doc, no spec file. Report findings as a recommendation; anything you
+  built stays labeled throwaway.
+- **Bounded** — a well-scoped change to code that already exists in
+  this repo: a new flag, a small endpoint, a one-file fix.
+  Understanding the kind of app is not enough — bounded means the flow
+  you are changing is already here to read. If there is no existing
+  flow to change, the task is not bounded. Ask the clarifying
+  questions that matter, present a short design IN CHAT (a few
+  sentences to a few short paragraphs), and STOP. Implementation
+  starts only after your human partner says yes to that design — a
+  bounded task's approval is as hard a gate as an architectural
+  one. No spec file, no implementation plan document.
+- **Architectural** — new projects, new subsystems, changes that
+  restructure how components fit together or alter interfaces others
+  depend on. Follow the full process: questions, approaches, sectioned
+  design, written spec, then the writing-plans skill.
+
+When in doubt between two paths, take the heavier one. The ratchet is
+one-way: hidden complexity discovered mid-task upgrades the path —
+stop, say so, and step up. Nothing downgrades mid-task.
+
+## Anti-Pattern: "Too Simple To Need Approval"
+
+Every path ends with your human partner approving your intent before
+implementation. A todo list, a single-function utility, a config
+change — the design may be two sentences in chat, but you MUST present
+it and get approval. "Simple" tasks are where unexamined assumptions
+cause the most wasted work. What scales with simplicity is the
+artifact, never the approval.
+
+## Red Flags
+
+| Thought | Reality |
+|---------|---------|
+| "This is too simple to need a design" | Simple means a short design, not no design. Two sentences in chat, then approval. |
+| "I'll call it bounded and skip the spec" | Reaching for a label to skip work IS the doubt — take the heavier path. |
+| "It's bounded and the design is obvious — I'll start while they read it" | The gate is the approval, not the design's length. Present, then stop until you hear yes. |
+| "I understand this kind of app, so it's bounded" | Bounded measures the repo, not your familiarity. A new project has no existing flow — it is architectural. |
+| "The spike works, so I'll keep the code" | A spike's output is an answer. Keeping the code is a new request — classify it. |
+| "It grew, but I'm almost done — no need to re-classify" | Hidden complexity upgrades the path mid-task. Stop and say so. |
+| "They approved the spike, so the follow-up change is approved too" | Each task gets its own classification and its own approval. |
+| "It's bounded, so the harness gates are overkill" | Bounded drops the spec file, not the gates. harness-verify, carrasco-review (when enabled), and verification-before-completion all still run. |
+| "The change is too small to trip lint or deadcode" | Then the gate costs seconds and proves it. Skipping it is how dead symbols and broken types ship. |
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+Classify first, announce the path, then create a task for each item on
+your path and complete them in order.
 
-1. **Inspect project context** — (relevant files, docs, recent commits).
+**Spike:**
+1. **Explore project context** — enough to frame the probe
+2. **Present question + probe plan** — 2-3 sentences
+3. **Get approval** — a nod is enough
+4. **Investigate** — as cheaply as correctness allows
+5. **Report findings** — a recommendation; label anything built as throwaway
+
+**Bounded:**
+1. **Explore project context** — check files, docs, recent commits
+2. **Ask clarifying questions** — one at a time, the ones that matter
+3. **Present short design in chat** — approach, files touched, testing
+4. **Get approval** — STOP and wait for an explicit yes; presenting the design and starting in the same breath is skipping the gate
+5. **Implement** — proceed with the normal development workflow (TDD applies); no plan document
+6. **Run the quality gates** — see Quality Gates below. Bounded drops the spec
+   file and the plan document; it never drops the gates.
+
+**Architectural:**
+1. **Explore project context** — check files, docs, recent commits
 2. **Offer the visual companion just-in-time** — NOT upfront. The first time a question would genuinely be clearer shown than described, offer it then (its own message); on approval its browser tab opens for you. If no visual question ever arises, never offer it. See the Visual Companion section below.
 3. **Assess scope** — if the project touches 4+ independent subsystems or would require 20+ implementation tasks, decompose into sub-projects. Design each sub-project as a separate spec. Present the decomposition to the user for approval before designing individual specs.
 4. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
@@ -47,6 +125,13 @@ You MUST create a task for each of these items and complete them in order:
 
 ```dot
 digraph brainstorming {
+    "Classify: spike / bounded / architectural" [shape=diamond];
+    "Present question + probe (2-3 sentences)" [shape=box];
+    "Ask clarifying questions (bounded)" [shape=box];
+    "Present short design in chat" [shape=box];
+    "Human approves?" [shape=diamond];
+    "Investigate; report recommendation" [shape=doublecircle];
+    "Implement via normal workflow (no plan doc)" [shape=box];
     "Explore project context" [shape=box];
     "Visual questions ahead?" [shape=diamond];
     "Offer Visual Companion\n(own message, no other content)" [shape=box];
@@ -57,11 +142,23 @@ digraph brainstorming {
     "Present design sections" [shape=box];
     "User approves design?" [shape=diamond];
     "Failure-mode check" [shape=box];
-    "Write design doc" [shape=box];
+    "Save design doc" [shape=box];
     "Spec self-review\n(fix inline)" [shape=box];
     "User reviews spec?" [shape=diamond];
     "Invoke writing-plans" [shape=doublecircle];
+    "Hidden complexity? Upgrade path" [shape=box];
+    "Run quality gates\n(harness-verify, carrasco-review,\nverification-before-completion)" [shape=doublecircle];
 
+    "Classify: spike / bounded / architectural" -> "Present question + probe (2-3 sentences)" [label="spike"];
+    "Classify: spike / bounded / architectural" -> "Ask clarifying questions (bounded)" [label="bounded"];
+    "Classify: spike / bounded / architectural" -> "Explore project context" [label="architectural"];
+    "Present question + probe (2-3 sentences)" -> "Human approves?";
+    "Ask clarifying questions (bounded)" -> "Present short design in chat";
+    "Present short design in chat" -> "Human approves?";
+    "Human approves?" -> "Investigate; report recommendation" [label="spike: yes"];
+    "Human approves?" -> "Implement via normal workflow (no plan doc)" [label="bounded: yes"];
+    "Implement via normal workflow (no plan doc)" -> "Run quality gates\n(harness-verify, carrasco-review,\nverification-before-completion)";
+    "Hidden complexity? Upgrade path" -> "Classify: spike / bounded / architectural";
     "Explore project context" -> "Assess scope";
     "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
     "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
@@ -82,9 +179,40 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
+**Terminal states are path-bound.** Architectural: the ONLY skill you
+invoke after brainstorming is writing-plans — never frontend-design or
+any other implementation skill. Bounded: after approval, implementation
+proceeds directly through the normal development workflow and ends at
+the quality gates; no plan document. Spike: the terminal state is a
+reported recommendation.
 
-## Spec Self-Review
+## Quality Gates
+
+The lighter paths drop artifacts, never verification. Whatever a bounded
+task skipped — spec file, plan document, sectioned design — it still ends
+where an architectural task ends:
+
+1. **`harness-verify`** — run `verify-local` (completeness, lint, typecheck,
+   test, coverage, patterns) and `verify-deadcode`. A failing gate means the
+   task is not done: fix it and re-run.
+2. **`carrasco-review`** — run it when the project opts in
+   (`.harness.config.json` → `reviewAggressiveness.enabled`). On BLOCK, fix
+   ASI-first and `review recheck`; never wave a BLOCK through.
+3. **`verification-before-completion`** — fresh command output before any
+   completion claim.
+
+A spike is the one exception: its output is an answer, and the code is
+labeled throwaway, so the gates have nothing to protect. The moment your
+human partner asks to keep that code, it stops being a spike — re-classify
+it and the gates apply.
+
+## The Process
+
+The subsections below serve the bounded and architectural paths (a
+spike stops at "present the probe, get a nod"). Sections from
+**Exploring approaches** onward are architectural-path depth — for
+bounded work, context plus a few questions plus a short in-chat design
+is the whole process.
 
 **Understanding the idea:**
 
@@ -124,7 +252,7 @@ digraph brainstorming {
 - Where existing code has problems that affect the work (e.g., a file that's grown too large, unclear boundaries, tangled responsibilities), include targeted improvements as part of the design - the way a good developer improves code they're working in.
 - Don't propose unrelated refactoring. Stay focused on what serves the current goal.
 
-## After the Design
+## After the Design (architectural path)
 
 **Documentation:**
 
@@ -166,12 +294,27 @@ Apply senior engineering judgment during design:
 
 ## Exit Criteria
 
+**Architectural:**
+
 - User approved the design.
 - Failure-mode check completed — critical failure modes resolved, minor ones documented as non-goals.
 - Design document exists at the required path (`docs/superpowers-prepared/specs/`).
 - Spec self-review completed — placeholders, contradictions, ambiguity, and scope issues resolved.
 - User reviewed the written spec and approved.
 - `writing-plans` is invoked as the next skill.
+
+**Bounded:**
+
+- The path was announced and the short in-chat design was approved explicitly.
+- Implementation followed the normal development workflow (TDD applies).
+- Quality Gates ran green — `harness-verify` (verify-local + verify-deadcode),
+  `carrasco-review` when the project enables it, and
+  `verification-before-completion` with fresh output.
+
+**Spike:**
+
+- The probe was approved before it ran.
+- Findings reported as a recommendation, with anything built labeled throwaway.
 
 ## Visual Companion
 

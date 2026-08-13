@@ -1,0 +1,21 @@
+{
+  "name": "superpowers-prepared",
+  "version": "6.13.0",
+  "description": "An agentic skills framework & software development methodology that works: planning, TDD, debugging, and collaboration workflows.",
+  "author": {
+    "name": "Jesse Vincent, forked by josuerf"
+  },
+  "homepage": "https://github.com/josuerf/superpowers-prepared",
+  "repository": "https://github.com/josuerf/superpowers-prepared",
+  "license": "MIT",
+  "keywords": [
+    "brainstorming",
+    "subagent-driven-development",
+    "skills",
+    "planning",
+    "tdd",
+    "debugging",
+    "code-review",
+    "workflow"
+  ]
+}
