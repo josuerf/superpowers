@@ -54,6 +54,34 @@ Before defining tasks, map out which files will be created or modified and what 
 
 This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
 
+## Grouping Tasks Into Phases
+
+Group the plan's tasks into **phases**: cohesive sets of tasks that are
+implemented and verified together. Phases are how the plan tells its
+executor what may be done as one unit of work.
+
+This matters because of how plans get executed. `subagent-driven-development`
+dispatches one subagent per *batch* of tasks, and your phases are the first
+input it uses to form those batches — measured on a 17-task plan, one
+subagent per task ran 2.4× slower, cost 2.5× more, and scored *worse*
+(0.81 vs 0.95) than three cohesive batches, because every extra subagent
+re-reads the same context and sees a narrower slice of the whole. A plan
+with no phases forces its executor to invent the grouping from the outside,
+with less information than you have right now.
+
+**Aim for around 3 phases**, 4–8 tasks each. Let the count grow past 3 only
+when 8-task phases would not cover the plan. A plan under 4 tasks needs no
+phases.
+
+Group by cohesion — same module or layer, or a producer and the tasks that
+consume it. Two constraints:
+
+- A task belongs to exactly one phase.
+- A phase ends where the suite can run and mean something.
+
+State each phase's dependency explicitly, so the executor can tell which
+phases may run concurrently without re-deriving it from the task text.
+
 ## Task Right-Sizing
 
 A task is the smallest unit that carries its own test cycle and is worth a
@@ -103,6 +131,12 @@ include this section.]
 ## Task Structure
 
 ````markdown
+## Phase P: <Name>
+
+**Depends on:** Phase <P-1> *(or `none` — phases with no dependency on each
+other may be executed concurrently)*
+**Cohesion:** [one line: why these tasks belong together]
+
 ### Task N: <Name>
 
 **Files:**
@@ -167,7 +201,7 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - No vague steps like "update logic".
 - No hidden dependencies between distant tasks.
 - Call out migrations, feature flags, and rollback checks when relevant.
-- Prefer small vertical slices over large horizontal phases.
+- Prefer small vertical slices over large horizontal layers — a phase groups slices that ship together, it is not a layer of the stack.
 
 ## Self-Review
 
@@ -191,14 +225,20 @@ After saving the plan and completing self-review, auto-select the execution appr
 ### Selection Logic (evaluate in order)
 
 1. Current context window ≥ 60% full → **Subagent-Driven** (offload context pressure)
-2. Task count ≥ 5 → **Subagent-Driven** (fresh context per task)
+2. Task count ≥ 5 → **Subagent-Driven** (fresh context per phase)
 3. Tasks have heavy inter-task state sharing (each task depends on runtime state from the previous) → **Inline**
 4. Default → **Subagent-Driven**
+
+**Fan-out follows the phase count, not the task count.** Subagent-Driven
+groups tasks into a few cohesive batches — starting from your phases — and
+dispatches one subagent per batch. Do not let fan-out scale with the number
+of tasks; that is the configuration that measured slowest, costliest, and
+worst. Phases sized 4-8 tasks are what let the executor keep it that way.
 
 ### Ready Message
 
 ```
-Plan saved to `docs/superpowers-prepared/plans/<filename>.md`. Ready to execute with **[Subagent-Driven / Inline Execution]** (<N> tasks[, <one-word reason>]). Reply to start, or say "inline" / "subagent" to switch.
+Plan saved to `docs/superpowers-prepared/plans/<filename>.md`. Ready to execute with **[Subagent-Driven / Inline Execution]** (<N> tasks in <P> phases[, <one-word reason>]). Reply to start, or say "inline" / "subagent" to switch.
 ```
 
 **Stop here.** Do not invoke any execution skill until the user replies.
@@ -207,7 +247,7 @@ Plan saved to `docs/superpowers-prepared/plans/<filename>.md`. Ready to execute 
 
 **If Subagent-Driven:**
 - **REQUIRED SUB-SKILL:** Use superpowers-prepared:subagent-driven-development
-- Fresh subagent per task + two-stage review
+- Fresh subagent per batch of tasks (formed from the plan's phases) + two-stage review
 
 **If Inline Execution:**
 - **REQUIRED SUB-SKILL:** Use superpowers-prepared:executing-plans

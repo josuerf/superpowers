@@ -1,41 +1,111 @@
 #!/usr/bin/env bash
-# Extract one task's full text from an implementation plan into a file the
-# implementer reads in one call, so the task text never has to be pasted
-# through the controller's context.
+# Extract a batch of tasks' full text from an implementation plan into a
+# single file the implementer reads in one call, so the task text never has
+# to be pasted through the controller's context.
 #
-# Usage: task-brief PLAN_FILE TASK_NUMBER [OUTFILE]
-# Default OUTFILE: <repo-root>/.superpowers/sdd/<plan-basename>/task-<N>-brief.md
+# Usage: task-brief PLAN_FILE TASKS [OUTFILE]
+#   TASKS is one of:
+#     N        a single task            -> task-<N>-brief.md
+#     N-M      an inclusive range       -> batch-<N>-<M>-brief.md
+#     N,M,P    an explicit list         -> batch-<N>-<M>-<P>-brief.md
+#
+# The batch — not the individual task — is the unit of dispatch (see
+# SKILL.md "Batching"), so a range is the ordinary call and a bare number is
+# the exception for work that genuinely needs its own review surface.
+#
+# Default OUTFILE lives in <repo-root>/.superpowers/sdd/<plan-basename>/
 # (per plan and per worktree; concurrent runs of the SAME plan in the same
 # working tree share it).
 set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-  echo "usage: task-brief PLAN_FILE TASK_NUMBER [OUTFILE]" >&2
+  echo "usage: task-brief PLAN_FILE TASKS [OUTFILE]   (TASKS: N | N-M | N,M,P)" >&2
   exit 2
 fi
 
 plan=$1
-n=$2
+spec=$2
 [ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
+
+# Expand TASKS into a space-separated list of numbers, and pick a slug for
+# the default filename.
+case "$spec" in
+  *[!0-9,-]*)
+    echo "invalid TASKS '${spec}': use N, N-M, or N,M,P" >&2; exit 2 ;;
+esac
+
+nums=""
+slug=""
+if printf '%s' "$spec" | grep -q '^[0-9]\+$'; then
+  nums=$spec
+  slug="task-${spec}"
+elif printf '%s' "$spec" | grep -q '^[0-9]\+-[0-9]\+$'; then
+  lo=${spec%%-*}
+  hi=${spec##*-}
+  if [ "$lo" -gt "$hi" ]; then
+    echo "invalid range '${spec}': ${lo} > ${hi}" >&2; exit 2
+  fi
+  i=$lo
+  while [ "$i" -le "$hi" ]; do nums="$nums $i"; i=$((i + 1)); done
+  slug="batch-${lo}-${hi}"
+elif printf '%s' "$spec" | grep -q '^[0-9]\+\(,[0-9]\+\)\+$'; then
+  nums=$(printf '%s' "$spec" | tr ',' ' ')
+  slug="batch-$(printf '%s' "$spec" | tr ',' '-')"
+else
+  echo "invalid TASKS '${spec}': use N, N-M, or N,M,P" >&2; exit 2
+fi
+nums=$(printf '%s' "$nums" | sed 's/^ *//')
 
 if [ $# -eq 3 ]; then
   out=$3
 else
   dir=$("$(cd "$(dirname "$0")" && pwd)/sdd-workspace" "$plan")
-  out="$dir/task-${n}-brief.md"
+  out="$dir/${slug}-brief.md"
 fi
 
-awk -v n="$n" '
-  /^```/ { infence = !infence }
-  !infence && /^#+[ \t]+Task[ \t]+[0-9]+/ {
-    intask = ($0 ~ ("^#+[ \t]+Task[ \t]+" n "([^0-9]|$)"))
-  }
-  intask { print }
-' "$plan" > "$out"
+count=$(printf '%s\n' $nums | wc -l | tr -d ' ')
+{
+  if [ "$count" -gt 1 ]; then
+    echo "# Batch brief — Tasks $(printf '%s' "$nums" | tr ' ' ',')"
+    echo
+    echo "You own all ${count} tasks below, in order, as one unit of work."
+    echo "They were grouped because they are cohesive: implement them"
+    echo "together, holding the whole picture, and verify them together."
+    echo "Do not stop after the first one."
+    echo
+    echo "---"
+    echo
+  fi
+} > "$out"
 
-if [ ! -s "$out" ]; then
-  echo "task ${n} not found in ${plan} (no heading matching 'Task ${n}')" >&2
+missing=""
+for n in $nums; do
+  before=$(wc -c < "$out")
+  awk -v n="$n" '
+    /^```/ { infence = !infence }
+    # A Phase heading ends the preceding task. Without this, the last
+    # task of a phase swallows the next phase header into its brief.
+    !infence && /^#+[ \t]+Phase[ \t]/ { intask = 0 }
+    !infence && /^#+[ \t]+Task[ \t]+[0-9]+/ {
+      intask = ($0 ~ ("^#+[ \t]+Task[ \t]+" n "([^0-9]|$)"))
+    }
+    intask { print }
+  ' "$plan" >> "$out"
+  after=$(wc -c < "$out")
+  if [ "$before" -eq "$after" ]; then
+    missing="$missing $n"
+  else
+    echo >> "$out"
+  fi
+done
+
+if [ -n "$missing" ]; then
+  # Remove the partial file: the header block truncated it before extraction,
+  # so leaving it behind drops an empty brief in the workspace that a later
+  # dispatch could pick up as if it were real.
+  rm -f "$out"
+  echo "task(s)${missing} not found in ${plan} (no heading matching 'Task <N>')" >&2
   exit 3
 fi
 
-echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines"
+echo "wrote ${out}: $(wc -l < "$out" | tr -d ' ') lines, ${count} task(s)"

@@ -1,26 +1,39 @@
 # Task Reviewer Prompt Template
 
-Use this template when dispatching a task reviewer subagent. The reviewer
-reads the task's diff once and returns two verdicts: spec compliance and
-code quality.
+Use this template when dispatching a batch reviewer subagent. The reviewer
+reads the batch's diff once and returns two verdicts: spec compliance and
+code quality. The unit under review is the batch — every task it covered,
+judged as one change.
 
-**Purpose:** Verify one task's implementation matches its requirements (nothing
-more, nothing less) and is well-built (clean, tested, maintainable)
+**Purpose:** Verify one batch's implementation matches the requirements of
+every task it covered (nothing more, nothing less) and is well-built (clean,
+tested, maintainable)
 
 ```
 Subagent (general-purpose):
-  description: "Review Task N (spec + quality)"
+  description: "Review Batch B, Tasks N-M (spec + quality)"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
          model silently inherits the session's most expensive one]
   prompt: |
-    You are reviewing one task's implementation: first whether it matches its
-    requirements, then whether it is well-built. This is a task-scoped gate,
-    not a merge review — a broad whole-branch review happens separately after
-    all tasks are complete.
+    You are reviewing one batch's implementation: first whether it matches
+    the requirements of every task the batch covered, then whether it is
+    well-built. This is a batch-scoped gate, not a merge review — a broad
+    whole-branch review happens separately after all batches are complete.
+
+    The brief lists several tasks. Verdict spec compliance across all of
+    them: a batch that implemented four of its six tasks is ❌, not ✅ with
+    a note.
+
+    You are a focused subagent. Do NOT invoke superpowers-prepared process
+    skills (workflow-control skills such as brainstorming, writing-plans,
+    subagent-driven-development, or any code-review pipeline) — you must not
+    re-enter the workflow that dispatched you. Skills defined by this project or workspace
+    are allowed, as are `frontend-design` and
+    `vercel-react-best-practices`. Your only job is the review described below.
 
     ## What Was Requested
 
-    Read the task brief: [BRIEF_FILE]
+    Read the batch brief: [BRIEF_FILE]
 
     Global constraints from the spec/design that bind this task:
     [GLOBAL_CONSTRAINTS]
@@ -160,6 +173,19 @@ Subagent (general-purpose):
 
     ## Output Format
 
+    **Write your full report to [FINDINGS_FILE], then return only the
+    verdict block described under "What you return" below.** Your report is
+    the one artifact in this pipeline that would otherwise travel through
+    the controller's context in full and then be pasted out again verbatim
+    into a re-review prompt — paying for every finding twice, on a report
+    that grows with the number of findings. Written to a file, the fix
+    round reads it directly and the controller carries only the verdict.
+
+    **Budget:** the report itself stays under 60 lines. Each finding gets at
+    most three lines: what is wrong (with file:line), why it matters, and
+    how to fix it if that is not obvious. A finding you cannot state in
+    three lines is usually two findings or a misunderstanding.
+
     ### Spec Compliance
 
     - ✅ Spec compliant | ❌ Issues found: [what's missing/extra/misunderstood,
@@ -189,8 +215,9 @@ Subagent (general-purpose):
 
 **Placeholders:**
 - `[MODEL]` — REQUIRED: reviewer model per SKILL.md Model Selection
-- `[BRIEF_FILE]` — REQUIRED: the task brief file (`scripts/task-brief PLAN N`
-  prints the path; same file the implementer worked from)
+- `[BRIEF_FILE]` — REQUIRED: the batch brief
+  (`scripts/task-brief PLAN_FILE TASKS` reports `wrote <path>: …`, where `TASKS` is
+  `N-M`, `N,M,P`, or `N`; same file the implementer worked from)
 - `[GLOBAL_CONSTRAINTS]` — the binding requirements copied verbatim from
   the plan's Global Constraints section or the spec: exact values, formats,
   and stated relationships between components (not process rules — those
@@ -200,8 +227,24 @@ Subagent (general-purpose):
 - `[BASE_SHA]` — commit before this task
 - `[HEAD_SHA]` — current commit
 - `[DIFF_FILE]` — REQUIRED: the path the controller wrote the review
-  package to (`scripts/review-package PLAN_FILE BASE HEAD` prints the unique
+  package to (`scripts/review-package PLAN_FILE BASE HEAD` reports the unique
   path it wrote; the package never enters the controller's context)
+- `[FINDINGS_FILE]` — REQUIRED: where to write the full report. Name it
+  after the brief, swapping `-brief` for `-review-R` (brief
+  `…/batch-1-6-brief.md` → findings `…/batch-1-6-review-1.md`; brief
+  `…/task-4-brief.md` → findings `…/task-4-review-1.md`). R is the review
+  round, 1 for the first. The fix
+  round and the re-review read this path; the report never travels through
+  the controller's context.
 
-**Reviewer returns:** Spec Compliance verdict (✅/❌/⚠️), Strengths, Issues
-(Critical/Important/Minor), Task quality verdict
+**What you return** (this, and nothing else — under 15 lines):
+- **Spec compliance:** ✅ | ❌ | ⚠️ (one line; if ⚠️, name what you could
+  not verify)
+- **Task quality:** Approved | Needs fixes
+- **Findings:** counts only — `N Critical, N Important, N Minor`
+- **Blocking one-liners:** one line per Critical/Important finding, each
+  naming its file:line. Minor findings stay in the file.
+- **Findings file:** the path you wrote
+
+The controller passes that path to the fix round; it does not re-type your
+findings.

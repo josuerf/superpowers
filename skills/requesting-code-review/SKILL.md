@@ -21,7 +21,16 @@ Dispatch a code reviewer subagent to catch issues before they cascade. The revie
 
 ## Rigorous standards-enforcing pass
 
-When you want a hard, technology-aware review that enforces the project's established standards as blocking requirements — and especially when the harness is configured (`.harness.config.json` → `reviewAggressiveness`) — use the **`carrasco-review`** skill instead of (or in addition to) the dispatch below. It chunks the changes by topic, runs one aggressive carrasco subagent per chunk in parallel, respects the host workspace architecture, and writes a blocking verdict to `.harness/reviews/`. The carrasco gate is also enforced at session stop by `verify-on-stop`.
+When you want a hard, technology-aware review that enforces the project's established standards as blocking requirements — and especially when the harness is configured (`.harness.config.json` → `reviewAggressiveness`) — use the **`carrasco-review`** skill *instead of* the dispatch below. It chunks the changes by topic, runs one aggressive carrasco subagent per chunk in parallel, respects the host workspace architecture, and writes a blocking verdict to `.harness/reviews/`. The carrasco gate is also enforced at session stop by `verify-on-stop`.
+
+**Pick one pipeline, not both.** Carrasco and the dispatch below review the
+same diff against overlapping rubrics; running both doubles the review cost
+of every change for a small overlap of extra findings, and the second
+pipeline's findings arrive after you have already started fixing the first
+one's. Choose on the work: carrasco when the project's standards are the
+thing being enforced, the dispatch below otherwise. If a change is important
+enough to want both, run carrasco and let the whole-branch final review be
+the second opinion — that seat already exists.
 
 ## How
 

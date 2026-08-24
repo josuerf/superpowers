@@ -66,6 +66,30 @@ For subagent handoffs, include only current task scope, constraints, evidence, a
 
 Avoid carrying forward long assistant reasoning chains unless they contain required artifacts.
 
+**The handoff contract.** A subagent handoff that works is six fields, and a
+handoff you cannot write in six fields is usually work you should not be
+delegating (see `token-efficiency` → Delegation Decision):
+
+1. **Objective** — what done looks like, in one sentence
+2. **Allowed files** — what it may touch
+3. **Forbidden files** — what it must not touch
+4. **Input artifacts** — paths to the brief, spec, diff, or findings it
+   reads. Paths, never pasted contents: a pasted artifact costs you its
+   full size on the way in and again on the way out.
+5. **Expected output** — the exact shape you want back, with a size limit
+6. **Stop condition** — when to stop and report rather than push on
+
+**Separate facts from recommendations.** A handoff that blends the two gets
+you an agent that agrees with you. State separately: the facts you observed;
+the hard constraints; the artifacts to inspect; the decision you are leaning
+toward; and — the field that does the work — **the disconfirming evidence to
+look for**. Naming what would prove you wrong is what makes the answer worth
+the dispatch.
+
+This is the general form. `requesting-code-review` and `carrasco-review`
+apply it to review dispatches; `subagent-driven-development` applies it to
+implementation batches. Do not restate it in those flows — reference here.
+
 ## Structured Output Preference
 
 When output feeds another agent/tool step, prefer JSON or YAML schemas defined by the active skill.

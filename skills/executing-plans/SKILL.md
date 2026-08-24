@@ -20,9 +20,17 @@ Load plan, review critically, execute all tasks, report when complete.
 2. Read plan file
 3. Review critically - identify any questions or concerns about the plan
 4. If concerns: Raise them with your human partner before starting
-5. If no concerns: Create todos for the plan items and proceed
+5. If no concerns: create one todo per **phase** if the plan has them
+   (`## Phase P:` headings), otherwise one per task, and proceed
 
 ### Step 2: Execute Tasks
+
+If the plan groups its tasks into phases, work phase by phase: implement the
+phase's tasks in order, then run the phase's verification before moving on.
+A phase's `Depends on: none` means it does not need the phase before it —
+useful if you reorder, but you are one session, so you still run them one at
+a time. (Phases exist mainly for `subagent-driven-development`, which turns
+them into parallel batches; here they are checkpoints.)
 
 For each task:
 1. Mark as in_progress

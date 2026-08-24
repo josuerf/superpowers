@@ -33,6 +33,53 @@ Core operating standard for all sessions. Apply permanently from activation.
 4. **For local files: Read directly.** Do not dispatch an agent to read project files and report back. You lose the actual content and waste tokens on the round trip. Use the Read tool.
 5. **project-map.md is orientation, not understanding.** The map tells you what exists and where — directory purposes, key file roles, constraints. It does NOT contain the logic inside each file. When you need to understand a file's actual implementation (for modification, comparison, or debugging), read it directly. The map saves you from re-discovering project *structure*; it does not replace reading the files you need to work with.
 
+## Delegation Decision
+
+A subagent is not free: it starts empty, re-reads what the parent already
+knows, and returns a summary that costs context on arrival. It pays for
+itself only when the work it does exceeds that fixed overhead. Four cases:
+
+- **Keep it in this session** when the work has one owner, one coherent
+  context, and one acceptance test. A refactor you already have the
+  files open for, a fix you can describe in a sentence — dispatching
+  these costs more than doing them.
+- **Delegate** when the work fits a small contract: objective, allowed
+  files, forbidden files, input artifacts, expected output, stop
+  condition. If you can write those six lines, the subagent has what it
+  needs and you get back a conclusion instead of a transcript. Read-only
+  sweeps of a codebase are the clearest win — the reading happens in the
+  subagent's context and only the answer lands in yours.
+- **Do not delegate** when the contract would require pasting half the
+  repository and the whole chat history, and then having you interpret a
+  long essay back. That is not delegation; it is a round trip with extra
+  steps.
+- **Fire-and-forget** side work whose *processing* is disposable even
+  though its effect is not: moving a ticket's status, a single MCP call,
+  a lookup whose answer is one line. The value is the side effect and the
+  one-line confirmation; the tool chatter that produced it is pure
+  context cost you never need again. Dispatch it, ask for the
+  confirmation in one line, and let the rest die with the subagent.
+  These have no dependencies, so send them in parallel with the real
+  work rather than interleaving them into it.
+
+**Having delegated, stay delegated.** Taking a dispatched task back to "just
+fix it quickly yourself" lands its entire context — every read, every failed
+attempt — permanently in the window you need for coordination, and spends
+the dispatch for nothing.
+
+**Name the model on every dispatch.** An omitted model inherits the
+session's — usually the most expensive. Cheapest tier for fire-and-forget
+and transcription, mid tier as the floor for anything with judgment
+(the cheapest models take 2-3× the turns and end up costing more).
+
+**Granularity is the variable that matters most.** Splitting work finer
+multiplies the fixed overhead and fragments the context, so each piece
+sees a keyhole. Measured on a 17-task plan, one subagent per task ran
+2.4× slower and cost 2.5× more than three batched subagents, *and*
+scored worse (0.81 vs 0.95). When you delegate a multi-part job, group
+the parts into a few cohesive batches rather than dispatching one agent
+per part.
+
 ## Exploration Tracking
 
 Maintain a mental index of repository exploration performed in this session. Before every Read, Grep, or Glob call, check this index and skip the call if the result is already known and the file has not been modified since.
