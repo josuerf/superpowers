@@ -13,6 +13,7 @@ import {
 	saveCarrascoReview,
 	evaluateGateStatus,
 	featureReviewDir,
+	buildReviewExclude,
 	type CarrascoResponse,
 	type SavedDecision,
 } from "../../lib/harness/index.js";
@@ -75,19 +76,6 @@ function getFlag(name: string): string | undefined {
 	return i !== -1 && args[i + 1] ? args[i + 1] : undefined;
 }
 
-// Files we never feed to a reviewer — generated/vendored/lock artifacts that
-// would only bloat the diff. Mirrors the spirit of verify-on-stop's exclusions.
-const REVIEW_EXCLUDE = [
-	/(^|[\\/])node_modules[\\/]/,
-	/(^|[\\/])dist[\\/]/,
-	/[\\/]?package-lock\.json$/,
-	/[\\/]?pnpm-lock\.yaml$/,
-	/[\\/]?yarn\.lock$/,
-	/[\\/]?bun\.lockb$/,
-	/\.min\.(js|css)$/,
-	/\.map$/,
-];
-
 function gitOut(cwd: string, gitArgs: string[]): string | null {
 	const res = spawnSync("git", gitArgs, {
 		cwd,
@@ -99,7 +87,15 @@ function gitOut(cwd: string, gitArgs: string[]): string | null {
 	return res.stdout ?? "";
 }
 
-function gatherChangedFiles(cwd: string, base?: string): string[] {
+// The change set fed to the reviewers: tracked changes plus untracked files
+// (a new file nobody committed yet is exactly what most needs reviewing),
+// minus everything the project's exclusion list rules out — see
+// `reviewAggressiveness.exclude` and DEFAULT_REVIEW_EXCLUDE.
+function gatherChangedFiles(
+	cwd: string,
+	exclude: RegExp[],
+	base?: string,
+): string[] {
 	const range = base || "HEAD";
 	const files = new Set<string>();
 	const tracked = gitOut(cwd, ["diff", "--name-only", range]);
@@ -114,7 +110,7 @@ function gatherChangedFiles(cwd: string, base?: string): string[] {
 			files.add(f);
 		}
 	}
-	return [...files].filter((f) => !REVIEW_EXCLUDE.some((re) => re.test(f)));
+	return [...files].filter((f) => !exclude.some((re) => re.test(f)));
 }
 
 async function runReview(): Promise<void> {
@@ -148,7 +144,7 @@ async function runReview(): Promise<void> {
 
 	if (sub === "plan") {
 		const base = getFlag("--base");
-		const changedFiles = gatherChangedFiles(cwd, base);
+		const changedFiles = gatherChangedFiles(cwd, buildReviewExclude(ra), base);
 		if (changedFiles.length === 0) {
 			console.log("No changed files to review.");
 			process.exit(0);

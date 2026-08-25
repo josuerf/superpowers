@@ -67,12 +67,88 @@ const DEFAULT_CONFIG: HarnessConfig = {
 			autoDetect: true,
 			paths: [],
 		},
+		exclude: {
+			useDefaults: true,
+			patterns: [],
+		},
 		reportOutput: {
 			saveToHarness: true,
 			format: "both",
 		},
 	},
 };
+
+/**
+ * Built-in exclusions for the reviewed change set: generated, vendored, and
+ * lock artifacts, plus the agent/harness config trees. `.claude/` and
+ * `.harness/` are here because the review reads untracked files too — a repo
+ * that keeps local skills or review reports under those directories without
+ * committing them would otherwise feed every one of those files to a reviewer.
+ * Add project-specific patterns via `reviewAggressiveness.exclude.patterns`.
+ */
+export const DEFAULT_REVIEW_EXCLUDE: string[] = [
+	"(^|[\\\\/])node_modules[\\\\/]",
+	"(^|[\\\\/])dist[\\\\/]",
+	"(^|[\\\\/])\\.claude[\\\\/]",
+	"(^|[\\\\/])\\.harness[\\\\/]",
+	"[\\\\/]?package-lock\\.json$",
+	"[\\\\/]?pnpm-lock\\.yaml$",
+	"[\\\\/]?yarn\\.lock$",
+	"[\\\\/]?bun\\.lockb$",
+	"\\.min\\.(js|css)$",
+	"\\.map$",
+];
+
+/**
+ * Compile the effective exclusion list for a project. An invalid regex from a
+ * project config is skipped with a warning rather than crashing the review —
+ * a typo in one pattern must not take the whole gate down.
+ */
+export function buildReviewExclude(
+	config: HarnessConfig["reviewAggressiveness"],
+): RegExp[] {
+	const raw = config.exclude.useDefaults
+		? [...DEFAULT_REVIEW_EXCLUDE, ...config.exclude.patterns]
+		: [...config.exclude.patterns];
+	const compiled: RegExp[] = [];
+	for (const p of raw) {
+		try {
+			compiled.push(new RegExp(p));
+		} catch {
+			console.warn(
+				`reviewAggressiveness.exclude: ignoring invalid regular expression ${JSON.stringify(p)}`,
+			);
+		}
+	}
+	return compiled;
+}
+
+/**
+ * The severity threshold is compared against reviewer-reported severities,
+ * which are capitalised ("High"). A config written as "HIGH" or "high" used to
+ * miss the lookup and fall back to High silently — harmless for High itself,
+ * but "CRITICAL" would then quietly tighten to High instead of loosening.
+ * Canonicalise on load so both the gate and the reviewer prompt see one form.
+ */
+function normalizeSeverityThreshold(
+	value: unknown,
+	fallback: HarnessConfig["reviewAggressiveness"]["carrasco"]["severityThreshold"],
+): HarnessConfig["reviewAggressiveness"]["carrasco"]["severityThreshold"] {
+	if (typeof value !== "string") return fallback;
+	switch (value.trim().toLowerCase()) {
+		case "critical":
+			return "Critical";
+		case "high":
+			return "High";
+		case "medium":
+			return "Medium";
+		default:
+			console.warn(
+				`reviewAggressiveness.carrasco.severityThreshold: unknown value ${JSON.stringify(value)}; using ${fallback}`,
+			);
+			return fallback;
+	}
+}
 
 // Deep-merge a user-provided reviewAggressiveness block over the defaults so a
 // partial config (e.g. just `{ "level": "strict" }`) does not wipe nested
@@ -86,12 +162,18 @@ function mergeReviewAggressiveness(
 	const o = override as Record<string, unknown>;
 	const obj = (v: unknown): Record<string, unknown> =>
 		typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
+	const carrasco = { ...base.carrasco, ...obj(o.carrasco) };
+	carrasco.severityThreshold = normalizeSeverityThreshold(
+		carrasco.severityThreshold,
+		base.carrasco.severityThreshold,
+	);
 	return {
 		...base,
 		...o,
 		chunking: { ...base.chunking, ...obj(o.chunking) },
-		carrasco: { ...base.carrasco, ...obj(o.carrasco) },
+		carrasco,
 		standards: { ...base.standards, ...obj(o.standards) },
+		exclude: { ...base.exclude, ...obj(o.exclude) },
 		reportOutput: { ...base.reportOutput, ...obj(o.reportOutput) },
 	} as HarnessConfig["reviewAggressiveness"];
 }

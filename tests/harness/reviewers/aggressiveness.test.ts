@@ -28,6 +28,7 @@ function raConfig(
 			severityThreshold: "High",
 		},
 		standards: { autoDetect: true, paths: [] },
+		exclude: { useDefaults: true, patterns: [] },
 		reportOutput: { saveToHarness: true, format: "both" },
 		...overrides,
 	};

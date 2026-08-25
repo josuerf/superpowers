@@ -1,6 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadProjectConfig, loadWorkspaceConfig, isWorkspaceMode, getProjects } from '../../lib/harness/config';
+import {
+  loadProjectConfig,
+  loadWorkspaceConfig,
+  isWorkspaceMode,
+  getProjects,
+  buildReviewExclude,
+  DEFAULT_REVIEW_EXCLUDE,
+} from '../../lib/harness/config';
 
 const TEST_DIR = path.join(__dirname, '..', '..', 'tmp-test-harness');
 
@@ -53,6 +60,71 @@ describe('loadProjectConfig', () => {
     expect(config.reviewAggressiveness.standards.autoDetect).toBe(true);
     expect(config.reviewAggressiveness.carrasco.focusCategories.length).toBeGreaterThan(0);
     expect(config.reviewAggressiveness.chunking.maxFilesPerChunk).toBe(10);
+  });
+
+  test('normalizes a severityThreshold written in the wrong case', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { carrasco: { severityThreshold: 'CRITICAL' } } })
+    );
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.reviewAggressiveness.carrasco.severityThreshold).toBe('Critical');
+  });
+
+  test('falls back to the default severityThreshold on an unknown value', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { carrasco: { severityThreshold: 'blocker' } } })
+    );
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.reviewAggressiveness.carrasco.severityThreshold).toBe('High');
+  });
+
+  test('exclude defaults keep agent and harness config trees out of the change set', () => {
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.reviewAggressiveness.exclude.useDefaults).toBe(true);
+    expect(config.reviewAggressiveness.exclude.patterns).toEqual([]);
+    const exclude = buildReviewExclude(config.reviewAggressiveness);
+    const excluded = (f: string) => exclude.some((re) => re.test(f));
+    // The untracked-file sweep used to feed every one of these to a reviewer.
+    expect(excluded('.claude/skills/media-use/scripts/lib/util.py')).toBe(true);
+    expect(excluded('.harness/reviews/C65/plan.json')).toBe(true);
+    expect(excluded('node_modules/left-pad/index.js')).toBe(true);
+    // Real source still goes through.
+    expect(excluded('src/core/rito/step-catalog.ts')).toBe(false);
+    expect(excluded('src-tauri/src/lib.rs')).toBe(false);
+  });
+
+  test('project exclude patterns add to the defaults, and can replace them', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { exclude: { patterns: ['(^|[\\\\/])generated[\\\\/]'] } } })
+    );
+    const added = buildReviewExclude(loadProjectConfig(TEST_DIR).reviewAggressiveness);
+    expect(added.some((re) => re.test('src/generated/api.ts'))).toBe(true);
+    expect(added.some((re) => re.test('node_modules/x/index.js'))).toBe(true);
+
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({
+        reviewAggressiveness: { exclude: { useDefaults: false, patterns: ['(^|[\\\\/])generated[\\\\/]'] } },
+      })
+    );
+    const replaced = buildReviewExclude(loadProjectConfig(TEST_DIR).reviewAggressiveness);
+    expect(replaced.some((re) => re.test('src/generated/api.ts'))).toBe(true);
+    expect(replaced.some((re) => re.test('node_modules/x/index.js'))).toBe(false);
+  });
+
+  test('an invalid exclude pattern is skipped instead of breaking the review', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { exclude: { patterns: ['([unclosed'] } } })
+    );
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const exclude = buildReviewExclude(loadProjectConfig(TEST_DIR).reviewAggressiveness);
+    expect(exclude.length).toBe(DEFAULT_REVIEW_EXCLUDE.length);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   test('default verifyOnStop.minFiles is 3', () => {

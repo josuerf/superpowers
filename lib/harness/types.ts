@@ -106,6 +106,21 @@ export interface ReviewAggressivenessConfig {
 		autoDetect: boolean;
 		paths: string[];
 	};
+	/**
+	 * Paths kept out of the reviewed change set. The review reads tracked
+	 * changes AND untracked files, so a directory of generated or vendored
+	 * content a project happens not to commit lands in the diff and multiplies
+	 * the chunk count — one project measured 3 real files becoming 472 files
+	 * across 49 chunks, i.e. 49 reviewer dispatches for one card.
+	 *
+	 * `patterns` are regular expressions matched against each repo-relative
+	 * path (forward or backslash). They ADD to the built-in defaults unless
+	 * `useDefaults` is false, in which case they replace them entirely.
+	 */
+	exclude: {
+		useDefaults: boolean;
+		patterns: string[];
+	};
 	reportOutput: {
 		saveToHarness: boolean;
 		format: "markdown" | "json" | "both";
