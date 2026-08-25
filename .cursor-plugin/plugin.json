@@ -2,7 +2,7 @@
   "name": "superpowers-prepared",
   "displayName": "Superpowers Optimized",
   "description": "Core skills library: TDD, debugging, collaboration patterns, and proven techniques",
-  "version": "6.14.0",
+  "version": "6.15.0",
   "author": {
     "name": "Jesse Vincent, forked by josuerf"
   },
