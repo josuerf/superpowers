@@ -225,7 +225,7 @@ After saving the plan and completing self-review, auto-select the execution appr
 ### Selection Logic (evaluate in order)
 
 1. Current context window ≥ 60% full → **Subagent-Driven** (offload context pressure)
-2. Task count ≥ 5 → **Subagent-Driven** (fresh context per phase)
+2. Task count ≥ 5 → **Subagent-Driven** (fresh context per batch)
 3. Tasks have heavy inter-task state sharing (each task depends on runtime state from the previous) → **Inline**
 4. Default → **Subagent-Driven**
 
