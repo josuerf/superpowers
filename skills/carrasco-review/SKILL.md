@@ -27,6 +27,7 @@ Announce: `I'm running the carrasco-review skill.`
 - `chunking` — `maxFilesPerChunk`, `maxLinesPerChunk`, `byTopic`. Chunking only kicks in when the change set exceeds a limit; otherwise all files are one chunk.
 - `carrasco` — `redTeamParallel` (dispatch chunks in parallel), `requireReproducibleTrigger`, `focusCategories`, `severityThreshold` (BLOCK if any finding ≥ this).
 - `standards` — `autoDetect` (read CLAUDE.md/AGENTS.md + neighboring code) and `paths` (authoritative standards/architecture docs to enforce).
+- `exclude` — what never reaches a reviewer. `patterns` are regular expressions matched against each repo-relative path; they add to the built-in list (generated/vendored/lock artifacts, `.claude/`, `.harness/`) unless `useDefaults` is `false`, which replaces it. This matters more than it looks: the change set includes **untracked** files, so a directory of local content the repo happens not to commit inflates the chunk count — one project turned 3 real changed files into 472 files across 49 chunks, i.e. 49 reviewer dispatches for one card. If `review plan` reports a file count far above the real diff, this is the knob.
 - `reportOutput` — `saveToHarness`, `format` (`markdown` | `json` | `both`).
 
 ## Procedure

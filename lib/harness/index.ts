@@ -333,7 +333,12 @@ function buildReport(options: {
 	return report;
 }
 
-export { loadProjectConfig, loadWorkspaceConfig } from "./config";
+export {
+	loadProjectConfig,
+	loadWorkspaceConfig,
+	buildReviewExclude,
+	DEFAULT_REVIEW_EXCLUDE,
+} from "./config";
 export { extractFeatureName, formatReportMarkdown } from "./reporter";
 export { detectStack, scanWorkspace } from "./discovery";
 export { validateLint } from "./validators/lint";
