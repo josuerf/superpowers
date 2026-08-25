@@ -1,23 +1,43 @@
 # Implementer Subagent Prompt Template
 
-Use this template for task implementation.
+Use this template for batch implementation. The unit of dispatch is a batch
+of cohesive tasks (see SKILL.md "Batching"), so `TASKS` below is normally a
+range like `1-6`. A single task is the exception, not the default.
 
 ```
 Subagent (general-purpose):
-  description: "Implement Task N: [task name]"
+  description: "Implement Batch B (Tasks N-M): [batch name]"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
          model silently inherits the session's most expensive one]
   prompt: |
-    Implement Task N: <task name>.
+    Implement Tasks <N>-<M> as one batch: <batch name>.
+
+    These tasks were grouped because they are cohesive. Implement them in
+    order as a single unit of work, holding the whole picture across them —
+    that shared view is the point of the batch. Complete all of them before
+    reporting; a batch that stops after the first task is not done.
 
     ## Task
-    <FULL task text from plan>
 
-    Read your task brief first: [BRIEF_FILE]
-    It contains the full task text from the plan.
+    Read your batch brief first: [BRIEF_FILE]
+    It carries the full text of every task in the batch, its acceptance criteria,
+    and the files it expects you to touch. Do not ask the controller to
+    repeat it — the brief is the contract.
+
+    Suggested skills: [SUGGESTED_SKILLS — optional. Name the project or
+    implementation-support skills that match this task's work, or write
+    "none". A named suggestion saves the subagent a discovery step.]
 
     ## Subagent rules
-    You are a focused subagent. Do NOT invoke any skills from the superpowers-prepared plugin. Do NOT use the Skill tool. Your only job is the task described below.
+    You are a focused subagent. Do NOT invoke superpowers-prepared **process**
+    skills (`brainstorming`, `writing-plans`, `executing-plans`,
+    `subagent-driven-development`, the code-review pipelines, or any other
+    workflow-control skill) — you must not re-enter the workflow that
+    dispatched you. You MAY invoke skills defined by this project or
+    workspace, and you MAY invoke `frontend-design` and
+    `vercel-react-best-practices` when the work calls for them; if the
+    dispatch names skills under "Suggested skills", start with those. Your
+    only job is the batch described below.
 
     ## Required behavior
     The spec-compliance and code-quality review gates depend on the accuracy of your implementation and self-review. A task that passes review the first time keeps the whole pipeline moving — a task that fails review cycles back to you and blocks everything downstream. Take your time, do it right the first time.
@@ -144,11 +164,26 @@ Subagent (general-purpose):
     - Self-review findings (if any)
     - Any issues or concerns
 
-    Then report back with ONLY (under 15 lines — the detail lives in the
-    report file):
+    Then report back with ONLY this receipt (under 25 lines — the detail
+    lives in the report file). The controller acts on the receipt alone and
+    does not open your report to find out what you touched, so a receipt
+    missing the file lists costs it an extra read of everything:
+    - **Contract:** the brief path you worked from, and the files it told
+      you to touch
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
+      (BLOCKED and NEEDS_CONTEXT both mean a human or the controller must
+      act before you can continue — say which, and what you need)
+    - **Files changed:** one path per line
+    - **Files in the contract you did NOT change:** one path per line, each
+      with the reason. "None" if you changed all of them. This is how the
+      controller detects a half-done batch without reading the diff. List
+      them per task, so it can see which of the batch's tasks are covered.
+    - **Commands run:** the verification/test commands, each with its
+      pass/fail result
     - Commits created (short SHA + subject)
     - One-line test summary (e.g. "14/14 passing, output pristine")
+    - **Evidence:** one paragraph, no more, on why you believe the task is
+      done — what you verified, not what you wrote
     - Your concerns, if any
     - The report file path
 
@@ -159,3 +194,20 @@ Subagent (general-purpose):
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need
     information that wasn't provided. Never silently produce work you're unsure about.
 ```
+
+**Placeholders:**
+- `[MODEL]` — REQUIRED: implementer model per SKILL.md Model Selection; an
+  omitted model silently inherits the session's most expensive one
+- `[BRIEF_FILE]` — REQUIRED: the batch brief
+  (`scripts/task-brief PLAN_FILE TASKS` reports `wrote <path>: …`; `TASKS` is `N-M`
+  for a batch, `N,M,P` for an explicit list, or `N` for a lone task)
+- `[SUGGESTED_SKILLS]` — optional: the project or implementation-support
+  skills that match this batch's work, or "none". Naming them saves the
+  subagent a discovery step it would otherwise do badly or skip
+- `[REPORT_FILE]` — REQUIRED: where the implementer writes its full report
+  (name it after the brief: `…/batch-1-6-brief.md` → `…/batch-1-6-report.md`)
+- `[directory]` — the worktree the implementer works in
+
+**Implementer returns:** the receipt only — contract, status, files changed,
+files in the contract left unchanged, commands run, commits, one-line test
+summary, one paragraph of evidence, concerns, and the report file path.

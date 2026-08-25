@@ -9,21 +9,31 @@ that the fix itself broke nothing.
 
 ```
 Subagent (general-purpose):
-  description: "Re-review Task N fix round R"
+  description: "Re-review Batch B (Tasks N-M) fix round R"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
          model silently inherits the session's most expensive one]
   prompt: |
-    You are re-reviewing one task's fix round. A previous review produced
+    You are re-reviewing one batch's fix round. A previous review produced
     findings; an implementer has attempted to fix them. Your job is to
     verdict each finding and inspect the fix diff — nothing else.
 
-    ## The Task
+    You are a focused subagent. Do NOT invoke superpowers-prepared process
+    skills (workflow-control skills such as brainstorming, writing-plans,
+    subagent-driven-development, or any code-review pipeline) — you must not
+    re-enter the workflow that dispatched you. Skills defined by this project or workspace
+    are allowed, as are `frontend-design` and
+    `vercel-react-best-practices`. Your only job is the re-review described below.
 
-    Read the task brief: [BRIEF_FILE]
+    ## The Batch
+
+    Read the batch brief: [BRIEF_FILE]
 
     ## The Findings Under Verification
 
-    [FINDINGS]
+    Read the review's findings file: [FINDINGS_FILE]
+
+    Verdict the Critical and Important findings it lists. Minor findings do
+    not gate this round.
 
     ## The Fix
 
@@ -77,6 +87,11 @@ Subagent (general-purpose):
     finding's verdict. Every line is a verdict, a finding with file:line,
     or a check you ran — no preamble, no process narration.
 
+    **Budget:** one line per finding verdict, and at most three lines of
+    evidence for any single finding. This report is read whole by the
+    controller and stays in its context for the rest of the session, so it
+    must not grow with the size of the findings list.
+
     ### Finding Verdicts
 
     For each finding in The Findings Under Verification, in order:
@@ -103,9 +118,12 @@ Subagent (general-purpose):
 **Placeholders:**
 - `[MODEL]` — REQUIRED: reviewer model per SKILL.md Model Selection; scoped
   re-reviews of small fix diffs take a cheap-to-mid tier
-- `[BRIEF_FILE]` — the task brief file (same file the implementer worked from)
-- `[FINDINGS]` — the Critical/Important findings and spec gaps from the
-  previous review, copied verbatim, one per bullet
+- `[BRIEF_FILE]` — the batch brief (same file the implementer worked from)
+- `[FINDINGS_FILE]` — REQUIRED: the path the task reviewer wrote its
+  findings to (`…/batch-1-6-review-R.md`, or `…/task-N-review-R.md` for a
+  lone task). Pass the path, never the findings
+  copied verbatim: pasting them makes the report round-trip through the
+  controller's context — in and back out — for every fix round.
 - `[REPORT_FILE]` — the implementer's report file (fix reports appended)
 - `[FIX_BASE_SHA]` — the head the previous review saw
 - `[HEAD_SHA]` — current commit

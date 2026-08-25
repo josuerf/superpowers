@@ -36,7 +36,7 @@ Announce: `I'm running the carrasco-review skill.`
 2. **Dispatch the carrascos.** For each chunk, read its prompt at `.harness/reviews/<feature>/prompts/<chunk-id>.md` and dispatch a `superpowers-prepared:carrasco` subagent with that prompt as its task.
    - **Dispatch all chunks in a SINGLE message** with multiple parallel Agent tool calls when `carrasco.redTeamParallel` is true (the default). Run sequentially only if it is false.
    - **Context isolation:** construct each subagent's prompt from the chunk prompt file ONLY. Never forward this session's history or other chunks' results.
-   - Append to each subagent prompt: *"You are a focused subagent. Do NOT invoke any skills from the superpowers-prepared plugin. Do NOT use the Skill tool. Return your full report including the `<!-- REVIEWER_DECISION -->` JSON block."*
+   - Append to each subagent prompt: *"You are a focused subagent. Do NOT invoke superpowers-prepared process skills (workflow-control skills such as brainstorming, writing-plans, subagent-driven-development, or any code-review pipeline including this one) and never dispatch a subagent of your own. Skills defined by this project or workspace are allowed. Return your full report including the `<!-- REVIEWER_DECISION -->` JSON block."*
 
 3. **Collect.** Write each subagent's returned text verbatim to `.harness/reviews/<feature>/responses/<chunk-id>.txt` (the chunk id matches the prompt filename).
 
@@ -44,7 +44,8 @@ Announce: `I'm running the carrasco-review skill.`
 
 5. **Report & act.**
    - Show the verdict and the report path (`.harness/reviews/<feature>/carrasco-review.md`).
-   - On **BLOCK**: fix findings **ASI-first** (start from the report's "Fix First" entry), then re-review with `review recheck` (step 6 below) — never re-run from step 1. Repeat until no finding reaches the threshold.
+   - On **BLOCK**: fix findings **ASI-first** (start from the report's "Fix First" entry), then re-review with `review recheck` (step 6 below) — never re-run from step 1. Repeat until no finding reaches the threshold,
+     **for at most three rechecks** — see Hard Rules.
    - On **NEEDS_HUMAN_REVIEW**: surface the findings to your human partner for a decision; do not silently approve.
 
 6. **Recheck (after fixing findings) — scoped, not a full re-plan.** Run
@@ -81,4 +82,11 @@ If no plugin-root env var is set, resolve from the superpowers-prepared plugin d
 - Do not approve while the aggregate verdict is BLOCK. A passing run requires zero findings at or above `severityThreshold`.
 - Do not edit files inside a carrasco subagent — carrascos review and report only. Fixes happen in the main session after aggregation.
 - The Stop-hook gate's verdict is tied to the exact change set (a whole-diff fingerprint). If you change code after a passing review, the gate treats it as stale.
+- **At most three rechecks.** Each recheck re-dispatches one carrasco per
+  unapproved chunk, so an uncapped loop multiplies review seats without
+  bound — and findings that survive three fix attempts are not converging.
+  When the third recheck still blocks, stop dispatching and adjudicate the
+  remaining findings yourself: fix what is load-bearing, and record the rest
+  in the report with an explicit ruling on why the code stands. Escalate to
+  your human partner rather than starting a fourth round.
 - After a BLOCK, do not re-run `review plan` from scratch and do not re-dispatch carrascos for chunks that already approved. Use `review recheck` (step 6) so only the chunks that had findings are re-reviewed, with a lean prompt (their prior findings + the fix diff + your note) instead of the full original chunk context.

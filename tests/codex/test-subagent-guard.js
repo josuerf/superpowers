@@ -44,7 +44,12 @@ function test(label, fn) {
 
 /**
  * Run subagent-guard.js with a given last_assistant_message.
- * Returns parsed JSON output.
+ * Returns the parsed JSON output, or {} when the hook allows the stop.
+ *
+ * The hook signals "allow" by writing an EMPTY string, not "{}". Parsing that
+ * unconditionally throws "Unexpected end of JSON input", which used to make
+ * every allow-path assertion in this file fail for a reason unrelated to what
+ * it was testing — so false-positive avoidance was never actually verified.
  */
 function runGuard(lastMessage) {
   const input = JSON.stringify({
@@ -52,16 +57,20 @@ function runGuard(lastMessage) {
     agent_id: 'test-agent',
     agent_type: 'test',
   });
+  const parse = (raw) => {
+    const text = (raw || '').trim();
+    return text === '' ? {} : JSON.parse(text);
+  };
   try {
     const output = execSync(`node "${HOOK_PATH}"`, {
       input,
       encoding: 'utf8',
       timeout: 5000,
     });
-    return JSON.parse(output.trim());
+    return parse(output);
   } catch (err) {
     // execSync throws on non-zero exit, but the hook should always exit 0
-    if (err.stdout) return JSON.parse(err.stdout.trim());
+    if (typeof err.stdout === 'string') return parse(err.stdout);
     throw err;
   }
 }
@@ -77,11 +86,27 @@ test('Includes original 21 skills', () => {
     'test-driven-development', 'verification-before-completion', 'token-efficiency',
     'context-management', 'dispatching-parallel-agents', 'requesting-code-review',
     'receiving-code-review', 'finishing-a-development-branch', 'error-recovery',
-    'frontend-design', 'claude-md-creator', 'self-consistency-reasoner',
+    'claude-md-creator', 'self-consistency-reasoner',
     'using-git-worktrees', 'premise-check',
   ];
+  const processList = source.slice(
+    source.indexOf('const PROCESS_SKILLS = ['),
+    source.indexOf('const ALLOWED_SKILLS = [')
+  );
   for (const name of originals) {
-    assert.ok(source.includes(`'${name}'`), `Missing original skill: ${name}`);
+    assert.ok(processList.includes(`'${name}'`), `Missing process skill: ${name}`);
+  }
+});
+
+test('frontend-design and vercel-react-best-practices are allowed, not blocked', () => {
+  const processList = source.slice(
+    source.indexOf('const PROCESS_SKILLS = ['),
+    source.indexOf('const ALLOWED_SKILLS = [')
+  );
+  const allowedList = source.slice(source.indexOf('const ALLOWED_SKILLS = ['));
+  for (const name of ['frontend-design', 'vercel-react-best-practices']) {
+    assert.ok(!processList.includes(`'${name}'`), `${name} must not be a process skill`);
+    assert.ok(allowedList.includes(`'${name}'`), `${name} must be in ALLOWED_SKILLS`);
   }
 });
 
@@ -101,7 +126,7 @@ test('Includes new dependency-management skill', () => {
   assert.ok(source.includes("'dependency-management'"), 'Missing dependency-management skill');
 });
 
-test('Includes new vercel-react-best-practices skill', () => {
+test('Knows about vercel-react-best-practices (as an allowed skill)', () => {
   assert.ok(source.includes("'vercel-react-best-practices'"), 'Missing vercel-react-best-practices skill');
 });
 
@@ -167,9 +192,9 @@ test('Blocks "executing the context-management skill"', () => {
   assert.strictEqual(result.decision, 'block', `Expected block, got: ${JSON.stringify(result)}`);
 });
 
-test('Blocks "launching the frontend-design skill"', () => {
+test('ALLOWS "launching the frontend-design skill" (implementation support)', () => {
   const result = runGuard('I am launching the frontend-design skill for this UI work.');
-  assert.strictEqual(result.decision, 'block', `Expected block, got: ${JSON.stringify(result)}`);
+  assert.deepStrictEqual(result, {}, `Expected allow, got: ${JSON.stringify(result)}`);
 });
 
 test('Blocks "spawning the refactoring skill"', () => {
@@ -187,9 +212,14 @@ test('Blocks "calling the dependency-management skill"', () => {
   assert.strictEqual(result.decision, 'block', `Expected block, got: ${JSON.stringify(result)}`);
 });
 
-test('Blocks "using the vercel-react-best-practices skill"', () => {
+test('ALLOWS "using the vercel-react-best-practices skill" (implementation support)', () => {
   const result = runGuard('I am using the vercel-react-best-practices skill to optimize this React component.');
-  assert.strictEqual(result.decision, 'block', `Expected block, got: ${JSON.stringify(result)}`);
+  assert.deepStrictEqual(result, {}, `Expected allow, got: ${JSON.stringify(result)}`);
+});
+
+test('ALLOWS a project/workspace skill the plugin does not own', () => {
+  const result = runGuard("I'm using the acme-deploy-checklist skill to verify the release.");
+  assert.deepStrictEqual(result, {}, `Expected allow, got: ${JSON.stringify(result)}`);
 });
 
 // ── False positive avoidance ─────────────────────────────────────────────────
