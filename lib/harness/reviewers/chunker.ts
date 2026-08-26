@@ -55,6 +55,34 @@ function packGroup(
 }
 
 /**
+ * Merge the smallest chunks pairwise (by file count) until the chunk count
+ * is at or below `maxChunks`. `byTopic` packing has no notion of a total
+ * count — it produces at least one chunk per topic touched — so this is the
+ * only place a hard ceiling on subagent dispatch count can be enforced.
+ * Merged files are re-sorted by path for a deterministic result; a merge
+ * across two different topics loses topic cohesion for that one chunk
+ * (labeled "(mixed)"), which is the accepted tradeoff for staying under the
+ * cap instead of dispatching one more carrasco.
+ */
+function capChunkCount(
+	packed: Array<{ files: ChunkFileInput[]; topic: string }>,
+	maxChunks: number | undefined,
+): Array<{ files: ChunkFileInput[]; topic: string }> {
+	if (!maxChunks || maxChunks <= 0 || packed.length <= maxChunks) return packed;
+	const merged = packed.map((p) => ({ files: [...p.files], topic: p.topic }));
+	while (merged.length > maxChunks) {
+		merged.sort((a, b) => a.files.length - b.files.length);
+		const a = merged.shift()!;
+		const b = merged.shift()!;
+		merged.push({
+			files: [...a.files, ...b.files].sort((x, y) => x.path.localeCompare(y.path)),
+			topic: a.topic === b.topic ? a.topic : "(mixed)",
+		});
+	}
+	return merged;
+}
+
+/**
  * Split the changed files into review chunks.
  *
  * - Chunking only kicks in when there are "many" changes: if chunking is
@@ -63,6 +91,10 @@ function packGroup(
  * - When over the limits and `byTopic` is set, files are grouped by topic
  *   (directory area) first, then packed within `maxFilesPerChunk` /
  *   `maxLinesPerChunk`. With `byTopic` off, files are packed by path order.
+ * - If `config.maxChunks` is set and the result still has more chunks than
+ *   that, the smallest chunks are merged pairwise (`capChunkCount`) until
+ *   the count fits — this is the only lever that bounds total subagent
+ *   dispatch count; size/topic limits alone cannot express it.
  */
 export function chunkChangedFiles(
 	files: ChunkFileInput[],
@@ -122,5 +154,6 @@ export function chunkChangedFiles(
 		for (const c of chunks) packed.push({ files: c, topic: "(mixed)" });
 	}
 
-	return packed.map((p, i) => toChunkResult(p.files, i, p.topic));
+	const capped = capChunkCount(packed, config.maxChunks);
+	return capped.map((p, i) => toChunkResult(p.files, i, p.topic));
 }
