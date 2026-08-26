@@ -94,6 +94,17 @@ export interface ReviewAggressivenessConfig {
 		maxFilesPerChunk: number;
 		maxLinesPerChunk: number;
 		byTopic: boolean;
+		/**
+		 * Hard ceiling on the number of chunks a plan can produce, regardless of
+		 * `byTopic`/size limits — each chunk dispatches one carrasco subagent, so
+		 * this is a direct cap on review cost/parallelism per card. `byTopic`
+		 * alone cannot express this: it creates at least one chunk PER TOPIC
+		 * touched, no matter how generous the size limits are. When the natural
+		 * chunk count exceeds this, the smallest chunks are merged pairwise
+		 * (by file count, topic label becomes "(mixed)" on a cross-topic merge)
+		 * until the count fits. `undefined`/absent = no cap (prior behavior).
+		 */
+		maxChunks?: number;
 	};
 	carrasco: {
 		redTeamEnabled: boolean;
