@@ -194,6 +194,95 @@ export function loadProjectConfig(projectRoot: string): HarnessConfig {
 	}
 }
 
+/**
+ * Chunking defaults used ONLY for an --inline (Stop-hook-triggered) review
+ * plan when the project hasn't tuned chunking itself. These exist to keep an
+ * automatic, unattended review cheap by default (2 carrasco subagents max) —
+ * a project that has already tuned `reviewAggressiveness.chunking` always
+ * keeps its own values instead, inline or not. See resolveInlineChunking.
+ */
+export const INLINE_CHUNKING_DEFAULTS = {
+	maxChunks: 2,
+	maxFilesPerChunk: 20,
+	byTopic: true,
+} as const;
+
+/**
+ * Above this many changed files, an untuned inline run must not silently
+ * dispatch reviewers — the caller (the agent following the carrasco-review
+ * skill) is expected to surface the cost to its human partner and get a
+ * chunking config confirmed before proceeding. See resolveInlineChunking.
+ */
+export const INLINE_CONFIRM_ABOVE_FILES = 40;
+
+/**
+ * True when the project's .harness.config.json explicitly sets ANY key under
+ * reviewAggressiveness.chunking. Deliberately reads the RAW file rather than
+ * loadProjectConfig's merged result: the merged config always has a fully
+ * populated chunking block courtesy of DEFAULT_CONFIG, so only the raw file
+ * can tell "the user set this" apart from "the default filled it in".
+ */
+export function hasExplicitChunkingConfig(projectRoot: string): boolean {
+	const configPath = path.join(projectRoot, ".harness.config.json");
+	try {
+		const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+		const chunking = raw?.reviewAggressiveness?.chunking;
+		return (
+			typeof chunking === "object" &&
+			chunking !== null &&
+			Object.keys(chunking).length > 0
+		);
+	} catch {
+		return false;
+	}
+}
+
+export interface ResolveInlineChunkingResult {
+	chunking: HarnessConfig["reviewAggressiveness"]["chunking"];
+	/**
+	 * True when the change set is large, the project hasn't tuned chunking,
+	 * and no override was supplied — the caller must get human confirmation
+	 * (and, typically, a chosen chunking config passed back as `overrides`)
+	 * before running a plan. `chunking` is returned unchanged in this case.
+	 */
+	needsConfirmation: boolean;
+}
+
+/**
+ * Resolve the chunking config to use for an --inline review plan.
+ *
+ * - A project that has explicitly tuned `reviewAggressiveness.chunking`
+ *   always keeps its own values — inline defaults are a fallback only.
+ * - `overrides` (explicit --max-chunks/--max-files-per-chunk/--by-topic CLI
+ *   flags) always win, over both project config and inline defaults: their
+ *   presence signals a human already confirmed (or adjusted) a proposal.
+ * - Otherwise, an untuned project gets the cheap INLINE_CHUNKING_DEFAULTS —
+ *   unless the change set exceeds INLINE_CONFIRM_ABOVE_FILES, in which case
+ *   this returns needsConfirmation: true instead of guessing.
+ */
+export function resolveInlineChunking(
+	projectRoot: string,
+	base: HarnessConfig["reviewAggressiveness"]["chunking"],
+	changedFileCount: number,
+	overrides: Partial<{
+		maxChunks: number;
+		maxFilesPerChunk: number;
+		byTopic: boolean;
+	}>,
+): ResolveInlineChunkingResult {
+	const hasOverrides = Object.keys(overrides).length > 0;
+	if (hasOverrides || hasExplicitChunkingConfig(projectRoot)) {
+		return { chunking: { ...base, ...overrides }, needsConfirmation: false };
+	}
+	if (changedFileCount > INLINE_CONFIRM_ABOVE_FILES) {
+		return { chunking: base, needsConfirmation: true };
+	}
+	return {
+		chunking: { ...base, ...INLINE_CHUNKING_DEFAULTS },
+		needsConfirmation: false,
+	};
+}
+
 export function loadWorkspaceConfig(
 	workspaceRoot: string,
 ): WorkspaceConfig | ProjectConfig | null {

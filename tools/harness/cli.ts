@@ -14,6 +14,8 @@ import {
 	evaluateGateStatus,
 	featureReviewDir,
 	buildReviewExclude,
+	resolveInlineChunking,
+	INLINE_CONFIRM_ABOVE_FILES,
 	type CarrascoResponse,
 	type SavedDecision,
 } from "../../lib/harness/index.js";
@@ -74,6 +76,22 @@ function getProjectRoot(): string {
 function getFlag(name: string): string | undefined {
 	const i = args.indexOf(name);
 	return i !== -1 && args[i + 1] ? args[i + 1] : undefined;
+}
+
+// Parses a --flag into a positive integer, ignoring anything unparsable —
+// fails open like the rest of this file rather than crashing the CLI over a
+// malformed override.
+function getPositiveIntFlag(name: string): number | undefined {
+	const raw = getFlag(name);
+	if (raw === undefined) return undefined;
+	const n = Number(raw);
+	return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+}
+
+function getBoolFlag(name: string): boolean | undefined {
+	const raw = getFlag(name);
+	if (raw === undefined) return undefined;
+	return raw === "true";
 }
 
 function gitOut(cwd: string, gitArgs: string[]): string | null {
@@ -149,12 +167,46 @@ async function runReview(): Promise<void> {
 			console.log("No changed files to review.");
 			process.exit(0);
 		}
+		let planConfig = ra;
+		if (args.includes("--inline")) {
+			const overrides: Partial<{
+				maxChunks: number;
+				maxFilesPerChunk: number;
+				byTopic: boolean;
+			}> = {};
+			const maxChunks = getPositiveIntFlag("--max-chunks");
+			if (maxChunks !== undefined) overrides.maxChunks = maxChunks;
+			const maxFilesPerChunk = getPositiveIntFlag("--max-files-per-chunk");
+			if (maxFilesPerChunk !== undefined) overrides.maxFilesPerChunk = maxFilesPerChunk;
+			const byTopic = getBoolFlag("--by-topic");
+			if (byTopic !== undefined) overrides.byTopic = byTopic;
+
+			const resolved = resolveInlineChunking(
+				cwd,
+				ra.chunking,
+				changedFiles.length,
+				overrides,
+			);
+			if (resolved.needsConfirmation) {
+				console.log(
+					JSON.stringify({
+						needsConfirmation: true,
+						fileCount: changedFiles.length,
+						confirmAboveFiles: INLINE_CONFIRM_ABOVE_FILES,
+						suggestedDefaults: { maxChunks: 2, maxFilesPerChunk: 20, byTopic: true },
+					}),
+				);
+				process.exit(3);
+			}
+			planConfig = { ...ra, chunking: resolved.chunking };
+		}
+
 		const gitDiff = gitOut(cwd, base ? ["diff", base] : ["diff", "HEAD"]) || "";
 		const plan = buildReviewPlan({
 			feature,
 			changedFiles,
 			gitDiff,
-			config: ra,
+			config: planConfig,
 			generatedAt: new Date().toISOString(),
 		});
 

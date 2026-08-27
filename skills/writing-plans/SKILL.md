@@ -29,7 +29,7 @@ Save to `docs/superpowers-prepared/plans/YYYY-MM-DD-<feature-name>.md`.
 ```markdown
 # <Feature Name> Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-prepared:subagent-driven-development (recommended) or superpowers-prepared:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-prepared:executing-plans (recommended) or superpowers-prepared:subagent-driven-development — prefer subagent-driven-development when complexity is very high — to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** <single sentence>
 **Architecture:** <2-4 sentences>
@@ -107,7 +107,7 @@ independently testable deliverable.
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-prepared:subagent-driven-development (recommended) or superpowers-prepared:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-prepared:executing-plans (recommended) or superpowers-prepared:subagent-driven-development — prefer subagent-driven-development when complexity is very high — to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -225,15 +225,19 @@ After saving the plan and completing self-review, auto-select the execution appr
 ### Selection Logic (evaluate in order)
 
 1. Current context window ≥ 60% full → **Subagent-Driven** (offload context pressure)
-2. Task count ≥ 5 → **Subagent-Driven** (fresh context per batch)
-3. Tasks have heavy inter-task state sharing (each task depends on runtime state from the previous) → **Inline**
-4. Default → **Subagent-Driven**
+2. Complexity is very high — task count ≥ 20, phase count ≥ 6, or multiple
+   largely-independent subsystems in one plan → **Subagent-Driven** (fresh
+   context per batch keeps each batch manageable)
+3. Default → **Inline** (recommended — continuous execution keeps the whole
+   plan in one context and avoids the per-batch re-read cost that
+   Subagent-Driven pays on every dispatch)
 
-**Fan-out follows the phase count, not the task count.** Subagent-Driven
-groups tasks into a few cohesive batches — starting from your phases — and
-dispatches one subagent per batch. Do not let fan-out scale with the number
-of tasks; that is the configuration that measured slowest, costliest, and
-worst. Phases sized 4-8 tasks are what let the executor keep it that way.
+**Fan-out follows the phase count, not the task count.** When
+Subagent-Driven is selected, it groups tasks into a few cohesive batches —
+starting from your phases — and dispatches one subagent per batch. Do not
+let fan-out scale with the number of tasks; that is the configuration that
+measured slowest, costliest, and worst. Phases sized 4-8 tasks are what let
+the executor keep it that way.
 
 ### Ready Message
 

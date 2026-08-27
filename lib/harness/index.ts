@@ -338,7 +338,12 @@ export {
 	loadWorkspaceConfig,
 	buildReviewExclude,
 	DEFAULT_REVIEW_EXCLUDE,
+	hasExplicitChunkingConfig,
+	resolveInlineChunking,
+	INLINE_CHUNKING_DEFAULTS,
+	INLINE_CONFIRM_ABOVE_FILES,
 } from "./config";
+export type { ResolveInlineChunkingResult } from "./config";
 export { extractFeatureName, formatReportMarkdown } from "./reporter";
 export { detectStack, scanWorkspace } from "./discovery";
 export { validateLint } from "./validators/lint";
