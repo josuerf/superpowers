@@ -280,6 +280,7 @@ function buildCarrascoBlockReason(status, fileCount) {
     '',
     'A rigorous, standards-enforcing code review is required before completing.',
     `Run the "carrasco-review" skill (or: npx tsx "${CLI_PATH}" review plan, dispatch the carrascos, then review aggregate).`,
+    'This is the automatic Stop-hook gate, not an explicit request from your human partner — follow the skill\'s "Automatic Trigger (Stop-hook Gate)" section and run review plan --inline.',
     '',
     'Fix any BLOCK findings and re-run the review, or commit/push to bypass this gate.',
     '</carrasco-review>',

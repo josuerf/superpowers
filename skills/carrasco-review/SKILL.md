@@ -30,6 +30,40 @@ Announce: `I'm running the carrasco-review skill.`
 - `exclude` — what never reaches a reviewer. `patterns` are regular expressions matched against each repo-relative path; they add to the built-in list (generated/vendored/lock artifacts, `.claude/`, `.harness/`) unless `useDefaults` is `false`, which replaces it. This matters more than it looks: the change set includes **untracked** files, so a directory of local content the repo happens not to commit inflates the chunk count — one project turned 3 real changed files into 472 files across 49 chunks, i.e. 49 reviewer dispatches for one card. If `review plan` reports a file count far above the real diff, this is the knob.
 - `reportOutput` — `saveToHarness`, `format` (`markdown` | `json` | `both`).
 
+## Automatic Trigger (Stop-hook Gate)
+
+When this skill runs because the Stop-hook gate blocked completion — the block reason
+arrives wrapped in `<carrasco-review>` tags — rather than because your human partner
+explicitly asked for a review, treat it as an **inline** run:
+
+1. Run `review plan --inline` instead of plain `review plan` (see *Running the CLI*).
+   - If the project's `.harness.config.json` already sets `reviewAggressiveness.chunking`
+     explicitly (any key), `--inline` changes nothing — the project's configured
+     chunking always wins, exactly as an explicit request would get.
+   - If chunking is unconfigured (no file, or no `chunking` key), `--inline` applies
+     safe, cheap defaults automatically: `maxChunks: 2`, `maxFilesPerChunk: 20`,
+     `byTopic: true` — capping the run at 2 carrasco subagents.
+2. On an unconfigured project with a large change set, the CLI will not silently
+   proceed: it exits 3 and prints `{"needsConfirmation": true, "fileCount": N, ...}`
+   instead of writing a plan. When this happens:
+   - **Stop. Do not dispatch carrascos yet.** Tell your human partner how many files
+     changed and that this will cost real tokens — each review chunk is one subagent
+     call. Also name the concrete benefit of running it anyway: carrasco-review catches
+     logic bugs, security issues, and standards violations before they ship, which is
+     cheaper than finding them after.
+   - Propose your own affordable chunking config for this change set and explain the
+     knobs: `maxChunks` is a hard ceiling on subagent dispatches (the direct cost
+     lever — keep it low, e.g. 2); `maxFilesPerChunk` bounds how many files one
+     carrasco reads at once (too high hurts per-file review depth, too low multiplies
+     chunk count instead); `byTopic` keeps each chunk to one feature/directory area so
+     a carrasco reviews one coherent concern instead of unrelated files mixed together.
+   - Let them approve as-is, adjust the numbers, or decline. If they decline, do not
+     run the review.
+   - Once they confirm, run `review plan --inline --max-chunks <n> --max-files-per-chunk <n> --by-topic <true|false>` with the agreed values.
+3. If your human partner explicitly asked for the review (not a Stop-hook trigger),
+   none of the above applies — just follow the normal Procedure below with the
+   project's configured (or default) chunking.
+
 ## Procedure
 
 1. **Plan.** Run the harness CLI `review plan` (see *Running the CLI* below). It writes `.harness/reviews/<feature>/plan.json`, one prompt file per chunk under `prompts/`, and an empty `responses/` directory. Read `plan.json` to get the feature name and the chunk list. If it reports "No changed files", stop.
@@ -72,7 +106,9 @@ Announce: `I'm running the carrasco-review skill.`
 
 Use the harness CLI the same way as `harness-verify`, with the plugin-root env var for your harness:
 
-- **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" review <plan|recheck|aggregate|gate-status> [--feature <name>] [--base <sha>] [--chunks <id,id>] [--note "<text>"] [--root <project>]`
+- **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" review <plan|recheck|aggregate|gate-status> [--feature <name>] [--base <sha>] [--chunks <id,id>] [--note "<text>"] [--root <project>] [--inline] [--max-chunks <n>] [--max-files-per-chunk <n>] [--by-topic <true|false>]`
+
+  `--inline` and the `--max-chunks`/`--max-files-per-chunk`/`--by-topic` overrides only apply to `plan`, and only matter for the automatic Stop-hook trigger — see *Automatic Trigger* above.
 - **Linux/macOS:** `npx tsx "${CLAUDE_PLUGIN_ROOT:-...}/tools/harness/cli.ts" review <subcommand> [...]`
 
 If no plugin-root env var is set, resolve from the superpowers-prepared plugin directory (the parent of `hooks/`).

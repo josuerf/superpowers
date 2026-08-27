@@ -267,6 +267,7 @@ turn it on — either globally via this file, or ad hoc by invoking the
 | `chunking.maxFilesPerChunk` | `number` | `10` | Max files per review chunk before splitting |
 | `chunking.maxLinesPerChunk` | `number` | `2000` | Max changed lines per review chunk before splitting |
 | `chunking.byTopic` | `boolean` | `true` | Groups files by topic/module instead of splitting arbitrarily |
+| `chunking.maxChunks` | `number` | none (no cap) | Hard ceiling on chunks/subagents a plan can produce; smallest chunks are merged pairwise until it fits |
 | `carrasco.redTeamEnabled` | `boolean` | `true` | Enables the aggressive "carrasco" reviewer persona |
 | `carrasco.redTeamParallel` | `boolean` | `true` | Dispatches all chunk reviewers in parallel instead of sequentially |
 | `carrasco.requireReproducibleTrigger` | `boolean` | `true` | Requires findings to name a concrete reproducing input/state, not a theoretical concern |
@@ -276,6 +277,14 @@ turn it on — either globally via this file, or ad hoc by invoking the
 | `standards.paths` | `string[]` | `[]` | Additional authoritative standards/architecture docs to enforce |
 | `reportOutput.saveToHarness` | `boolean` | `true` | Saves the aggregated report under `.harness/reviews/` |
 | `reportOutput.format` | `string` | `"both"` | `"markdown"` \| `"json"` \| `"both"` |
+
+**Automatic (Stop-hook) runs:** when the gate above triggers the review automatically
+rather than a human explicitly asking for it, and this project hasn't set any
+`chunking` key, the `carrasco-review` skill runs the plan with cheaper inline defaults
+(`maxChunks: 2`, `maxFilesPerChunk: 20`, `byTopic: true`) instead of the table above,
+and asks your human partner for a config before proceeding when the change set exceeds
+40 files. Once you set any `chunking` key here, your values are used for automatic
+runs too — see the skill's "Automatic Trigger (Stop-hook Gate)" section.
 
 **Why this defaults off:** the gate is tied to an exact diff fingerprint —
 any edit after a passing review invalidates it, forcing a full re-review

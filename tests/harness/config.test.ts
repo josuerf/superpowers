@@ -7,6 +7,10 @@ import {
   getProjects,
   buildReviewExclude,
   DEFAULT_REVIEW_EXCLUDE,
+  hasExplicitChunkingConfig,
+  resolveInlineChunking,
+  INLINE_CHUNKING_DEFAULTS,
+  INLINE_CONFIRM_ABOVE_FILES,
 } from '../../lib/harness/config';
 
 const TEST_DIR = path.join(__dirname, '..', '..', 'tmp-test-harness');
@@ -174,5 +178,87 @@ describe('loadWorkspaceConfig', () => {
     expect(isWorkspaceMode(loaded!)).toBe(false);
     expect(getProjects(loaded!)).toHaveLength(1);
     expect(getProjects(loaded!)[0].stack).toBe('react-nextjs');
+  });
+});
+
+describe('hasExplicitChunkingConfig', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  test('false when no .harness.config.json exists', () => {
+    expect(hasExplicitChunkingConfig(TEST_DIR)).toBe(false);
+  });
+
+  test('false when reviewAggressiveness has no chunking key', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { level: 'strict' } })
+    );
+    expect(hasExplicitChunkingConfig(TEST_DIR)).toBe(false);
+  });
+
+  test('true when any single chunking key is set', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { chunking: { maxLinesPerChunk: 5000 } } })
+    );
+    expect(hasExplicitChunkingConfig(TEST_DIR)).toBe(true);
+  });
+});
+
+describe('resolveInlineChunking', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  const base = { enabled: true, maxFilesPerChunk: 10, maxLinesPerChunk: 2000, byTopic: true };
+
+  test('unconfigured project, small change set: applies inline defaults', () => {
+    const result = resolveInlineChunking(TEST_DIR, base, 5, {});
+    expect(result.needsConfirmation).toBe(false);
+    expect(result.chunking.maxChunks).toBe(INLINE_CHUNKING_DEFAULTS.maxChunks);
+    expect(result.chunking.maxFilesPerChunk).toBe(INLINE_CHUNKING_DEFAULTS.maxFilesPerChunk);
+    expect(result.chunking.byTopic).toBe(INLINE_CHUNKING_DEFAULTS.byTopic);
+    // untouched base fields survive
+    expect(result.chunking.maxLinesPerChunk).toBe(2000);
+  });
+
+  test('unconfigured project, large change set, no overrides: needs confirmation', () => {
+    const result = resolveInlineChunking(
+      TEST_DIR,
+      base,
+      INLINE_CONFIRM_ABOVE_FILES + 1,
+      {}
+    );
+    expect(result.needsConfirmation).toBe(true);
+    expect(result.chunking).toEqual(base);
+  });
+
+  test('unconfigured project, large change set, with overrides: uses overrides, no confirmation', () => {
+    const result = resolveInlineChunking(
+      TEST_DIR,
+      base,
+      INLINE_CONFIRM_ABOVE_FILES + 1,
+      { maxChunks: 3, maxFilesPerChunk: 30, byTopic: false }
+    );
+    expect(result.needsConfirmation).toBe(false);
+    expect(result.chunking.maxChunks).toBe(3);
+    expect(result.chunking.maxFilesPerChunk).toBe(30);
+    expect(result.chunking.byTopic).toBe(false);
+  });
+
+  test('project with explicit chunking config keeps its own values regardless of file count', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { chunking: { maxFilesPerChunk: 50 } } })
+    );
+    const configuredBase = { ...base, maxFilesPerChunk: 50 };
+    const result = resolveInlineChunking(
+      TEST_DIR,
+      configuredBase,
+      INLINE_CONFIRM_ABOVE_FILES + 100,
+      {}
+    );
+    expect(result.needsConfirmation).toBe(false);
+    expect(result.chunking).toEqual(configuredBase);
   });
 });

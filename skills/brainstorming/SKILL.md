@@ -96,16 +96,20 @@ your path and complete them in order.
 
 **Bounded:**
 1. **Explore project context** — check files, docs, recent commits
-2. **Ask clarifying questions** — one at a time, the ones that matter
-3. **Present short design in chat** — approach, files touched, testing
-4. **Get approval** — STOP and wait for an explicit yes; presenting the design and starting in the same breath is skipping the gate
-5. **Implement** — proceed with the normal development workflow (TDD applies); no plan document
-6. **Run the quality gates** — see Quality Gates below. Bounded drops the spec
+2. **Offer a visual preview if the change is visual** — NOT for every bounded
+   task. Only when the change is something the user will see (a new button,
+   input, screen, or a restyle), offer it once, as its own message, before
+   the short design. See the Visual Companion section below.
+3. **Ask clarifying questions** — one at a time, the ones that matter
+4. **Present short design in chat** — approach, files touched, testing
+5. **Get approval** — STOP and wait for an explicit yes; presenting the design and starting in the same breath is skipping the gate
+6. **Implement** — proceed with the normal development workflow (TDD applies); no plan document
+7. **Run the quality gates** — see Quality Gates below. Bounded drops the spec
    file and the plan document; it never drops the gates.
 
 **Architectural:**
 1. **Explore project context** — check files, docs, recent commits
-2. **Offer the visual companion just-in-time** — NOT upfront. The first time a question would genuinely be clearer shown than described, offer it then (its own message); on approval its browser tab opens for you. If no visual question ever arises, never offer it. See the Visual Companion section below.
+2. **Offer a visual preview just-in-time** — NOT upfront. The first time a question would genuinely be clearer shown than described, offer it then (its own message). If no visual question ever arises, never offer it. See the Visual Companion section below.
 3. **Assess scope** — if the project touches 4+ independent subsystems or would require 20+ implementation tasks, decompose into sub-projects. Design each sub-project as a separate spec. Present the decomposition to the user for approval before designing individual specs.
 4. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 5. **Propose 2-3 approaches** — with trade-offs and a recommendation.
@@ -127,6 +131,8 @@ your path and complete them in order.
 digraph brainstorming {
     "Classify: spike / bounded / architectural" [shape=diamond];
     "Present question + probe (2-3 sentences)" [shape=box];
+    "Visual change ahead? (bounded)" [shape=diamond];
+    "Offer visual preview (bounded)\n(own message, no other content)" [shape=box];
     "Ask clarifying questions (bounded)" [shape=box];
     "Present short design in chat" [shape=box];
     "Human approves?" [shape=diamond];
@@ -150,9 +156,12 @@ digraph brainstorming {
     "Run quality gates\n(harness-verify, carrasco-review,\nverification-before-completion)" [shape=doublecircle];
 
     "Classify: spike / bounded / architectural" -> "Present question + probe (2-3 sentences)" [label="spike"];
-    "Classify: spike / bounded / architectural" -> "Ask clarifying questions (bounded)" [label="bounded"];
+    "Classify: spike / bounded / architectural" -> "Visual change ahead? (bounded)" [label="bounded"];
     "Classify: spike / bounded / architectural" -> "Explore project context" [label="architectural"];
     "Present question + probe (2-3 sentences)" -> "Human approves?";
+    "Visual change ahead? (bounded)" -> "Offer visual preview (bounded)\n(own message, no other content)" [label="yes"];
+    "Visual change ahead? (bounded)" -> "Ask clarifying questions (bounded)" [label="no"];
+    "Offer visual preview (bounded)\n(own message, no other content)" -> "Ask clarifying questions (bounded)";
     "Ask clarifying questions (bounded)" -> "Present short design in chat";
     "Present short design in chat" -> "Human approves?";
     "Human approves?" -> "Investigate; report recommendation" [label="spike: yes"];
@@ -318,19 +327,22 @@ Apply senior engineering judgment during design:
 
 ## Visual Companion
 
-A browser-based companion for showing mockups, diagrams, and visual options during brainstorming. Available as a tool — not a mode. Accepting the companion means it's available for questions that benefit from visual treatment; it does NOT mean every question goes through the browser.
+A visual channel for showing mockups, diagrams, and visual options during brainstorming — for the Bounded path (visual changes) and the Architectural path alike. Available as a tool — not a mode. Accepting it means it's available for questions that benefit from visual treatment; it does NOT mean every question goes through it.
 
-**Offering the companion (just-in-time):** Do NOT offer it upfront. Wait until a question would genuinely be clearer shown than told — a real mockup / layout / diagram question, not merely a UI *topic*. The first time that happens, offer it then, as its own message:
-> "This next part might be easier if I show you — I can put together mockups, diagrams, and comparisons in a browser tab as we go. It's still new and can be token-intensive. Want me to? I'll open it for you."
+**Default: the local companion, on every harness.** Use the browser-based companion described in `visual-companion.md`. It runs entirely on the machine — mockups are written to `screen_dir`, which lands under `.superpowers/brainstorm/<session>/content` when `--project-dir` is passed. Nothing leaves the machine.
 
-**This offer MUST be its own message.** Only the offer — no clarifying question, summary, or other content. Wait for the user's response. If they accept, start the server with `--open` so their browser opens to the first screen automatically. If they decline, continue text-only and don't offer again unless they raise it.
+**`design` (Claude Design canvas) is opt-in only, Claude Code only.** It publishes the mockup as an Artifact to claude.ai — private by default, but hosted externally, a different trust boundary than the local companion (see "Uploading content to third-party web tools" under Executing actions with care). Never switch to it on your own judgment. After the user accepts a visual preview, if you're in Claude Code, ask once which they'd rather use, e.g. "Want this local — a browser tab on your machine — or as a Claude Artifact you could share later?" Default to local if they have no preference. Use `design` only when the user explicitly confirms it.
 
-**Per-question decision:** Even after the user accepts, decide FOR EACH QUESTION whether to use the browser or the terminal. The test: **would the user understand this better by seeing it than reading it?**
+**Offering it (just-in-time):** Do NOT offer it upfront. Wait until a question would genuinely be clearer shown than told — a real mockup / layout / diagram question, not merely a UI *topic* — or, on the Bounded path, until the change itself is something the user will see (a new button, input, screen, or restyle). The first time that happens, offer it then, as its own message:
+> "This next part might be easier if I show you — I can put together a quick mockup for you to look at and approve. Want me to?"
 
-- **Use the browser** for content that IS visual — mockups, wireframes, layout comparisons, architecture diagrams, side-by-side visual designs
+**This offer MUST be its own message.** Only the offer — no clarifying question, summary, or other content. Wait for the user's response. If they decline, continue text-only and don't offer again unless they raise it.
+
+**Per-question decision:** Even after the user accepts, decide FOR EACH QUESTION whether to go visual or stay in the terminal. The test: **would the user understand this better by seeing it than reading it?**
+
+- **Go visual** for content that IS visual — mockups, wireframes, layout comparisons, architecture diagrams, side-by-side visual designs
 - **Use the terminal** for content that is text — requirements questions, conceptual choices, tradeoff lists, A/B/C/D text options, scope decisions
 
-A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — use the browser.
+A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — go visual.
 
-If they agree to the companion, read the detailed guide before proceeding:
-`skills/brainstorming/visual-companion.md`
+If they agree: read the detailed guide before proceeding: `skills/brainstorming/visual-companion.md`. In Claude Code only, ask the local-vs-Artifact question above first; if they pick `design`, follow its own flow instead.
