@@ -14,7 +14,7 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
-  testPathIgnorePatterns: ['/node_modules/', '/tests/patterns/integration.test.ts'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/tests/patterns/integration.test.ts'],
   projects: [
     {
       displayName: 'default',
@@ -25,7 +25,7 @@ export default {
       },
       extensionsToTreatAsEsm: ['.ts'],
       moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
-      testPathIgnorePatterns: ['/node_modules/', '/tests/patterns/integration.test.ts'],
+      testPathIgnorePatterns: ['/node_modules/', '/dist/', '/tests/patterns/integration.test.ts'],
     },
     {
       displayName: 'integration',

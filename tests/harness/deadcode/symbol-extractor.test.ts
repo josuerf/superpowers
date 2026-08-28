@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { extractSymbols } from '../../../lib/harness/deadcode/symbol-extractor';
 
-const TEST_DIR = path.join(__dirname, '..', '..', '..', 'tmp-test-harness');
+const TEST_DIR = path.join(__dirname, '..', '..', '..', 'tmp-test-harness-deadcode');
 
 function setup() {
   if (!fs.existsSync(TEST_DIR)) fs.mkdirSync(TEST_DIR, { recursive: true });

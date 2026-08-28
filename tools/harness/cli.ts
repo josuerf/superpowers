@@ -155,10 +155,12 @@ async function runReview(): Promise<void> {
 		process.exit(status.gate === "pass" ? 0 : 1);
 	}
 
-	if (!ra.enabled) {
-		console.log("Carrasco review is disabled (reviewAggressiveness.enabled=false).");
-		process.exit(0);
-	}
+	// reviewAggressiveness.enabled only gates the automatic Stop-hook trigger
+	// (checked above, in the gate-status branch). A direct invocation of
+	// plan/recheck/aggregate — by a human or by the carrasco-review skill
+	// itself — always runs regardless of the flag, per the skill's documented
+	// contract ("Invoking the skill directly ... always works regardless of
+	// this flag").
 
 	if (sub === "plan") {
 		const base = getFlag("--base");
@@ -448,13 +450,11 @@ async function main() {
 
 	if (command === "complexity") {
 		const config = loadProjectConfig(getProjectRoot());
-		const stack = detectStack(getProjectRoot());
-		if (!stack) {
+		const targetStack = getFlag("--stack") || detectStack(getProjectRoot());
+		if (!targetStack) {
 			console.error("Could not detect stack. Use --stack to specify.");
 			process.exit(1);
 		}
-		const stackOverride = args.indexOf("--stack");
-		const targetStack = stackOverride !== -1 && args[stackOverride + 1] ? args[stackOverride + 1] : stack;
 		const thresholdOverride = args.indexOf("--threshold");
 		if (thresholdOverride !== -1 && args[thresholdOverride + 1]) {
 			config.complexity.thresholds[targetStack] = parseInt(args[thresholdOverride + 1], 10);
@@ -478,7 +478,9 @@ async function main() {
 	try {
 		const report = await verify({
 			mode: verifyMode,
+			cwd: getProjectRoot(),
 			secOpsResponse,
+			stack: getFlag("--stack"),
 		});
 
 		console.log(`\nReport saved to: .harness/reports/${report.feature}/`);

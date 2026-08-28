@@ -48,10 +48,11 @@ Full semantic diff between spec and implementation — identifies missing, parti
 ## Execution
 
 1. Run the harness command using the appropriate path for your OS/shell and agent:
-   - **Linux/macOS (bash/zsh):** `npx ts-node "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
-   - **Windows (CMD):** Use the first set env var among `%CLAUDE_PLUGIN_ROOT%`, `%QWEN_PLUGIN_ROOT%`, `%CURSOR_PLUGIN_ROOT%`, `%CODEX_PLUGIN_ROOT%`, then append `\tools\harness\cli.ts`
-   - **Windows (PowerShell):** `npx ts-node "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project]`
+   - **Linux/macOS (bash/zsh):** `npx tsx "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project] [--stack <name>]`
+   - **Windows (CMD):** Use the first set env var among `%CLAUDE_PLUGIN_ROOT%`, `%QWEN_PLUGIN_ROOT%`, `%CURSOR_PLUGIN_ROOT%`, `%CODEX_PLUGIN_ROOT%`, then append `\tools\harness\cli.ts`, and run it with `npx tsx`
+   - **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project] [--stack <name>]`
    If no plugin root env var is set, resolve from the superpowers-prepared plugin directory (the parent of the hooks/ directory).
+   - `--stack` overrides automatic stack detection. Pass it when the project has no recognizable manifest for its stack (e.g. a plain Node project with no `package.json`, tests run via `node --test`) and the CLI reports "Could not detect stack".
 2. Inspect exit code and output.
 3. If failed, read the report at `.harness/reports/<feature>/<timestamp>-verify-report.md`
 4. Return structured errors to the agent for fixing.

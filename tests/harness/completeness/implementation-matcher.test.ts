@@ -5,7 +5,7 @@ import * as path from 'path';
 import { matchAC } from '../../../lib/harness/completeness/implementation-matcher';
 import { AcceptanceCriterion } from '../../../lib/harness/completeness/types';
 
-const TEST_DIR = path.join(__dirname, '..', '..', '..', 'tmp-test-harness');
+const TEST_DIR = path.join(__dirname, '..', '..', '..', 'tmp-test-harness-completeness-impl-matcher');
 
 function setup() {
   if (!fs.existsSync(TEST_DIR)) fs.mkdirSync(TEST_DIR, { recursive: true });
