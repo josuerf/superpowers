@@ -23,6 +23,49 @@ const STACK_DETECTORS: Record<string, { files: string[]; deps?: string[] }> = {
 	terraform: { files: ["*.tf", "terraform.tf"] },
 };
 
+const NODE_SOURCE_EXTENSIONS = [".js", ".mjs", ".cjs", ".ts"];
+const NODE_STD_SKIP_DIRS = new Set([
+	"node_modules",
+	"dist",
+	"build",
+	".harness",
+	".git",
+]);
+
+/**
+ * Bounded-depth recursive scan for plain Node/TS source files, used only by
+ * the node-std fallback below. Unlike the other detectors' `files` globs
+ * (root-level only — a package.json, go.mod, etc. is conventionally there),
+ * a manifest-less Node project has no fixed root marker, so source files
+ * have to be found wherever they actually live (e.g. `test/*.test.js`).
+ * Depth is capped to keep this cheap on large, unrelated repos.
+ */
+function hasNodeSourceFiles(dir: string, depth = 3): boolean {
+	let entries: fs.Dirent[];
+	try {
+		entries = fs.readdirSync(dir, { withFileTypes: true });
+	} catch {
+		return false;
+	}
+	if (
+		entries.some(
+			(e) =>
+				e.isFile() &&
+				NODE_SOURCE_EXTENSIONS.some((ext) => e.name.endsWith(ext)),
+		)
+	) {
+		return true;
+	}
+	if (depth <= 0) return false;
+	return entries.some(
+		(e) =>
+			e.isDirectory() &&
+			!e.name.startsWith(".") &&
+			!NODE_STD_SKIP_DIRS.has(e.name) &&
+			hasNodeSourceFiles(path.join(dir, e.name), depth - 1),
+	);
+}
+
 export function detectStack(projectRoot: string): string | null {
 	for (const [stack, detector] of Object.entries(STACK_DETECTORS)) {
 		const hasFiles = detector.files.some((pattern) => {
@@ -56,6 +99,9 @@ export function detectStack(projectRoot: string): string | null {
 			return stack;
 		}
 	}
+	// Catch-all: a plain Node/TS project with no framework and no
+	// package.json (e.g. tests run via the built-in `node --test` runner).
+	if (hasNodeSourceFiles(projectRoot)) return "node-std";
 	return null;
 }
 

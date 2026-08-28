@@ -31,6 +31,7 @@ const DEFAULT_CONFIG: HarnessConfig = {
 			"node-express": 10,
 			"node-fastify": 10,
 			"node-elysia": 10,
+			"node-std": 10,
 			"java-springboot": 10,
 			"csharp-dotnet": 15,
 			"csharp-aspnet": 15,

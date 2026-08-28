@@ -13,7 +13,7 @@ import {
   INLINE_CONFIRM_ABOVE_FILES,
 } from '../../lib/harness/config';
 
-const TEST_DIR = path.join(__dirname, '..', '..', 'tmp-test-harness');
+const TEST_DIR = path.join(__dirname, '..', '..', 'tmp-test-harness-config');
 
 function setup() {
   if (!fs.existsSync(TEST_DIR)) fs.mkdirSync(TEST_DIR, { recursive: true });

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseSpec, detectSpecFormat } from '../../../lib/harness/completeness/spec-parser';
 
-const TEST_DIR = path.join(__dirname, '..', '..', '..', 'tmp-test-harness');
+const TEST_DIR = path.join(__dirname, '..', '..', '..', 'tmp-test-harness-completeness-spec-parser');
 
 function setup() {
   if (!fs.existsSync(TEST_DIR)) fs.mkdirSync(TEST_DIR, { recursive: true });

@@ -53,6 +53,8 @@ export interface VerifyOptions {
 	cwd?: string;
 	feature?: string;
 	secOpsResponse?: string;
+	/** Override automatic stack detection — for a project with no manifest detectStack recognizes. */
+	stack?: string;
 }
 
 export async function verify(
@@ -65,7 +67,7 @@ export async function verify(
 > {
 	const cwd = options.cwd || process.cwd();
 	const config = loadProjectConfig(cwd);
-	const stack = detectStack(cwd);
+	const stack = options.stack || detectStack(cwd);
 
 	if (!stack) {
 		const wsConfig = loadWorkspaceConfig(cwd);
