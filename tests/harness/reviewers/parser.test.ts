@@ -170,6 +170,97 @@ describe("parseReviewerResponse", () => {
 		expect(result!.findings).toHaveLength(1);
 		expect(result!.findings[0].severity).toBe("Critical");
 	});
+
+	test("preserves the finding category when it is a known value", () => {
+		const response = `\`\`\`json
+{
+  "harness_action": "APPROVE",
+  "metrics": {
+    "total_findings": 1,
+    "critical_high_count": 0
+  },
+  "asi_target": null,
+  "findings": [
+    {
+      "severity": "Low",
+      "category": "security",
+      "file": "src-tauri/src/teto/source.rs",
+      "line": 340,
+      "issue": "argv injection on the operator identity",
+      "suggestion": "Validate the actor before spawning"
+    }
+  ]
+}
+\`\`\``;
+
+		const result = parseReviewerResponse(response);
+		expect(result).not.toBeNull();
+		expect(result!.findings).toHaveLength(1);
+		expect(result!.findings[0].category).toBe("security");
+	});
+
+	test("leaves category undefined when the reviewer omits it", () => {
+		const response = `\`\`\`json
+{
+  "harness_action": "APPROVE",
+  "metrics": {
+    "total_findings": 1,
+    "critical_high_count": 0
+  },
+  "asi_target": null,
+  "findings": [
+    {
+      "severity": "Low",
+      "file": "src/a.ts",
+      "line": 1,
+      "issue": "duplicated test fixture",
+      "suggestion": "extract a helper"
+    }
+  ]
+}
+\`\`\``;
+
+		const result = parseReviewerResponse(response);
+		expect(result).not.toBeNull();
+		expect(result!.findings).toHaveLength(1);
+		// The parser does not invent a default. Normalising an absent category
+		// to "maintainability" is the aggregator's job, where the escalation
+		// rule lives - doing it here would hide "the reviewer said nothing"
+		// behind a value that looks deliberate.
+		expect(result!.findings[0].category).toBeUndefined();
+	});
+
+	// An unknown category must never cost us the finding: a reviewer that
+	// invents a label is still reporting a real problem, and dropping the
+	// finding would turn a taxonomy typo into a silently unreviewed issue.
+	test("keeps the finding but drops an unknown category", () => {
+		const response = `\`\`\`json
+{
+  "harness_action": "BLOCK",
+  "metrics": {
+    "total_findings": 1,
+    "critical_high_count": 1
+  },
+  "asi_target": null,
+  "findings": [
+    {
+      "severity": "High",
+      "category": "banana",
+      "file": "src/a.ts",
+      "line": 7,
+      "issue": "unchecked unwrap",
+      "suggestion": "handle the error"
+    }
+  ]
+}
+\`\`\``;
+
+		const result = parseReviewerResponse(response);
+		expect(result).not.toBeNull();
+		expect(result!.findings).toHaveLength(1);
+		expect(result!.findings[0].severity).toBe("High");
+		expect(result!.findings[0].category).toBeUndefined();
+	});
 });
 
 describe("determineReviewerAction", () => {

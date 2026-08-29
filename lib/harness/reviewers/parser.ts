@@ -12,6 +12,13 @@ const VALID_ACTIONS: (HarnessAction | "APPROVE")[] = [
 	"NEEDS_HUMAN_REVIEW",
 ];
 const VALID_SEVERITIES = ["Critical", "High", "Medium", "Low"];
+const VALID_CATEGORIES = [
+	"security",
+	"governance",
+	"correctness",
+	"maintainability",
+	"test",
+];
 export function parseReviewerResponse(
 	response: string,
 ): ReviewerDecision | null {
@@ -94,8 +101,18 @@ function validateReviewerDecision(obj: unknown): ReviewerDecision | null {
 				typeof finding.issue === "string" &&
 				typeof finding.suggestion === "string"
 			) {
+				// An unrecognised category is dropped, never the finding: a
+				// reviewer that invents a label is still reporting a real
+				// problem, and discarding it here would turn a taxonomy typo
+				// into an issue nobody ever sees.
+				const category =
+					typeof finding.category === "string" &&
+					VALID_CATEGORIES.includes(finding.category)
+						? (finding.category as ReviewerFinding["category"])
+						: undefined;
 				findings.push({
 					severity: finding.severity as ReviewerFinding["severity"],
+					...(category ? { category } : {}),
 					file: finding.file,
 					line: finding.line,
 					issue: finding.issue,

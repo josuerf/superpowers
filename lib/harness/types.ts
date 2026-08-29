@@ -305,8 +305,36 @@ export interface SecurityRawFinding {
 }
 
 export type ReviewerSeverity = "Critical" | "High" | "Medium" | "Low";
+/**
+ * What KIND of problem a finding is, independent of how big it is.
+ *
+ * Severity alone cannot carry this. A real case: a reviewer rated "the
+ * operator identity is passed as a raw argv element to a sidecar" as Low,
+ * next to "this test helper is duplicated" - also Low. One of those breaks
+ * an invariant the product is built on; the other is housekeeping. With only
+ * a severity to read, a gate must either stop on both or on neither.
+ *
+ * `security` and `governance` escalate to BLOCK at any severity - see
+ * `aggregateCarrascoResponses`. The category describes the type of the
+ * problem, never its weight.
+ */
+export type FindingCategory =
+	| "security"
+	| "governance"
+	| "correctness"
+	| "maintainability"
+	| "test";
 export interface ReviewerFinding {
 	severity: ReviewerSeverity;
+	/**
+	 * Optional: a reviewer that predates this field, or one that omits it,
+	 * still produces valid findings. Absent is read as "maintainability" by
+	 * the aggregator, which is where the escalation rule lives - the parser
+	 * deliberately leaves it `undefined` rather than inventing a default, so
+	 * "the reviewer said nothing" stays distinguishable from a deliberate
+	 * classification.
+	 */
+	category?: FindingCategory;
 	file: string;
 	line: number;
 	issue: string;
