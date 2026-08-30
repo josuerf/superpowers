@@ -44,6 +44,7 @@ Wrap your final execution metadata in a single JSON code block using the markers
   "findings": [
     {
       "severity": "Critical | High | Medium | Low",
+      "category": "security | governance | correctness | maintainability | test",
       "file": "path/to/file.ext",
       "line": 0,
       "issue": "Technical description of what is broken or sub-optimal",
@@ -54,10 +55,16 @@ Wrap your final execution metadata in a single JSON code block using the markers
 ```
 <!-- /REVIEWER_DECISION -->
 
-**Decision logic for `harness_action`:**
-- **BLOCK**: At least ONE Critical or High finding exists.
-- **NEEDS_HUMAN_REVIEW**: No Critical/High, but Medium findings require engineering judgment.
-- **APPROVE**: Zero Critical and zero High findings. Medium and Low findings are listed as recommendations but do not block.
+**`severity` and `category` answer different questions.** Severity is how big
+the blast radius is. Category is what KIND of thing broke. Report both on every
+finding — they are not substitutes, and a gate reading only severity cannot
+tell "the operator's identity reaches a subprocess unchecked" apart from "this
+test helper is duplicated" when a reviewer rates both Low.
+
+**Decision logic for `harness_action`:** the authoritative policy is the
+"Decision Policy" section injected below, which is derived from the project's
+configured severity threshold. Follow that section — do not infer the rule from
+this example block.
 
 **ASI (Actionable Side Information):**
 Mark the single most impactful finding as the `asi_target` — this is the entry point for the auto-fix pipeline. If no finding warrants auto-fix, set `has_asi` to `false` and `asi_target` to `null`.
@@ -67,6 +74,7 @@ Mark the single most impactful finding as the `asi_target` — this is the entry
 After the JSON block, provide a detailed Markdown report. For each finding:
 - **Location**: `File:Line`
 - **Severity**: Critical / High / Medium / Low
+- **Category**: security / governance / correctness / maintainability / test
 - **Issue**: Technical description of what is broken or sub-optimal.
 - **Suggestion**: Markdown diff or explicit pseudocode showing the exact correction.
 

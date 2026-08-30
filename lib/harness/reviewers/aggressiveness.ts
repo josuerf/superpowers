@@ -92,6 +92,18 @@ export function getSeverityPolicy(
 		"- Set **NEEDS_HUMAN_REVIEW** when findings exist below the threshold but require engineering judgement.",
 		"- Set **APPROVE** only when no finding reaches the threshold.",
 		"- Severity reflects real-world blast radius, not how many issues you found. Calibrate honestly.",
+		"- Findings below the threshold that need no judgement are still reported. They do not hold the change: say APPROVE and list them. Approving with findings attached is a normal, expected outcome — not a compromise.",
+		"",
+		"### Category",
+		"",
+		"Every finding also carries a `category`, which is independent of severity: `security`, `governance`, `correctness`, `maintainability`, or `test`.",
+		"- `security` — untrusted input reaching a sensitive sink, secret handling, authn/authz, injection.",
+		"- `governance` — the identity of whoever acted, approval and audit trails, the integrity of an human decision gate.",
+		"- `correctness` — the code does not do what it is supposed to do.",
+		"- `maintainability` — duplication, coupling, naming, readability.",
+		"- `test` — missing, weak, or tautological test coverage.",
+		"",
+		"`security` and `governance` stop the change at ANY severity, so classify by the NATURE of the problem and never inflate a category to force attention: category is not a second severity dial. A finding that is merely hard to maintain is `maintainability` even when it sits in an auth file, and a finding that lets the acting user's identity be forged is `governance` even when you rate its blast radius Low.",
 	].join("\n");
 }
 
