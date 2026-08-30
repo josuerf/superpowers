@@ -63,6 +63,7 @@ const DEFAULT_CONFIG: HarnessConfig = {
 				"production-context-assumptions",
 			],
 			severityThreshold: "High",
+			noiseFloor: true,
 		},
 		standards: {
 			autoDetect: true,
@@ -151,6 +152,24 @@ function normalizeSeverityThreshold(
 	}
 }
 
+/**
+ * `noiseFloor` decides whether a sub-Medium finding stops the line, so a typo
+ * ("false" as a string, 0, null) must not silently pick a side. Anything that
+ * is not a real boolean warns and falls back, same contract as
+ * normalizeSeverityThreshold.
+ */
+function normalizeNoiseFloor(
+	value: unknown,
+	fallback: boolean | undefined,
+): boolean | undefined {
+	if (value === undefined) return fallback;
+	if (typeof value === "boolean") return value;
+	console.warn(
+		`reviewAggressiveness.carrasco.noiseFloor: expected a boolean, got ${JSON.stringify(value)}; using ${fallback}`,
+	);
+	return fallback;
+}
+
 // Deep-merge a user-provided reviewAggressiveness block over the defaults so a
 // partial config (e.g. just `{ "level": "strict" }`) does not wipe nested
 // defaults like focusCategories or chunking. A plain `{ ...default, ...raw }`
@@ -167,6 +186,10 @@ function mergeReviewAggressiveness(
 	carrasco.severityThreshold = normalizeSeverityThreshold(
 		carrasco.severityThreshold,
 		base.carrasco.severityThreshold,
+	);
+	carrasco.noiseFloor = normalizeNoiseFloor(
+		carrasco.noiseFloor,
+		base.carrasco.noiseFloor,
 	);
 	return {
 		...base,

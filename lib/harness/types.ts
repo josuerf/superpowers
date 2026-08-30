@@ -112,6 +112,16 @@ export interface ReviewAggressivenessConfig {
 		requireReproducibleTrigger: boolean;
 		focusCategories: string[];
 		severityThreshold: "Critical" | "High" | "Medium";
+		/**
+		 * When true (the default), findings below Medium are reported without
+		 * changing the action - the reviewer's own verdict decides. Set to
+		 * false to restore the prior behaviour, where ANY finding forced
+		 * NEEDS_HUMAN_REVIEW.
+		 *
+		 * This only loosens what is ignored, never what is enforced: a
+		 * `security` or `governance` finding blocks either way.
+		 */
+		noiseFloor?: boolean;
 	};
 	standards: {
 		autoDetect: boolean;

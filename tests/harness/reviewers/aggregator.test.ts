@@ -236,6 +236,64 @@ describe("aggregateCarrascoResponses", () => {
 		expect(report.harness_action).toBe("BLOCK");
 	});
 
+	// The escape hatch: a project that wants the old "any finding stops the
+	// line" behaviour can ask for it. Default is the new rule.
+	test("noiseFloor false restores the old any-finding-stops rule", () => {
+		const cfg = raConfig();
+		cfg.carrasco.noiseFloor = false;
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{ severity: "Low", file: "a.ts", line: 1 },
+				]),
+			],
+			cfg,
+			TS,
+		);
+		expect(report.harness_action).toBe("NEEDS_HUMAN_REVIEW");
+	});
+
+	test("noiseFloor absent keeps the new rule", () => {
+		const cfg = raConfig();
+		expect(cfg.carrasco.noiseFloor).toBeUndefined();
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{ severity: "Low", file: "a.ts", line: 1 },
+				]),
+			],
+			cfg,
+			TS,
+		);
+		expect(report.harness_action).toBe("APPROVE");
+	});
+
+	// Turning the floor off must not disarm the invariant escalation: a
+	// security finding blocks either way. noiseFloor loosens what is ignored,
+	// never what is enforced.
+	test("noiseFloor false still blocks on a security finding", () => {
+		const cfg = raConfig();
+		cfg.carrasco.noiseFloor = false;
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "Low",
+						category: "security",
+						file: "a.rs",
+						line: 1,
+					},
+				]),
+			],
+			cfg,
+			TS,
+		);
+		expect(report.harness_action).toBe("BLOCK");
+	});
+
 	test("Medium findings still stop for human review", () => {
 		const report = aggregateCarrascoResponses(
 			"feat",

@@ -116,6 +116,11 @@ export function aggregateCarrascoResponses(
 	// cost of that gate: one card spent seven correction rounds on the same
 	// two Low findings, byte-identical each round, which the reviewer itself
 	// had marked as needing no action. Report them, do not stop for them.
+	// Opt-out for a project that genuinely wants every finding to stop the
+	// line. Absent means the new rule - the escape hatch has to be asked for.
+	const noiseFloor = config.carrasco.noiseFloor !== false;
+	const stopsForReview = noiseFloor ? mediumPlus.length > 0 : findings.length > 0;
+
 	let action: HarnessAction | "APPROVE";
 	if (
 		atOrAboveThreshold.length > 0 ||
@@ -124,7 +129,7 @@ export function aggregateCarrascoResponses(
 	) {
 		action = "BLOCK";
 	} else if (
-		mediumPlus.length > 0 ||
+		stopsForReview ||
 		anyChunkNeedsReview ||
 		unparseableChunks.length > 0
 	) {
