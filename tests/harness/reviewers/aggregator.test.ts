@@ -36,7 +36,13 @@ function raConfig(
 function decisionResponse(
 	chunkId: string,
 	action: string,
-	findings: Array<{ severity: string; file: string; line: number }>,
+	findings: Array<{
+		severity: string;
+		file: string;
+		line: number;
+		category?: string;
+		issue?: string;
+	}>,
 ): CarrascoResponse {
 	const json = {
 		harness_action: action,
@@ -57,9 +63,10 @@ function decisionResponse(
 				: null,
 		findings: findings.map((f) => ({
 			severity: f.severity,
+			...(f.category ? { category: f.category } : {}),
 			file: f.file,
 			line: f.line,
-			issue: "issue",
+			issue: f.issue ?? "issue",
 			suggestion: "suggestion",
 		})),
 	};
@@ -121,6 +128,125 @@ describe("aggregateCarrascoResponses", () => {
 		);
 		expect(report.metrics.chunks_unparseable).toBe(1);
 		expect(report.unparseableChunks).toContain("chunk-1");
+		expect(report.harness_action).toBe("NEEDS_HUMAN_REVIEW");
+	});
+
+	// The reviewer is asked to judge whether sub-threshold findings "require
+	// engineering judgement" (see getSeverityPolicy). When it answers APPROVE,
+	// that judgement has been made. Overriding it on a raw finding count turns
+	// the gate into "zero findings", which is not the published policy.
+	test("APPROVE survives Low findings when the chunk approved", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{ severity: "Low", file: "a.ts", line: 1 },
+					{ severity: "Low", file: "b.ts", line: 2 },
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("APPROVE");
+		expect(report.findings).toHaveLength(2);
+		expect(report.metrics.non_blocking_count).toBe(2);
+	});
+
+	test("a Low finding categorised security escalates to BLOCK", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "Low",
+						category: "security",
+						file: "a.rs",
+						line: 340,
+					},
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("BLOCK");
+	});
+
+	test("a Low finding categorised governance escalates to BLOCK", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "Low",
+						category: "governance",
+						file: "a.ts",
+						line: 10,
+					},
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("BLOCK");
+	});
+
+	test("an uncategorised Low finding does not escalate", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{ severity: "Low", file: "a.ts", line: 1 },
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("APPROVE");
+	});
+
+	test("a maintainability Low finding does not escalate", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "Low",
+						category: "maintainability",
+						file: "a.ts",
+						line: 1,
+					},
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("APPROVE");
+	});
+
+	// An explicit BLOCK from the reviewer is honoured even with no findings
+	// attached: the chunk-level verdict is the reviewer's conclusion, and the
+	// aggregator must not talk it out of a stop.
+	test("an explicit chunk BLOCK is honoured with zero findings", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[decisionResponse("chunk-1", "BLOCK", [])],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("BLOCK");
+	});
+
+	test("Medium findings still stop for human review", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{ severity: "Medium", file: "a.ts", line: 1 },
+				]),
+			],
+			raConfig(),
+			TS,
+		);
 		expect(report.harness_action).toBe("NEEDS_HUMAN_REVIEW");
 	});
 

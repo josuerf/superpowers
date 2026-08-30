@@ -175,6 +175,13 @@ export interface AggregatedReviewReport {
 		critical_high_count: number;
 		chunks_reviewed: number;
 		chunks_unparseable: number;
+		/**
+		 * Findings that were reported but did not change the action. They are
+		 * not discarded - a driver running unattended is expected to record
+		 * them (as a plan assumption, a notification, or both) so that
+		 * "did not block" never silently becomes "nobody ever saw it".
+		 */
+		non_blocking_count: number;
 	};
 	asi_target: AsiTarget | null;
 	findings: ReviewerFinding[];

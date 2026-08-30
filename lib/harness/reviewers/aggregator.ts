@@ -27,6 +27,20 @@ function thresholdRank(
 	return SEVERITY_RANK[threshold as ReviewerSeverity] ?? SEVERITY_RANK.High;
 }
 
+/**
+ * A finding with no category is read as maintainability - the harmless end of
+ * the scale. Defaulting the other way would make every reviewer that predates
+ * the field escalate everything it reports.
+ */
+const DEFAULT_CATEGORY: NonNullable<ReviewerFinding["category"]> =
+	"maintainability";
+
+/** Categories that block regardless of severity. */
+const ESCALATING_CATEGORIES: ReadonlySet<string> = new Set([
+	"security",
+	"governance",
+]);
+
 export interface CarrascoResponse {
 	chunkId: string;
 	text: string;
@@ -73,6 +87,21 @@ export function aggregateCarrascoResponses(
 	const criticalHigh = findings.filter(
 		(f) => SEVERITY_RANK[f.severity] >= SEVERITY_RANK.High,
 	);
+	// Categories that stop the line at ANY severity. Severity measures blast
+	// radius; these measure what kind of thing broke. A reviewer once rated
+	// "the operator identity is passed as a raw argv element to a sidecar" as
+	// Low - the same rating it gave a duplicated test helper in the same
+	// verdict. No severity-only rule can keep the first and let the second by.
+	const invariantFindings = findings.filter((f) =>
+		ESCALATING_CATEGORIES.has(f.category ?? DEFAULT_CATEGORY),
+	);
+	// Medium is the floor for "a human should look at this". Below it, the
+	// reviewer's own verdict decides - which is what getSeverityPolicy already
+	// tells the reviewer: NEEDS_HUMAN_REVIEW is for findings that "require
+	// engineering judgement", a judgement only it can make per finding.
+	const mediumPlus = findings.filter(
+		(f) => SEVERITY_RANK[f.severity] >= SEVERITY_RANK.Medium,
+	);
 	const anyChunkBlocked = decisions.some(
 		(d) => d.harness_action === "BLOCK",
 	);
@@ -80,11 +109,22 @@ export function aggregateCarrascoResponses(
 		(d) => d.harness_action === "NEEDS_HUMAN_REVIEW",
 	);
 
+	// Why this is not `findings.length > 0`: that condition made ANY finding,
+	// at any severity, force NEEDS_HUMAN_REVIEW - which contradicts the policy
+	// this same codebase hands the reviewer in getSeverityPolicy, and turns a
+	// driver that only accepts APPROVE into a "zero findings" gate. Measured
+	// cost of that gate: one card spent seven correction rounds on the same
+	// two Low findings, byte-identical each round, which the reviewer itself
+	// had marked as needing no action. Report them, do not stop for them.
 	let action: HarnessAction | "APPROVE";
-	if (atOrAboveThreshold.length > 0 || anyChunkBlocked) {
+	if (
+		atOrAboveThreshold.length > 0 ||
+		invariantFindings.length > 0 ||
+		anyChunkBlocked
+	) {
 		action = "BLOCK";
 	} else if (
-		findings.length > 0 ||
+		mediumPlus.length > 0 ||
 		anyChunkNeedsReview ||
 		unparseableChunks.length > 0
 	) {
@@ -92,6 +132,15 @@ export function aggregateCarrascoResponses(
 	} else {
 		action = "APPROVE";
 	}
+
+	// Everything reported that did not itself force a stop. Feeds the driver's
+	// record of what was let through, so no finding is lost by not blocking.
+	const nonBlocking = findings.filter(
+		(f) =>
+			SEVERITY_RANK[f.severity] < minRank &&
+			SEVERITY_RANK[f.severity] < SEVERITY_RANK.Medium &&
+			!ESCALATING_CATEGORIES.has(f.category ?? DEFAULT_CATEGORY),
+	);
 
 	return {
 		feature,
@@ -103,6 +152,7 @@ export function aggregateCarrascoResponses(
 			critical_high_count: criticalHigh.length,
 			chunks_reviewed: decisions.length,
 			chunks_unparseable: unparseableChunks.length,
+			non_blocking_count: nonBlocking.length,
 		},
 		asi_target: pickGlobalAsi(decisions, findings),
 		findings: sortFindings(findings),
