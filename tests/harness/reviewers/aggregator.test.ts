@@ -250,6 +250,139 @@ describe("aggregateCarrascoResponses", () => {
 		expect(report.harness_action).toBe("NEEDS_HUMAN_REVIEW");
 	});
 
+	// Regressions built from verdicts that actually shipped, not invented
+	// fixtures. Each one is a case where the old rule cost real time, so a
+	// future change that reintroduces "any finding stops the line" fails here
+	// with the card number attached.
+	describe("regressions from real verdicts", () => {
+		// C40 (forge, 2026-08-29): seven correction rounds, the same two Low
+		// findings byte-identical every round. The reviewer had written "nenhuma
+		// acao e necessaria agora" about the duplication and the implementer
+		// agreed; the aggregator counted findings.length and asked again. The
+		// card took 5h and its final verdict was APPROVE with zero findings,
+		// reached by grinding the report empty rather than by fixing anything.
+		test("C40: two Low findings the reviewer approved do not stop the card", () => {
+			const report = aggregateCarrascoResponses(
+				"C40",
+				[
+					decisionResponse("chunk-1", "APPROVE", [
+						{
+							severity: "Low",
+							file: "src/core/paralelismo/proposta-teto.test.ts",
+							line: 0,
+							issue: "Nenhum teste prova explicitamente que uma proposta pendente EXISTENTE sobrevive a um novo ciclo.",
+						},
+						{
+							severity: "Low",
+							file: "src/core/paralelismo/avaliar-historico.test.ts",
+							line: 19,
+							issue: "Helper de teste amostraComCandidato duplicado entre avaliar-historico.test.ts e proposta-teto.test.ts.",
+						},
+					]),
+				],
+				raConfig(),
+				TS,
+			);
+			expect(report.harness_action).toBe("APPROVE");
+			expect(report.metrics.non_blocking_count).toBe(2);
+		});
+
+		// C41 (app, 2026-08-29, 18:57 verdict): chunk voted APPROVE with two Low
+		// findings and critical_high_count 0, and the aggregate came back
+		// NEEDS_HUMAN_REVIEW anyway. The card stopped in 'fix' without a commit.
+		test("C41: chunk APPROVE with only Low findings aggregates to APPROVE", () => {
+			const report = aggregateCarrascoResponses(
+				"C41",
+				[
+					decisionResponse("chunk-1", "APPROVE", [
+						{
+							severity: "Low",
+							file: "src/screens/cockpit/CockpitScreen.tsx",
+							line: 453,
+							issue: "`aprovarTeto` and `recusarTeto` duplicate nearly identical boilerplate.",
+						},
+						{
+							severity: "Low",
+							file: "src-tauri/src/teto/source.rs",
+							line: 340,
+							issue: "`decidir_proposta` passes `autor` directly as a `--autor` argv element to the forge sidecar.",
+						},
+					]),
+				],
+				raConfig(),
+				TS,
+			);
+			expect(report.harness_action).toBe("APPROVE");
+		});
+
+		// Same verdict, with the argv-injection finding carrying the category
+		// the reviewer should now emit. The identity of whoever operated is an
+		// invariant of this product, so it must stop the line even though the
+		// reviewer rated its blast radius Low - the whole reason category
+		// exists as a field separate from severity.
+		test("C41: the same Low finding blocks once categorised security", () => {
+			const report = aggregateCarrascoResponses(
+				"C41",
+				[
+					decisionResponse("chunk-1", "APPROVE", [
+						{
+							severity: "Low",
+							file: "src/screens/cockpit/CockpitScreen.tsx",
+							line: 453,
+							issue: "`aprovarTeto` and `recusarTeto` duplicate nearly identical boilerplate.",
+						},
+						{
+							severity: "Low",
+							category: "security",
+							file: "src-tauri/src/teto/source.rs",
+							line: 340,
+							issue: "`decidir_proposta` passes `autor` directly as a `--autor` argv element to the forge sidecar.",
+						},
+					]),
+				],
+				raConfig(),
+				TS,
+			);
+			expect(report.harness_action).toBe("BLOCK");
+		});
+
+		// C41 re-reviewed at 20:42 after reviewfix1: three findings, one of them
+		// Medium. Medium is the floor for "a human should look", so this one
+		// SHOULD stop - and stopping here is correct behaviour, not the bug.
+		// Pinned so that relaxing Low is never mistaken for relaxing Medium.
+		test("C41 (post-fix): a Medium finding still stops for human review", () => {
+			const report = aggregateCarrascoResponses(
+				"C41",
+				[
+					decisionResponse("chunk-1", "APPROVE", [
+						{
+							severity: "Medium",
+							file: "src/screens/cockpit/CockpitScreen.tsx",
+							line: 453,
+							issue: '`decidirTeto` uses a single in-flight guard key "teto" shared between aprovar/recusar.',
+						},
+						{
+							severity: "Low",
+							file: "src/screens/cockpit/CockpitScreen.tsx",
+							line: 461,
+							issue: "On successful decision, `getPropostaTeto()` refetch failure only logs to console.",
+						},
+						{
+							severity: "Low",
+							file: "src-tauri/src/teto/source.rs",
+							line: 128,
+							issue: "`decidir_proposta` passes `autor` as a bare CLI argument rather than via stdin.",
+						},
+					]),
+				],
+				raConfig(),
+				TS,
+			);
+			expect(report.harness_action).toBe("NEEDS_HUMAN_REVIEW");
+			expect(report.metrics.non_blocking_count).toBe(2);
+		});
+	});
+
 	test("aggregates findings across multiple chunks and sorts by severity", () => {
 		const report = aggregateCarrascoResponses(
 			"feat",
