@@ -1,5 +1,5 @@
 name: superpowers-prepared
-version: 6.20.0
+version: 6.20.1
 description: Superpowers skills and workflow bootstrap for Hermes Agent
 author: josuerf
 provides_hooks:
