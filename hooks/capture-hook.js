@@ -73,7 +73,7 @@ function main() {
       let existingMatch = '';
       try {
         const queryResult = execSync(
-          `npx ts-node "${cliPath}" query "${queryTerm}"`,
+          `npx tsx "${cliPath}" query "${queryTerm}"`,
           { cwd, encoding: 'utf8', timeout: 15000, stdio: ['pipe', 'pipe', 'pipe'] }
         );
         if (queryResult.includes('Found') && !queryResult.includes('No patterns')) {

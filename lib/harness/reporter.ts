@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ValidationResult, VerifyReport, SecOpsDecision } from "./types";
+import type { ValidationResult, VerifyReport, SecOpsDecision, ParsedError } from "./types";
 export interface GenerateReportOptions {
 	feature: string;
 	mode: "verify-local" | "verify-all" | "verify-security";
@@ -66,8 +66,7 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 	};
 	const complexityResult = (results as any).complexity || {
 		passed: true,
-		errors: [],
-		warnings: [],
+		violations: [],
 		duration: 0,
 		maxComplexityFound: 0,
 	};
@@ -77,6 +76,17 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 		0,
 	);
 
+	const complexityErrors: ParsedError[] = complexityResult.violations.map(
+		(v: { file: string; line: number; name: string; complexity: number; threshold: number }) => ({
+			file: v.file,
+			line: v.line,
+			column: 0,
+			message: `${v.name} has cyclomatic complexity ${v.complexity} (threshold: ${v.threshold})`,
+			rule: "complexity",
+			severity: "error" as const,
+		}),
+	);
+
 	const allErrors = [
 		...lintResult.errors,
 		...typecheckResult.errors,
@@ -84,6 +94,7 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 		...coverageResult.errors,
 		...patternsResult.errors,
 		...duplicationResult.errors,
+		...complexityErrors,
 	];
 	const allWarnings = [
 		...lintResult.warnings,
@@ -92,7 +103,6 @@ export function generateReport(options: GenerateReportOptions): VerifyReport {
 		...coverageResult.warnings,
 		...patternsResult.warnings,
 		...duplicationResult.warnings,
-		...complexityResult.warnings,
 	];
 
 	const report: VerifyReport = {

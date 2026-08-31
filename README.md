@@ -501,7 +501,7 @@ The Agentic Development Harness is an automated verification and review system t
 - **Go:** gocyclo
 - **Complexity Validator** — Reports function:file:line:complexity, blocks build when threshold exceeded
 
-**CLI** — `npx ts-node tools/harness/cli.ts <command>` with commands: `local`, `all`, `security`, `completeness`, `deadcode`, `duplication`, `complexity`, `explain-drift`, `scan`, `install-tools`
+**CLI** — `npx tsx tools/harness/cli.ts <command>` with commands: `local`, `all`, `security`, `completeness`, `deadcode`, `duplication`, `complexity`, `explain-drift`, `scan`, `install-tools`
 
 **Config** — `.harness.config.json` at project root customizes all of the above. See [full reference](docs/superpowers/harness-config.md) for all options with defaults.
 
@@ -520,7 +520,7 @@ The Patterns System captures, catalogs, and injects learned patterns from user f
 
 **Patterns Validator** — Checks code against known patterns in the catalog during harness verification. BLOCK severity violations halt the pipeline; WARN severity violations produce advisory findings.
 
-**CLI** — `npx ts-node tools/patterns/cli.ts <command>` with commands: `lint`, `query <term>`, `stats`, `promote <id>`, `archive <id>`, `create`, `update`, `supersede <old> <new>`
+**CLI** — `npx tsx tools/patterns/cli.ts <command>` with commands: `lint`, `query <term>`, `stats`, `promote <id>`, `archive <id>`, `create`, `update`, `supersede <old> <new>`
 
 
 ### Philosophy

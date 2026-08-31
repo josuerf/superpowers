@@ -181,7 +181,7 @@ async function main() {
       console.log(`
 Patterns CLI — Learning Harness Knowledge Base
 
-Usage: npx ts-node tools/patterns/cli.ts <command> [args]
+Usage: npx tsx tools/patterns/cli.ts <command> [args]
 
 Commands:
   lint              Run wiki health check

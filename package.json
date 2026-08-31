@@ -3,15 +3,15 @@
   "version": "6.20.0",
   "main": ".opencode/plugins/superpowers-prepared.js",
   "scripts": {
-    "harness:local": "npx ts-node tools/harness/cli.ts local",
-    "harness:all": "npx ts-node tools/harness/cli.ts all",
-    "harness:security": "npx ts-node tools/harness/cli.ts security",
-    "harness:install": "npx ts-node tools/harness/install-tools.ts",
-    "harness:scan": "npx ts-node tools/harness/scan-workspace.ts",
-    "patterns:lint": "npx ts-node tools/patterns/cli.ts lint",
-    "patterns:query": "npx ts-node tools/patterns/cli.ts query",
-    "patterns:stats": "npx ts-node tools/patterns/cli.ts stats",
-    "patterns:export": "npx ts-node tools/patterns/cli.ts export"
+    "harness:local": "npx tsx tools/harness/cli.ts local",
+    "harness:all": "npx tsx tools/harness/cli.ts all",
+    "harness:security": "npx tsx tools/harness/cli.ts security",
+    "harness:install": "npx tsx tools/harness/install-tools.ts",
+    "harness:scan": "npx tsx tools/harness/scan-workspace.ts",
+    "patterns:lint": "npx tsx tools/patterns/cli.ts lint",
+    "patterns:query": "npx tsx tools/patterns/cli.ts query",
+    "patterns:stats": "npx tsx tools/patterns/cli.ts stats",
+    "patterns:export": "npx tsx tools/patterns/cli.ts export"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
