@@ -492,6 +492,110 @@ test('known-issues context appears between skill hint and memory context', () =>
   assert.ok(kiIdx !== -1 || memIdx !== -1, 'at least one recall section should appear');
 });
 
+// ── Known-issues ARCHIVE recall ───────────────────────────────────────────────
+
+const { searchKnownIssuesArchive, buildKnownIssuesArchiveContext } = require('../../hooks/skill-activator');
+
+function makeTmpArchive(content, alsoHot) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ki-archive-'));
+  fs.writeFileSync(path.join(dir, 'known-issues-archive.md'), content);
+  if (alsoHot !== undefined) {
+    fs.writeFileSync(path.join(dir, 'known-issues.md'), alsoHot);
+  }
+  return dir;
+}
+
+console.log('\nKnown-issues archive recall — searchKnownIssuesArchive');
+
+test('Returns [] when known-issues-archive.md absent', () => {
+  assert.deepStrictEqual(searchKnownIssuesArchive('/nonexistent/xyz', ['hook']), []);
+});
+
+test('Returns [] when no keywords', () => {
+  const dir = makeTmpArchive('## Lições\n\n### some-old-lesson\nOld content about hooks\n');
+  const r = searchKnownIssuesArchive(dir, []);
+  fs.rmSync(dir, { recursive: true });
+  assert.deepStrictEqual(r, []);
+});
+
+test('Parses individual ### entries, not the ## section as a whole', () => {
+  const dir = makeTmpArchive([
+    '## Lições',
+    '',
+    '### entry-about-hooks',
+    'Sintoma: hooks stopped firing after upgrade.',
+    '',
+    '### entry-about-something-else',
+    'Sintoma: unrelated rendering glitch.',
+  ].join('\n'));
+  const r = searchKnownIssuesArchive(dir, ['hooks']);
+  fs.rmSync(dir, { recursive: true });
+  assert.strictEqual(r.length, 1);
+  assert.ok(r[0].startsWith('### entry-about-hooks'));
+  assert.ok(!r[0].includes('rendering glitch'), 'should not bleed into sibling entry');
+});
+
+test('Matches archived entries by keyword and ignores non-matches', () => {
+  const dir = makeTmpArchive([
+    '## Lições',
+    '',
+    '### old-codex-hook-bug',
+    'Sintoma: codex hooks silently skipped on old version.',
+    '',
+    '### unrelated-css-issue',
+    'Sintoma: button color wrong on hover.',
+  ].join('\n'));
+  const r = searchKnownIssuesArchive(dir, ['codex', 'hooks']);
+  fs.rmSync(dir, { recursive: true });
+  assert.strictEqual(r.length, 1);
+  assert.ok(r[0].includes('old-codex-hook-bug'));
+});
+
+console.log('\nKnown-issues archive recall — buildKnownIssuesArchiveContext');
+
+test('Returns null for empty entries', () => {
+  assert.strictEqual(buildKnownIssuesArchiveContext([]), null);
+  assert.strictEqual(buildKnownIssuesArchiveContext(null), null);
+});
+
+test('Wraps entries in known-issues-archive-recall tags with an explicit archived warning', () => {
+  const ctx = buildKnownIssuesArchiveContext(['### old-issue\nSome old problem']);
+  assert.ok(ctx.includes('<known-issues-archive-recall>'));
+  assert.ok(ctx.includes('</known-issues-archive-recall>'));
+  assert.ok(/archiv/i.test(ctx), 'should warn the reader this is archived/evicted knowledge');
+});
+
+console.log('\nKnown-issues archive recall — evaluatePayload integration');
+
+test('Archive surfaces when HOT has no hit', () => {
+  const dir = makeTmpArchive(
+    ['## Lições', '', '### legacy-codex-quirk', 'Sintoma: codex hooks used to double-fire.'].join('\n'),
+    ['## Open issue', 'Totally different topic about button colors on hover.'].join('\n')
+  );
+  const result = evaluatePayload({
+    prompt: 'is there a known legacy quirk with codex double-firing hooks',
+    cwd: dir,
+  });
+  fs.rmSync(dir, { recursive: true });
+  const ctx = result.hookSpecificOutput?.additionalContext || '';
+  assert.ok(ctx.includes('known-issues-archive-recall'), 'archive should be consulted when HOT misses');
+});
+
+test('Archive is NOT consulted when HOT already has a hit', () => {
+  const dir = makeTmpArchive(
+    ['## Lições', '', '### legacy-codex-quirk', 'Sintoma: codex hooks used to double-fire.'].join('\n'),
+    ['## Codex hooks not firing', 'Error: codex hooks ignored on old version.'].join('\n')
+  );
+  const result = evaluatePayload({
+    prompt: 'my codex hooks are not firing, is this a known issue',
+    cwd: dir,
+  });
+  fs.rmSync(dir, { recursive: true });
+  const ctx = result.hookSpecificOutput?.additionalContext || '';
+  assert.ok(ctx.includes('known-issues-recall'), 'HOT hit should be present');
+  assert.ok(!ctx.includes('known-issues-archive-recall'), 'archive should be skipped once HOT already hit');
+});
+
 // ── Context pressure gate ─────────────────────────────────────────────────────
 
 const {

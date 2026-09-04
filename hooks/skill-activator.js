@@ -51,6 +51,11 @@ const MAX_MEMORY_ENTRIES = 2;    // Never inject more than 2 matched entries
 const MIN_KEYWORD_LENGTH = 4;   // Skip tokens shorter than this
 const MAX_ENTRY_CHARS = 1500;   // Truncate oversized entries (~250 words / ~375 tokens)
 
+// Archive (COLD) recall — deliberately smaller budget than HOT: this is
+// secondary, evicted knowledge, not the primary signal.
+const MAX_ARCHIVE_ENTRIES = 1;
+const MAX_ARCHIVE_ENTRY_CHARS = 600;
+
 // Common English words that produce noisy false-positive matches
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -365,6 +370,90 @@ function buildKnownIssuesContext(entries) {
   ].join('\n');
 }
 
+/**
+ * Search known-issues-archive.md (COLD storage — entries evicted from the
+ * HOT file by the curar-conhecimento budget pass) for entries matching the
+ * given keywords. Unlike searchKnownIssues, this parses at the individual
+ * entry level (### headers), not the section level (## headers), because
+ * the archive groups many entries under a couple of big ## sections and
+ * section-level parsing would just return whichever entries happen to be
+ * first, regardless of keyword match.
+ *
+ * Returns up to MAX_ARCHIVE_ENTRIES matches. Deliberately small budget:
+ * this is secondary, already-evicted knowledge, not the primary signal.
+ */
+function searchKnownIssuesArchive(cwd, keywords) {
+  if (!keywords || keywords.length === 0) return [];
+
+  const filePath = path.join(cwd, 'known-issues-archive.md');
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return []; // File absent — silent no-op
+  }
+
+  // Parse into individual entries (### headers), skipping ## section titles
+  const entries = [];
+  let current = null;
+
+  for (const line of content.split('\n')) {
+    if (line.startsWith('### ')) {
+      if (current !== null) entries.push(current.trim());
+      current = line;
+    } else if (line.startsWith('## ')) {
+      if (current !== null) entries.push(current.trim());
+      current = null;
+    } else if (current !== null) {
+      current += '\n' + line;
+    }
+  }
+  if (current !== null) entries.push(current.trim());
+
+  if (entries.length === 0) return [];
+
+  const scored = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const entryLower = entry.toLowerCase();
+    const hits = keywords.filter(kw => entryLower.includes(kw)).length;
+    if (hits === 0) continue;
+
+    const densityScore = hits / keywords.length;
+    const recencyScore = (i + 1) / entries.length;
+    const score = (densityScore * 0.7) + (recencyScore * 0.3);
+    scored.push({ entry, score });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, MAX_ARCHIVE_ENTRIES).map(s => {
+    return s.entry.length > MAX_ARCHIVE_ENTRY_CHARS
+      ? s.entry.slice(0, MAX_ARCHIVE_ENTRY_CHARS).trimEnd() + '\n*(entry truncated)*'
+      : s.entry;
+  });
+}
+
+/**
+ * Format matched known-issues-archive entries for injection as additional
+ * context. Explicitly labeled as archived/evicted so the agent treats it as
+ * secondary and double-checks relevance rather than as active guidance.
+ */
+function buildKnownIssuesArchiveContext(entries) {
+  if (!entries || entries.length === 0) return null;
+
+  return [
+    '<known-issues-archive-recall>',
+    'Possibly relevant ARCHIVED (evicted) known issue from known-issues-archive.md.',
+    'This was moved out of the HOT file by curadoria (low recent value) — it may no longer apply. Confirm relevance before acting on it:',
+    '',
+    entries.join('\n\n'),
+    '',
+    '*(Full archive in known-issues-archive.md)*',
+    '</known-issues-archive-recall>',
+  ].join('\n');
+}
+
 // ── Context pressure gate ─────────────────────────────────────────────────────
 
 /**
@@ -527,20 +616,28 @@ async function main() {
     const keywords = extractKeywords(prompt);
     const memoryEntries = searchSessionLog(cwd, keywords);
     const knownIssueEntries = searchKnownIssues(cwd, keywords);
+    // Only probe the archive when the HOT file found nothing — avoids paying
+    // the extra read+scan on every prompt when the HOT hit already covers it.
+    const archiveEntries = knownIssueEntries.length === 0
+      ? searchKnownIssuesArchive(cwd, keywords)
+      : [];
 
     const skillContext = buildContext(matches);
     const memoryContext = buildMemoryContext(memoryEntries);
     const knownIssuesContext = buildKnownIssuesContext(knownIssueEntries);
+    const knownIssuesArchiveContext = buildKnownIssuesArchiveContext(archiveEntries);
 
     // Nothing to inject
-    if (!skillContext && !memoryContext && !knownIssuesContext) {
+    if (!skillContext && !memoryContext && !knownIssuesContext && !knownIssuesArchiveContext) {
       process.stdout.write('');
       return;
     }
 
     // Combine: skill hint first (routing), known issues second (avoid known errors),
+    // archived known issues third (secondary — only present when HOT had no hit),
     // memory last (historical context)
-    const combined = [skillContext, knownIssuesContext, memoryContext].filter(Boolean).join('\n\n');
+    const combined = [skillContext, knownIssuesContext, knownIssuesArchiveContext, memoryContext]
+      .filter(Boolean).join('\n\n');
 
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
@@ -565,6 +662,8 @@ if (require.main === module) {
     buildMemoryContext,
     searchKnownIssues,
     buildKnownIssuesContext,
+    searchKnownIssuesArchive,
+    buildKnownIssuesArchiveContext,
     isExecutionTrigger,
     cwdToProjectDir,
     getContextPressure,
@@ -573,6 +672,7 @@ if (require.main === module) {
     CONFIDENCE_THRESHOLD,
     STOP_WORDS,
     MAX_MEMORY_ENTRIES,
+    MAX_ARCHIVE_ENTRIES,
     CONTEXT_WINDOW_SIZE,
     CONTEXT_PRESSURE_THRESHOLD,
   };

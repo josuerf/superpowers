@@ -12,6 +12,7 @@ const {
   buildContext, isMicroTask, matchSkills,
   extractKeywords, searchSessionLog, buildMemoryContext,
   searchKnownIssues, buildKnownIssuesContext,
+  searchKnownIssuesArchive, buildKnownIssuesArchiveContext,
   isExecutionTrigger, getContextPressure, buildContextPressureBlock,
 } = require('../skill-activator');
 const { readJsonStdin } = require('./utils');
@@ -42,14 +43,20 @@ function evaluatePayload(data) {
   const keywords = extractKeywords(prompt);
   const memoryEntries = searchSessionLog(cwd, keywords);
   const knownIssueEntries = searchKnownIssues(cwd, keywords);
+  // Only probe the archive when the HOT file found nothing.
+  const archiveEntries = knownIssueEntries.length === 0
+    ? searchKnownIssuesArchive(cwd, keywords)
+    : [];
 
   const skillContext = buildContext(matches);
   const memoryContext = buildMemoryContext(memoryEntries);
   const knownIssuesContext = buildKnownIssuesContext(knownIssueEntries);
+  const knownIssuesArchiveContext = buildKnownIssuesArchiveContext(archiveEntries);
 
-  if (!skillContext && !memoryContext && !knownIssuesContext) return {};
+  if (!skillContext && !memoryContext && !knownIssuesContext && !knownIssuesArchiveContext) return {};
 
-  const combined = [skillContext, knownIssuesContext, memoryContext].filter(Boolean).join('\n\n');
+  const combined = [skillContext, knownIssuesContext, knownIssuesArchiveContext, memoryContext]
+    .filter(Boolean).join('\n\n');
 
   return {
     hookSpecificOutput: {
