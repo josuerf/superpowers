@@ -209,7 +209,7 @@ export function buildReviewerPrompt(
 		"",
 	].join("\n");
 	const prompt = `${contextHeader}\n\n${basePrompt}`;
-	if (options?.aggressiveness && options.aggressiveness.level !== "standard") {
+	if (options?.aggressiveness) {
 		const directives = buildAggressivenessDirectives(options.aggressiveness);
 		if (directives.trim().length > 0) {
 			return `${prompt}\n\n---\n\n${directives}`;

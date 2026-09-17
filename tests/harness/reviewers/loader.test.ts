@@ -238,4 +238,35 @@ describe("buildReviewerPrompt", () => {
 		);
 		expect(prompt).toContain("terraform");
 	});
+
+	test("includes Decision Policy at standard level, matching the promise in base-prompt.md", () => {
+		const prompt = buildReviewerPrompt(
+			["src/auth.ts"],
+			"+export function auth() {}",
+			[],
+			{
+				aggressiveness: {
+					enabled: true,
+					level: "standard",
+					chunking: {
+						enabled: true,
+						maxFilesPerChunk: 10,
+						maxLinesPerChunk: 2000,
+						byTopic: true,
+					},
+					carrasco: {
+						redTeamEnabled: false,
+						redTeamParallel: false,
+						requireReproducibleTrigger: false,
+						focusCategories: [],
+						severityThreshold: "High",
+					},
+					standards: { autoDetect: true, paths: [] },
+					exclude: { useDefaults: true, patterns: [] },
+					reportOutput: { saveToHarness: true, format: "both" },
+				},
+			},
+		);
+		expect(prompt).toContain("## Decision Policy");
+	});
 });

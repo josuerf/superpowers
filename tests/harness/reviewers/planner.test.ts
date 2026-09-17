@@ -123,6 +123,17 @@ describe("buildReviewPlan", () => {
 		});
 		expect(plan.chunks[0].prompt).not.toContain("CARRASCO");
 	});
+
+	test("standard level still includes Decision Policy, matching the promise in base-prompt.md", () => {
+		const plan = buildReviewPlan({
+			feature: "feat-x",
+			changedFiles: ["src/auth/login.ts"],
+			gitDiff: DIFF,
+			config: raConfig({ level: "standard" }),
+			generatedAt: "2026-06-10T00:00:00.000Z",
+		});
+		expect(plan.chunks[0].prompt).toContain("## Decision Policy");
+	});
 });
 
 describe("buildRecheckPrompt", () => {
@@ -192,6 +203,17 @@ describe("buildRecheckPrompt", () => {
 			config: raConfig({ level: "standard" }),
 		});
 		expect(prompt).not.toContain("CARRASCO");
+	});
+
+	test("standard level still includes Decision Policy, matching the promise in base-prompt.md", () => {
+		const prompt = buildRecheckPrompt({
+			chunkId: "chunk-1",
+			files: ["src/auth/login.ts"],
+			priorFindings,
+			freshDiff: fixDiff,
+			config: raConfig({ level: "standard" }),
+		});
+		expect(prompt).toContain("## Decision Policy");
 	});
 
 	test("handles a chunk with no prior findings recorded", () => {

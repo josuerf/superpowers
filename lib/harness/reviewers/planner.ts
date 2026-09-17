@@ -196,11 +196,9 @@ export function buildRecheckPrompt(options: BuildRecheckPromptOptions): string {
 	].join("\n");
 
 	const prompt = `${header}\n\n${basePrompt}`;
-	if (config.level !== "standard") {
-		const directives = buildAggressivenessDirectives(config);
-		if (directives.trim().length > 0) {
-			return `${prompt}\n\n---\n\n${directives}`;
-		}
+	const directives = buildAggressivenessDirectives(config);
+	if (directives.trim().length > 0) {
+		return `${prompt}\n\n---\n\n${directives}`;
 	}
 	return prompt;
 }
