@@ -115,10 +115,12 @@ When output feeds another agent/tool step, prefer JSON or YAML schemas defined b
 
 If your harness appears here, read its reference file for special instructions:
 
+- Claude Code: `references/claude-code-tools.md`
 - Codex: `references/codex-tools.md`
 - Pi: `references/pi-tools.md`
 - Antigravity: `references/antigravity-tools.md`
 - Hermes Agent: `references/hermes-tools.md`
+- Muse: `references/muse-tools.md`
 
 ## User Instructions
 

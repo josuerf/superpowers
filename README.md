@@ -59,6 +59,7 @@ See [Installation](#installation) for install, update, and uninstall commands on
   - [Claude Code](#claude-code) · [Cursor](#cursor) · [Antigravity](#antigravity) · [Codex App](#codex-app) · [Codex CLI](#codex-cli) · [OpenCode](#opencode)
   - [Devin CLI](#devin-cli) · [Factory Droid](#factory-droid) · [Gemini CLI](#gemini-cli) · [GitHub Copilot CLI](#github-copilot-cli) · [Grok Build CLI](#grok-build-cli) · [Kimi Code](#kimi-code) · [Pi](#pi) · [Hermes Agent](#hermes-agent)
 - [The Basic Workflow](#the-basic-workflow)
+- [When Something Goes Wrong](#when-something-goes-wrong)
 - [Community](#community)
 - [What's Inside](#whats-inside)
 - [Philosophy](#philosophy)
@@ -773,6 +774,22 @@ pi -e /path/to/superpowers
 
 The Pi package loads the Superpowers skills and a small extension that injects the `using-superpowers` bootstrap at session startup and again after compaction. Pi has native skills, so no compatibility `Skill` tool is required. Subagent and task-list tools remain optional Pi companion packages.
 
+### Qwen Code
+
+Qwen Code installs plugins from Claude Code marketplaces directly.
+
+- Install the plugin from this repository, and pick `superpowers` when prompted:
+
+  ```bash
+  qwen extensions install obra/superpowers
+  ```
+
+- Update later:
+
+  ```bash
+  qwen extensions update superpowers
+  ```
+
 ### Hermes Agent
 
 Install Superpowers as a Hermes plugin from this repository:
@@ -784,6 +801,33 @@ hermes plugins install josuerf/superpowers-prepared --enable
 Restart any active Hermes sessions after installing. Note: Hermes has no
 post-compaction hook, so a very long session that compacts over its first
 turn loses the bootstrap — start a fresh session if skills stop triggering.
+
+### Muse
+
+Superpowers is available as a native Muse plugin — same repo, same skills, all harnesses. The `using-superpowers` bootstrap is injected via the native `SessionStart` hook alongside Claude Code, Codex, Cursor, Gemini, Pi, and the rest — no per-session opt-in.
+
+- Install from a local checkout:
+
+  ```bash
+  muse plugins install ./
+  muse plugins approve superpowers
+  ```
+
+  Or clone and install:
+
+  ```bash
+  git clone https://github.com/obra/superpowers.git
+  muse plugins install ./superpowers
+  muse plugins approve superpowers
+  ```
+
+- Update later:
+
+  ```bash
+  muse plugins update superpowers
+  ```
+
+Restart any active Muse sessions after installing so the `SessionStart` hook takes effect — skills are active immediately, hooks require approval on first install. To verify, start a fresh session and send `Let's make a react todo list` — a working install auto-triggers `brainstorming` before any code is written. Version is tracked in `.version-bump.json` so `scripts/bump-version.sh` keeps it in sync.
 
 ## The Basic Workflow
 
@@ -801,6 +845,7 @@ turn loses the bootstrap — start a fresh session if skills stop triggering.
 > — Claude Opus 4.6
 > (March 23, 2026)
 
+4. **subagent-driven-development** or **executing-plans** - Activates with plan. Either dispatches a fresh subagent per task with a review after each (most thorough), or implements every task inline in the current session with one fresh review of the whole branch at the end (cheapest).
 
 ---
 
@@ -808,6 +853,12 @@ turn loses the bootstrap — start a fresh session if skills stop triggering.
 7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
 
 **The agent checks for relevant skills before any task.** Mandatory workflows, not suggestions.
+
+## When Something Goes Wrong
+
+Sometimes a session misbehaves: a skill fires when it shouldn't, stays silent when it should, or the agent ignores its plan, repeats work, or burns more tokens than you'd expect. Ask your coding agent to "figure out what went wrong with superpowers in this session" and it will invoke the **diagnosing-superpowers** skill. To examine an earlier session, name it: "figure out what went wrong with superpowers in session `<id>`".
+
+The skill reads the session transcript, reports what happened with line-level evidence, and, if you want, packages a scrubbed bundle for a bug report.
 
 ## Community
 
@@ -832,11 +883,12 @@ Superpowers Optimized is a fork of [Superpowers](https://github.com/obra/superpo
 **Debugging**
 - **systematic-debugging** - 4-phase root cause process (includes root-cause-tracing, defense-in-depth, condition-based-waiting techniques)
 - **verification-before-completion** - Ensure it's actually fixed
+- **diagnosing-superpowers** - Work out what went wrong in a session, with evidence; export a scrubbed bundle or file an issue
 
 **Collaboration** 
 - **brainstorming** - Socratic design refinement
 - **writing-plans** - Detailed implementation plans
-- **executing-plans** - Batch execution with checkpoints
+- **executing-plans** - Inline plan execution: one context, one final review
 - **dispatching-parallel-agents** - Concurrent subagent workflows
 - **requesting-code-review** - Pre-review checklist
 - **receiving-code-review** - Responding to feedback
