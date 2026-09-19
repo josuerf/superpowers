@@ -1,5 +1,109 @@
 # Superpowers Optimized Release Notes
 
+## v6.22.0 (2026-09-19)
+
+Sync with upstream `obra/superpowers` v6.4.1 — native plan execution, the
+diagnosing-superpowers skill, OpenCode 2.0 and Muse — plus two fixes to
+behavior this fork had gotten wrong: the visual companion was never offered,
+and the execution handoff contradicted our own benchmark.
+
+### New Features
+
+**Native plan execution** — `executing-plans` went from 75 lines and no scripts
+to 373 lines plus `task-start` and `task-done`. It now shares the ledger and
+workspace with `subagent-driven-development`, so a plan can change executors
+mid-flight and resume from the same record. It adds a pre-flight scan of shared
+interfaces, a completion contract per task, ledgered rulings instead of stalls,
+and context discipline (long output goes to a file, briefs replace re-reading
+the plan). This was the missing half of the inline story: we had been
+recommending inline while pointing at an executor with no instrumentation.
+
+**Visual surface check in brainstorming** — The companion was offered almost
+never, even for work that creates whole screens. The trigger was introspective
+("wait until a question would be clearer shown than told"), which never fires
+because the design gets resolved in prose first, and it was surrounded by three
+explicit prohibitions. It is now a check on the work's surface, answered in
+writing before any design: *"Visual surface: yes/no — does this create or change
+something a person will look at?"* A trigger that requires writing the answer is
+far more reliable than one asking for silent introspection.
+
+**Defeasible threshold in the execution handoff** — `writing-plans` used to
+default to inline and only reach for subagents at 20+ tasks or 6+ phases. Our
+own benchmark says otherwise: on a 17-task plan, inline ended at 74% of the
+window with a 0.93 score, while three cohesive batches ended at 26% with 0.95,
+at the same wall clock and token cost — so the measured case fell on the wrong
+side of our own rule. The default is now ≤6 tasks inline, 7+ tasks or 2+ phases
+subagents, and the agent must criticize that default against four axes
+(coupling, cost of a miss, diff size, context pressure) and may overrule it with
+a written reason. Overruling with a reason is the correct behavior, not an
+exception.
+
+**diagnosing-superpowers** — New upstream skill for diagnosing what went wrong
+in a session: reads the transcript, reports with line-level evidence, and can
+package a scrubbed bundle.
+
+**OpenCode 2.0 and Muse** — The OpenCode plugin was ported to the V2 host API
+(`default.setup`, `ctx.skill.transform`, `ctx.session.hook`) while keeping the
+V1 path and this fork's additions — auto-update and the safety hooks, which stay
+V1-only. Neither path injects the bootstrap into task subagent sessions any
+more, so a worker no longer restarts the controller's design cycle. Muse is
+registered as a harness.
+
+**skill-evals** — A decision-level eval harness at `tools/skill-evals/`. It
+measures whether the companion is offered when the work has a visual surface,
+and which execution method the handoff picks and why, scoring by regex with no
+LLM judge. Its detectors have their own test, so a 0% means "did not offer"
+rather than "the regex missed".
+
+### Changes
+
+- `requesting-code-review`'s reviewer now treats the spec as a vision document —
+  a spec's silence about an input is not permission for that input to break the
+  program — and must list what it declined to judge, so nothing is set aside
+  silently.
+- `writing-plans` plans carry a **Review Focus** section: the input classes the
+  spec implies but no task's tests exercise.
+- `test-driven-development` requires the project's whole suite, not just the
+  task's test file, and any failure seen must be reported by name.
+- Script invocations across the skills are prefixed with `bash ` (upstream
+  #2040: package extractors strip the exec bit).
+- The controller seat in subagent-driven runs can be a nested orchestrator on a
+  mid-tier model — see `using-superpowers/references/claude-code-tools.md`.
+
+### Fixes
+
+- **`task-start` would have broken every inline run** — upstream's script parses
+  the brief path with a regex anchored at `lines$`, but this fork's `task-brief`
+  was extended for batches and reports `wrote <path>: N lines, M task(s)`. The
+  regex never matched, so the first task of any inline execution would abort
+  with "task-brief did not report a path".
+- **Double branch review** — upstream's `executing-plans` ends by dispatching a
+  code reviewer, while `verify-on-stop` already asks for carrasco on the same
+  diff. The Final Review is now `harness-verify` first, then exactly one
+  branch-wide review (carrasco when the project opts in, otherwise the
+  code-reviewer), then `verification-before-completion`.
+- **Frontmatter parsing dropped most skill descriptions** — the OpenCode
+  plugin's parser kept only the first line of a value, and nearly every skill
+  here writes `description: >` across several lines. Adopted upstream's parser,
+  which handles block scalars and continuations.
+- **`task-brief` failed without an exec bit** — the assertion "task-brief writes
+  its brief under the plan's workspace" failed on this fork with empty output;
+  the `bash ` prefix fixes it.
+- **`tests/opencode/setup.sh`** passed two destinations to `ln -sf`, so every
+  test depending on the plugin symlink failed before reaching its assertions.
+- `package.json` deliberately does **not** take upstream's `"type": "module"`:
+  all eleven hooks here are CommonJS and would break. The ESM scope stays in
+  `.opencode/`.
+
+### Known gaps
+
+- `.opencode/INSTALL.md` still points two install snippets at
+  `obra/superpowers` instead of this fork (pre-existing, outside this sync).
+- On Windows, the OpenCode symlink tests and some path-shape assertions fail for
+  environmental reasons (Git Bash copies instead of linking; `/tmp` resolves to
+  `/c/Users/.../Temp`). The V1+V2 behavior itself is covered by
+  `test-session-bootstrap` and `test-bootstrap-caching`, which pass.
+
 ## v6.14.0 (2026-08-13)
 
 Sync with upstream `obra/superpowers` v6.3.0: Devin CLI and Hermes Agent support, a three-path router in brainstorming, and autonomous rulings in subagent-driven-development.
