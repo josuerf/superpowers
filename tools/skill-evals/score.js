@@ -60,13 +60,23 @@ function detectChoice(text) {
 
   // 3. Recomendacao explicita em uma frase
   for (const s of splitSentences(t)) {
-    if (/(recomendo|recommend|minha recomenda|sugiro|vou usar|indicada?:)/i.test(s)) {
+    if (/(recomend|recommend|sugiro|sugest|vou usar|vou executar|escolh|indicad|a op[cç][aã]o é|fica com)/i.test(s)) {
       const sub = /(subagent|subagente|batch|lote)/i.test(s);
       const inl = /(inline|nativ|executing-plans|neste?a? (mesma )?sess[aã]o)/i.test(s);
       if (sub && !inl) return { choice: 'subagent', how: 'recomendacao' };
       if (inl && !sub) return { choice: 'inline', how: 'recomendacao' };
     }
   }
+
+  // 4. Escolha marcada em negrito. A skill manda destacar a opcao escolhida;
+  //    quando so uma das duas aparece assim, ela e a escolha. Se as duas
+  //    aparecem, e o template literal copiado — nao decide nada.
+  const bold = [...t.matchAll(/\*\*([^*\n]{3,40})\*\*/g)].map((m) => m[1].toLowerCase());
+  const boldSub = bold.some((b) => /subagent|subagente/.test(b) && !/inline|nativ/.test(b));
+  const boldInl = bold.some((b) => /inline|nativ/.test(b) && !/subagent|subagente/.test(b));
+  if (boldSub && !boldInl) return { choice: 'subagent', how: 'negrito' };
+  if (boldInl && !boldSub) return { choice: 'inline', how: 'negrito' };
+
   return { choice: null, how: 'nao-classificado' };
 }
 

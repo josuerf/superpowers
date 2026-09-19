@@ -400,6 +400,13 @@ Target **3 batches** for a typical plan, adjusting only for size: aim for
 batches would not cover the plan. Below 4 tasks total, do not batch at
 all — run them yourself in the controller.
 
+That floor is a safeguard for direct invocation, not a second default
+competing with the handoff. `superpowers-prepared:writing-plans` already
+routes plans of 6 tasks or fewer to inline execution, so a plan arriving here
+normally has enough tasks to batch. If one arrives below the floor anyway —
+you were invoked directly, or your human partner overruled the handoff — run
+it in the controller and say that is what you are doing.
+
 Group by **cohesion**, in this order of preference:
 
 1. **The plan's own phases**, when it has them — as a starting point, not a
@@ -473,7 +480,7 @@ Record BASE (`git rev-parse HEAD`) before dispatching — the review package
 and fix-round diffs need it.
 
 - **Batch brief:** before dispatching an implementer, run this skill's
-  `scripts/task-brief PLAN_FILE TASKS` — where `TASKS` is the batch's range
+  `bash scripts/task-brief PLAN_FILE TASKS` — where `TASKS` is the batch's range
   (`1-6`), an explicit list (`2,5,9`), or a bare number for a task that
   genuinely earns its own dispatch. It extracts every task's full text into
   one uniquely named file and reports it as
@@ -523,7 +530,7 @@ Template: [implementer-prompt.md](implementer-prompt.md)
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** Generate the review package (`scripts/review-package PLAN_FILE BASE HEAD`, from this skill's directory — it reports `wrote <path>: <n> commit(s), <n> bytes` — take the path from that line; BASE is the commit you recorded before dispatching the implementer — never `HEAD~1`, which silently drops all but the last commit of a multi-commit batch), then dispatch the batch reviewer with the printed path.
+**DONE:** Generate the review package (`bash scripts/review-package PLAN_FILE BASE HEAD`, from this skill's directory — it reports `wrote <path>: <n> commit(s), <n> bytes` — take the path from that line; BASE is the commit you recorded before dispatching the implementer — never `HEAD~1`, which silently drops all but the last commit of a multi-commit batch), then dispatch the batch reviewer with the printed path.
 
 **DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
 
@@ -798,7 +805,7 @@ You: I'm using Subagent-Driven Development to execute this plan.
 
 [Setup: worktree verified]
 [Read plan file once: docs/superpowers-prepared/plans/feature-plan.md — 12 tasks, 5 phases]
-[Resolve workspace: scripts/sdd-workspace docs/superpowers-prepared/plans/feature-plan.md — no ledger inside, fresh start]
+[Resolve workspace: bash scripts/sdd-workspace docs/superpowers-prepared/plans/feature-plan.md — no ledger inside, fresh start]
 
 [Group into batches — 5 phases is too fine; merge adjacent ones to 4-8 tasks each]
 [Ledger: Batch 1: Tasks 1-4 — hook install surface (Phases 1+2 merged)]

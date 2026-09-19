@@ -75,4 +75,10 @@ arquivos imprime as métricas lado a lado.
   taxas — só são reportados.
 - Com 3 repetições, só diferenças grandes são sinal. Uma variação de poucos
   pontos percentuais não é.
+- **Os planos fixture são sintéticos e os agentes percebem.** Os passos repetem
+  o mesmo teste e a mesma implementação de exemplo; já houve execução que
+  apontou isso na resposta. Isso não contamina o que a suíte mede — a escolha
+  depende de contagem de tarefas, fases, acoplamento e número de arquivos, e
+  todos são reais nos fixtures — mas significa que a suíte não serve para
+  avaliar qualidade de plano, só a decisão de handoff.
 - `results/` não é versionado: cada arquivo carrega as respostas completas.
