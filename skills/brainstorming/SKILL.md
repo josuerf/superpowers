@@ -116,6 +116,9 @@ complete that path's reviews before implementation.
 | "They approved the spike, so the follow-up change is approved too" | Each task gets its own classification and its own approval. |
 | "It's bounded, so the harness gates are overkill" | Bounded drops the spec file, not the gates. harness-verify, carrasco-review (when enabled), and verification-before-completion all still run. |
 | "The change is too small to trip lint or deadcode" | Then the gate costs seconds and proves it. Skipping it is how dead symbols and broken types ship. |
+| "No visual question came up, so there was nothing to show" | If the work creates or changes a screen, the visual question already exists — it is the layout. No question arose because you designed in prose. Run the surface check. |
+| "This is structural, not visual" | Restructuring that changes what a person sees is visual. The test is the surface, not the architecture behind it. A new screen is a new surface even when the interesting part is the data model. |
+| "They can see the mockup later, in the spec" | The mockup is how they correct you before the spec exists. Afterwards it documents a decision they never got to make. |
 
 ## Checklist
 
@@ -131,10 +134,9 @@ your path and complete them in order.
 
 **Bounded:**
 1. **Explore project context** — check files, docs, recent commits
-2. **Offer a visual preview if the change is visual** — NOT for every bounded
-   task. Only when the change is something the user will see (a new button,
-   input, screen, or a restyle), offer it once, as its own message, before
-   the short design. See the Visual Companion section below.
+2. **Run the visual surface check and write the answer** — one line, before
+   any design. If the answer is yes, offer the companion now, as its own
+   message. See the Visual Companion section below.
 3. **Ask clarifying questions** — one at a time, the ones that matter
 4. **Present short design in chat** — approach, files touched, testing
 5. **Get approval** — STOP and wait for an explicit yes; presenting the design and starting in the same breath is skipping the gate
@@ -144,7 +146,9 @@ your path and complete them in order.
 
 **Architectural:**
 1. **Explore project context** — check files, docs, recent commits
-2. **Offer a visual preview just-in-time** — NOT upfront. The first time a question would genuinely be clearer shown than described, offer it then (its own message). If no visual question ever arises, never offer it. See the Visual Companion section below.
+2. **Run the visual surface check and write the answer** — one line, before you
+   ask anything or present any design. If the answer is yes, offer the companion
+   now, as its own message. See the Visual Companion section below.
 3. **Assess scope** — if the project touches 4+ independent subsystems or would require 20+ implementation tasks, decompose into sub-projects. Design each sub-project as a separate spec. Present the decomposition to the user for approval before designing individual specs.
 4. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 5. **Propose 2-3 approaches** — with trade-offs and a recommendation.
@@ -166,7 +170,7 @@ your path and complete them in order.
 digraph brainstorming {
     "Classify: spike / bounded / architectural" [shape=diamond];
     "Present question + probe (2-3 sentences)" [shape=box];
-    "Visual change ahead? (bounded)" [shape=diamond];
+    "Visual surface? (bounded)\n(write the answer)" [shape=diamond];
     "Offer visual preview (bounded)\n(own message, no other content)" [shape=box];
     "Ask clarifying questions (bounded)" [shape=box];
     "Present short design in chat" [shape=box];
@@ -174,7 +178,7 @@ digraph brainstorming {
     "Investigate; report recommendation" [shape=doublecircle];
     "Implement via normal workflow (no plan doc)" [shape=box];
     "Explore project context" [shape=box];
-    "Visual questions ahead?" [shape=diamond];
+    "Visual surface?\n(write the answer)" [shape=diamond];
     "Offer Visual Companion\n(own message, no other content)" [shape=box];
     "Assess scope" [shape=diamond];
     "Decompose into sub-projects" [shape=box];
@@ -191,11 +195,11 @@ digraph brainstorming {
     "Run quality gates\n(harness-verify, carrasco-review,\nverification-before-completion)" [shape=doublecircle];
 
     "Classify: spike / bounded / architectural" -> "Present question + probe (2-3 sentences)" [label="spike"];
-    "Classify: spike / bounded / architectural" -> "Visual change ahead? (bounded)" [label="bounded"];
+    "Classify: spike / bounded / architectural" -> "Visual surface? (bounded)\n(write the answer)" [label="bounded"];
     "Classify: spike / bounded / architectural" -> "Explore project context" [label="architectural"];
     "Present question + probe (2-3 sentences)" -> "Human approves?";
-    "Visual change ahead? (bounded)" -> "Offer visual preview (bounded)\n(own message, no other content)" [label="yes"];
-    "Visual change ahead? (bounded)" -> "Ask clarifying questions (bounded)" [label="no"];
+    "Visual surface? (bounded)\n(write the answer)" -> "Offer visual preview (bounded)\n(own message, no other content)" [label="yes"];
+    "Visual surface? (bounded)\n(write the answer)" -> "Ask clarifying questions (bounded)" [label="no"];
     "Offer visual preview (bounded)\n(own message, no other content)" -> "Ask clarifying questions (bounded)";
     "Ask clarifying questions (bounded)" -> "Present short design in chat";
     "Present short design in chat" -> "Human approves?";
@@ -204,8 +208,8 @@ digraph brainstorming {
     "Implement via normal workflow (no plan doc)" -> "Run quality gates\n(harness-verify, carrasco-review,\nverification-before-completion)";
     "Hidden complexity? Upgrade path" -> "Classify: spike / bounded / architectural";
     "Explore project context" -> "Assess scope";
-    "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
-    "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
+    "Visual surface?\n(write the answer)" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
+    "Visual surface?\n(write the answer)" -> "Ask clarifying questions" [label="no"];
     "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
     "Assess scope" -> "Decompose into sub-projects" [label="4+ subsystems"];
     "Assess scope" -> "Ask clarifying questions" [label="manageable"];
@@ -368,10 +372,32 @@ A visual channel for showing mockups, diagrams, and visual options during brains
 
 **`design` (Claude Design canvas) is opt-in only, Claude Code only.** It publishes the mockup as an Artifact to claude.ai — private by default, but hosted externally, a different trust boundary than the local companion (see "Uploading content to third-party web tools" under Executing actions with care). Never switch to it on your own judgment. After the user accepts a visual preview, if you're in Claude Code, ask once which they'd rather use, e.g. "Want this local — a browser tab on your machine — or as a Claude Artifact you could share later?" Default to local if they have no preference. Use `design` only when the user explicitly confirms it.
 
-**Offering it (just-in-time):** Do NOT offer it upfront. Wait until a question would genuinely be clearer shown than told — a real mockup / layout / diagram question, not merely a UI *topic* — or, on the Bounded path, until the change itself is something the user will see (a new button, input, screen, or restyle). The first time that happens, offer it then, as its own message:
+**Offering it — the visual surface check.** Do not decide this by introspection
+("would a question be clearer shown?"). That test never fires: you resolve the
+design in prose and the visual question never arrives. Decide it by the work's
+surface, once, with the answer written down.
+
+After exploring project context, and BEFORE you ask a clarifying question or
+present any design, answer this in one line:
+
+> **Visual surface: yes/no.** Does this work create or change something a
+> person will look at — a screen, a flow of more than one screen, an interface
+> component, navigation, layout, or a printed/exported document?
+
+- **Yes** → offer the companion now, as its own message, before anything else.
+- **No** — backend, infrastructure, CLI, data, a refactor with no surface —
+  → continue in text and do not offer.
+
+Write the line before you proceed. The check is cheap; skipping it is how a
+screen gets designed entirely in prose.
+
+The offer itself:
 > "This next part might be easier if I show you — I can put together a quick mockup for you to look at and approve. Want me to?"
 
 **This offer MUST be its own message.** Only the offer — no clarifying question, summary, or other content. Wait for the user's response. If they decline, continue text-only and don't offer again unless they raise it.
+
+A "yes" on the check is not a claim that every question goes through the
+companion — see Per-question decision below. It only means the offer is owed.
 
 **Per-question decision:** Even after the user accepts, decide FOR EACH QUESTION whether to go visual or stay in the terminal. The test: **would the user understand this better by seeing it than reading it?**
 
