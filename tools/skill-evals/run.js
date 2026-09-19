@@ -146,7 +146,7 @@ function currentRef() {
   return `${(b.stdout || '').trim()}@${(r.stdout || '').trim()}`;
 }
 
-function runSuite(name, cfgFile, buildPrompt) {
+function runSuite(name, cfgFile, buildPrompt, checkpoint) {
   const cfg = JSON.parse(fs.readFileSync(path.join(HERE, cfgFile), 'utf8'));
   const skillText = readSkill(cfg.skill);
   const cases = ONLY ? cfg.cases.filter((c) => c.id === ONLY) : cfg.cases;
@@ -161,6 +161,10 @@ function runSuite(name, cfgFile, buildPrompt) {
       const r = runClaude(prompt);
       process.stderr.write(r.error ? `ERRO (${r.ms}ms)\n` : `ok (${r.ms}ms, ${r.usage.total} tok)\n`);
       runs.push({ caseId: c.id, rep, ...c, text: r.text, usage: r.usage, ms: r.ms, error: r.error });
+      // Grava a cada execucao: uma suite completa leva dezenas de minutos e ja
+      // foi perdida inteira por uma interrupcao. Parcial pontua normalmente —
+      // score.js divide pelo que existe, nao pelo que era esperado.
+      checkpoint({ suite: name, skill: cfg.skill, runs });
     }
   }
   return { suite: name, skill: cfg.skill, runs };
@@ -170,23 +174,30 @@ function main() {
   fs.mkdirSync(RESULTS, { recursive: true });
   const ref = currentRef();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const file = path.join(RESULTS, `${stamp}_${ref.replace(/[^\w.-]/g, '-')}${LABEL ? '_' + LABEL : ''}.json`);
   const suites = [];
+
+  const flush = (partial) => {
+    const done = partial ? [...suites, partial] : suites;
+    fs.writeFileSync(file, JSON.stringify(
+      { ref, label: LABEL, model: MODEL || '(default)', reps: REPS, at: new Date().toISOString(), partial: !!partial, suites: done },
+      null, 2,
+    ));
+  };
 
   if (SUITE === 'visual' || SUITE === 'both') {
     suites.push(runSuite('visual-companion', 'cases-visual-companion.json',
-      (skill, c) => buildVisualPrompt(skill, c.prompt)));
+      (skill, c) => buildVisualPrompt(skill, c.prompt), flush));
   }
   if (SUITE === 'execution' || SUITE === 'both') {
     suites.push(runSuite('execution-choice', 'cases-execution-choice.json', (skill, c) => {
       const planPath = `docs/superpowers-prepared/plans/${c.fixture}`;
       const planText = fs.readFileSync(path.join(HERE, 'fixtures', 'plans', c.fixture), 'utf8');
       return buildExecutionPrompt(skill, planText, planPath);
-    }));
+    }, flush));
   }
 
-  const out = { ref, label: LABEL, model: MODEL || '(default)', reps: REPS, at: new Date().toISOString(), suites };
-  const file = path.join(RESULTS, `${stamp}_${ref.replace(/[^\w.-]/g, '-')}${LABEL ? '_' + LABEL : ''}.json`);
-  fs.writeFileSync(file, JSON.stringify(out, null, 2));
+  flush(null);
   console.log(file);
 }
 
