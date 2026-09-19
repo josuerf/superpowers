@@ -94,9 +94,20 @@ function detectAxes(text) {
 // --- agregacao ---------------------------------------------------------------
 const pct = (num, den) => (den === 0 ? '—' : `${((num / den) * 100).toFixed(0)}%`);
 
+/**
+ * Descarta execucoes sem resposta. Um run vazio (o CLI nao chegou a rodar, por
+ * exemplo sob pressao de memoria) contaria como "nao ofereceu" e "nao
+ * classificado", inventando um resultado ruim onde nao houve medicao.
+ */
+function usableRuns(suite) {
+  const all = suite.runs.length;
+  const runs = suite.runs.filter((r) => r.text && r.text.trim());
+  return { runs, discarded: all - runs.length, all };
+}
+
 function scoreVisual(suite) {
   const byCase = new Map();
-  for (const r of suite.runs) {
+  for (const r of usableRuns(suite).runs) {
     if (!byCase.has(r.caseId)) byCase.set(r.caseId, { surface: r.surface, runs: [] });
     const d = detectOffer(r.text);
     byCase.get(r.caseId).runs.push({ ...d, check: detectSurfaceCheck(r.text), error: r.error });
@@ -113,6 +124,8 @@ function scoreVisual(suite) {
     rows.push({ id, surface: c.surface, offered, n, rate: pct(offered, n) });
   }
   return {
+    descartados: usableRuns(suite).discarded,
+    total: usableRuns(suite).all,
     rows,
     sensibilidade: { num: tp, den: tpDen, pct: pct(tp, tpDen) },
     falsoPositivo: { num: fp, den: fpDen, pct: pct(fp, fpDen) },
@@ -122,7 +135,7 @@ function scoreVisual(suite) {
 
 function scoreExecution(suite) {
   const byCase = new Map();
-  for (const r of suite.runs) {
+  for (const r of usableRuns(suite).runs) {
     if (!byCase.has(r.caseId)) byCase.set(r.caseId, { meta: r, runs: [] });
     byCase.get(r.caseId).runs.push({
       ...detectChoice(r.text), axes: detectAxes(r.text), error: r.error,
@@ -151,6 +164,8 @@ function scoreExecution(suite) {
     });
   }
   return {
+    descartados: usableRuns(suite).discarded,
+    total: usableRuns(suite).all,
     rows,
     aderenciaDefault: { num: cleanHit, den: cleanDen, pct: pct(cleanHit, cleanDen) },
     desvioCorreto: { num: ovHit, den: ovDen, pct: pct(ovHit, ovDen) },
