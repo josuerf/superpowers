@@ -199,7 +199,7 @@ Subagent (general-purpose):
 - `[MODEL]` — REQUIRED: implementer model per SKILL.md Model Selection; an
   omitted model silently inherits the session's most expensive one
 - `[BRIEF_FILE]` — REQUIRED: the batch brief
-  (`scripts/task-brief PLAN_FILE TASKS` reports `wrote <path>: …`; `TASKS` is `N-M`
+  (`bash scripts/task-brief PLAN_FILE TASKS` reports `wrote <path>: …`; `TASKS` is `N-M`
   for a batch, `N,M,P` for an explicit list, or `N` for a lone task)
 - `[SUGGESTED_SKILLS]` — optional: the project or implementation-support
   skills that match this batch's work, or "none". Naming them saves the

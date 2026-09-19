@@ -16,8 +16,8 @@ export OPENCODE_CONFIG_DIR="$TEST_HOME/.config/opencode"
 # Standard install layout:
 #   $OPENCODE_CONFIG_DIR/superpowers/             ← package root
 #   $OPENCODE_CONFIG_DIR/superpowers/skills/      ← skills dir (../../skills from plugin)
-#   $OPENCODE_CONFIG_DIR/superpowers/.opencode/plugins/superpowers.js ← plugin file
-#   $OPENCODE_CONFIG_DIR/plugins/superpowers.js   ← symlink OpenCode reads
+#   $OPENCODE_CONFIG_DIR/superpowers/.opencode/plugins/superpowers-prepared.js ← plugin file
+#   $OPENCODE_CONFIG_DIR/plugins/superpowers-prepared.js   ← symlink OpenCode reads
 
 SUPERPOWERS_DIR="$OPENCODE_CONFIG_DIR/superpowers"
 SUPERPOWERS_SKILLS_DIR="$SUPERPOWERS_DIR/skills"
@@ -33,8 +33,7 @@ cp "$REPO_ROOT/.opencode/plugins/superpowers-prepared.js" "$SUPERPOWERS_PLUGIN_F
 
 # Register plugin via symlink (what OpenCode actually reads)
 mkdir -p "$OPENCODE_CONFIG_DIR/plugins"
-ln -sf "$SUPERPOWERS_PLUGIN_FILE" "$OPENCODE_CONFIG_DIR/plugins/superpowers-prepared.js" \
-       "$OPENCODE_CONFIG_DIR/plugins/superpowers-prepared.js"
+ln -sf "$SUPERPOWERS_PLUGIN_FILE" "$OPENCODE_CONFIG_DIR/plugins/superpowers-prepared.js"
 
 # Create test skills in different locations for testing
 

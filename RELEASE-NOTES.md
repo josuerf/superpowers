@@ -1,5 +1,109 @@
 # Superpowers Optimized Release Notes
 
+## v6.22.0 (2026-09-19)
+
+Sync with upstream `obra/superpowers` v6.4.1 — native plan execution, the
+diagnosing-superpowers skill, OpenCode 2.0 and Muse — plus two fixes to
+behavior this fork had gotten wrong: the visual companion was never offered,
+and the execution handoff contradicted our own benchmark.
+
+### New Features
+
+**Native plan execution** — `executing-plans` went from 75 lines and no scripts
+to 373 lines plus `task-start` and `task-done`. It now shares the ledger and
+workspace with `subagent-driven-development`, so a plan can change executors
+mid-flight and resume from the same record. It adds a pre-flight scan of shared
+interfaces, a completion contract per task, ledgered rulings instead of stalls,
+and context discipline (long output goes to a file, briefs replace re-reading
+the plan). This was the missing half of the inline story: we had been
+recommending inline while pointing at an executor with no instrumentation.
+
+**Visual surface check in brainstorming** — The companion was offered almost
+never, even for work that creates whole screens. The trigger was introspective
+("wait until a question would be clearer shown than told"), which never fires
+because the design gets resolved in prose first, and it was surrounded by three
+explicit prohibitions. It is now a check on the work's surface, answered in
+writing before any design: *"Visual surface: yes/no — does this create or change
+something a person will look at?"* A trigger that requires writing the answer is
+far more reliable than one asking for silent introspection.
+
+**Defeasible threshold in the execution handoff** — `writing-plans` used to
+default to inline and only reach for subagents at 20+ tasks or 6+ phases. Our
+own benchmark says otherwise: on a 17-task plan, inline ended at 74% of the
+window with a 0.93 score, while three cohesive batches ended at 26% with 0.95,
+at the same wall clock and token cost — so the measured case fell on the wrong
+side of our own rule. The default is now ≤6 tasks inline, 7+ tasks or 2+ phases
+subagents, and the agent must criticize that default against four axes
+(coupling, cost of a miss, diff size, context pressure) and may overrule it with
+a written reason. Overruling with a reason is the correct behavior, not an
+exception.
+
+**diagnosing-superpowers** — New upstream skill for diagnosing what went wrong
+in a session: reads the transcript, reports with line-level evidence, and can
+package a scrubbed bundle.
+
+**OpenCode 2.0 and Muse** — The OpenCode plugin was ported to the V2 host API
+(`default.setup`, `ctx.skill.transform`, `ctx.session.hook`) while keeping the
+V1 path and this fork's additions — auto-update and the safety hooks, which stay
+V1-only. Neither path injects the bootstrap into task subagent sessions any
+more, so a worker no longer restarts the controller's design cycle. Muse is
+registered as a harness.
+
+**skill-evals** — A decision-level eval harness at `tools/skill-evals/`. It
+measures whether the companion is offered when the work has a visual surface,
+and which execution method the handoff picks and why, scoring by regex with no
+LLM judge. Its detectors have their own test, so a 0% means "did not offer"
+rather than "the regex missed".
+
+### Changes
+
+- `requesting-code-review`'s reviewer now treats the spec as a vision document —
+  a spec's silence about an input is not permission for that input to break the
+  program — and must list what it declined to judge, so nothing is set aside
+  silently.
+- `writing-plans` plans carry a **Review Focus** section: the input classes the
+  spec implies but no task's tests exercise.
+- `test-driven-development` requires the project's whole suite, not just the
+  task's test file, and any failure seen must be reported by name.
+- Script invocations across the skills are prefixed with `bash ` (upstream
+  #2040: package extractors strip the exec bit).
+- The controller seat in subagent-driven runs can be a nested orchestrator on a
+  mid-tier model — see `using-superpowers/references/claude-code-tools.md`.
+
+### Fixes
+
+- **`task-start` would have broken every inline run** — upstream's script parses
+  the brief path with a regex anchored at `lines$`, but this fork's `task-brief`
+  was extended for batches and reports `wrote <path>: N lines, M task(s)`. The
+  regex never matched, so the first task of any inline execution would abort
+  with "task-brief did not report a path".
+- **Double branch review** — upstream's `executing-plans` ends by dispatching a
+  code reviewer, while `verify-on-stop` already asks for carrasco on the same
+  diff. The Final Review is now `harness-verify` first, then exactly one
+  branch-wide review (carrasco when the project opts in, otherwise the
+  code-reviewer), then `verification-before-completion`.
+- **Frontmatter parsing dropped most skill descriptions** — the OpenCode
+  plugin's parser kept only the first line of a value, and nearly every skill
+  here writes `description: >` across several lines. Adopted upstream's parser,
+  which handles block scalars and continuations.
+- **`task-brief` failed without an exec bit** — the assertion "task-brief writes
+  its brief under the plan's workspace" failed on this fork with empty output;
+  the `bash ` prefix fixes it.
+- **`tests/opencode/setup.sh`** passed two destinations to `ln -sf`, so every
+  test depending on the plugin symlink failed before reaching its assertions.
+- `package.json` deliberately does **not** take upstream's `"type": "module"`:
+  all eleven hooks here are CommonJS and would break. The ESM scope stays in
+  `.opencode/`.
+
+### Known gaps
+
+- `.opencode/INSTALL.md` still points two install snippets at
+  `obra/superpowers` instead of this fork (pre-existing, outside this sync).
+- On Windows, the OpenCode symlink tests and some path-shape assertions fail for
+  environmental reasons (Git Bash copies instead of linking; `/tmp` resolves to
+  `/c/Users/.../Temp`). The V1+V2 behavior itself is covered by
+  `test-session-bootstrap` and `test-bootstrap-caching`, which pass.
+
 ## v6.14.0 (2026-08-13)
 
 Sync with upstream `obra/superpowers` v6.3.0: Devin CLI and Hermes Agent support, a three-path router in brainstorming, and autonomous rulings in subagent-driven-development.
@@ -814,6 +918,65 @@ Added two missing routing entries: `frontend-design` for UI/frontend implementat
 Step 6 "Run integration verification" now specifies: execute the full project test suite plus any cross-domain checks, and do not mark the wave complete until integration passes. Removes ambiguity about what "integration verification" means in practice.
 
 ---
+
+## v6.4.1 (2026-09-18)
+
+v6.4.0 was never shipped. v6.4.1 is the first release with these changes. It holds back the new `proving-it-works-with-a-movie` skill, which is getting cleanup and robustness work and will return in a later release.
+
+The new `diagnosing-superpowers` skill figures out what went wrong in a session. `executing-plans` is rebuilt as Native execution, a cheaper alternative to subagent-driven development. This release also adds support for three new harnesses: OpenCode 2.0, Muse, and Qwen Code.
+
+### New Skills
+
+- **`diagnosing-superpowers`**: when a session goes wrong (repeated work, an ignored plan, a skill that didn't fire, a surprising bill), ask your agent to "figure out what went wrong with superpowers in this session." It pins down the problem with you, reads the transcripts on disk, and reports what happened with `path:line` evidence for every finding. On request it builds a scrubbed bundle or drafts a GitHub issue for your approval, with the cited evidence left intact. Works on the current session or a past one. (#2236, #2287)
+
+### Executing Plans
+
+**Heads up:** `executing-plans` no longer stops every few tasks to check in with you. It runs the whole plan, then gets one review at the end.
+
+- **Native (inline) execution is now a real mode.** `executing-plans` was a 64-line stub that measured the same as running with no plugin at all. It is rebuilt: the session implements every task itself under the same workspace, ledger, and stopping rules as subagent-driven development, then dispatches one fresh whole-branch review on the most capable model. `task-start` and `task-done` helpers keep the ledger and test log honest. It is the cheapest way to run a plan and runs well on a mid-tier session model. (#2318)
+- **The plan handoff offers two approaches, Subagent-driven and Native,** says what each costs, and recommends one for this plan with a reason drawn from the plan. If you already chose one, it keeps your choice. (#2258, #2318)
+
+### Writing Plans
+
+- **You review the saved plan before anything runs.** Approving an idea or a scope no longer counts as approving a plan you haven't seen. (#2258)
+- **Plans carry a Review Focus section**: up to five inputs or failure modes the spec implies but no task's tests exercise, each pinned by a test in the task that owns the code. In evals, every implementer shipped the same crash on an input the spec implied but never named; this section exists to catch that. (#2319)
+
+### Brainstorming
+
+- **Brainstorming finds out why you want the thing before proposing features,** reflects your intent back for correction, and ties your approval to the actual design and planning stages. The motivating session took "that scope is ok" as permission to scaffold. (#2258)
+
+### Code Review
+
+- **Reviewers judge behavior the spec doesn't mention by what a reasonable user would expect,** so a crash on an unnamed input no longer slides through as Minor. A "Declined to judge" list shows what the reviewer skipped, and the session running the plan decides each one. (#2319)
+- The multi-commit `BASE_SHA` alternative is now `git merge-base origin/main HEAD`. A bare `origin/main` showed main's newer files as phantom deletions once main moved past the branch point. (#2133, #2118)
+
+### Test-Driven Development
+
+- **The project's suite defines green, not just your test file.** When a task named one test file, sessions ran only that file in 11 of 12 probe runs, so a broken test next door went unseen. The skill now says to run the project's test command and report every failure by name, including ones you didn't cause. (#2110)
+
+### Subagent-Driven Development
+
+- **Plans with the same basename no longer share a workspace.** `docs/alpha/plan.md` and `docs/beta/plan.md` resolved to one directory and `task-brief` silently overwrote the other plan's brief. Each workspace now records its owning plan; a collision gets its own directory. Existing workspaces are adopted in place. (#2138, #2045)
+- **`review-package` rejects empty or non-descendant `BASE..HEAD` ranges** (exit 3), so an implementer that committed to the wrong branch can't produce a "clean" review of nothing. (#2136, #2050)
+- **On Claude Code, the controller can run one layer down,** as a nested subagent on a mid-tier model. It measured about half the cost and wall clock. It's opt-in: ask for it, or tell your agent your session model is too expensive to spend on coordination. (#2320)
+
+### New Harness Support
+
+- **OpenCode 2.0.4+** is supported alongside V1. Skills register through V2's native API, and the bootstrap survives continuation, restart, forks, and compaction. Delegated child sessions no longer receive the controller's bootstrap. (#2106, #2306)
+- **Muse**: native plugin manifest and SessionStart hook. `muse plugins install ./` then `muse plugins approve superpowers`. (#2317)
+- **Qwen Code** added to the install docs: `qwen extensions install obra/superpowers`. (#2132)
+
+### Fixes
+
+- **Skills work when a packager strips executable bits.** The Codex marketplace and MiniMax Code's repackage both shipped our scripts non-executable, so every documented command failed with `Permission denied`. Skill prose now invokes bundled scripts through their interpreter (`bash scripts/foo.sh`, `node render-graphs.js`), and the SDD helpers call each other the same way. (#2301, #2134, #2040)
+- The platform-support issue template applies a label that exists (`new-harness`). (#2250)
+
+### Documentation
+
+- `docs/testing.md` describes the Quorum eval lab, replacing stale Drill references and commands. (#2135)
+- README: a "When Something Goes Wrong" section pointing at `diagnosing-superpowers`.
+- **`AGENTS.md` is now the canonical contributor guidelines.** `CLAUDE.md` is a one-line reference to it. `AGENTS.md` used to be a symlink to `CLAUDE.md`, which Muse's installer rejects. (#2317)
+- Adopted the Prime Radiant Community Code of Conduct. (#2122)
 
 ## v6.3.0 (2026-08-12)
 
