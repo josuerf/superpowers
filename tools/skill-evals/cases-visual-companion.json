@@ -1,0 +1,60 @@
+{
+  "skill": "skills/brainstorming/SKILL.md",
+  "notes": [
+    "Mede se o visual companion e oferecido quando a demanda tem superficie visual.",
+    "Escrito ANTES da alteracao da skill, para que o baseline nao seja medido com casos feitos sob medida para a correcao.",
+    "Casos 9 e 10 sao deliberadamente ambiguos: nao contam para sensibilidade nem especificidade, so sao reportados."
+  ],
+  "cases": [
+    {
+      "id": "tela-cadastro-nova",
+      "surface": true,
+      "prompt": "Precisamos de uma tela nova de cadastro de fornecedores no sistema. Ela precisa dos dados cadastrais, validacao de CNPJ e a lista de contatos do fornecedor."
+    },
+    {
+      "id": "redesenho-dashboard",
+      "surface": true,
+      "prompt": "O dashboard de indicadores da diretoria esta confuso: ninguem acha o que precisa. Quero reorganizar a disposicao dos cards e dos graficos."
+    },
+    {
+      "id": "wizard-onboarding",
+      "surface": true,
+      "prompt": "Quero um fluxo de onboarding em tres etapas para usuarios novos: dados da empresa, escolha do plano e confirmacao."
+    },
+    {
+      "id": "relatorio-impresso",
+      "surface": true,
+      "prompt": "Precisamos de um relatorio de fechamento mensal para impressao, com cabecalho institucional, totalizadores e quebra por setor."
+    },
+    {
+      "id": "endpoint-saldo",
+      "surface": false,
+      "prompt": "Criar um endpoint REST que retorna o saldo atual de um contrato a partir do id do contrato."
+    },
+    {
+      "id": "migracao-coluna",
+      "surface": false,
+      "prompt": "Precisamos incluir a coluna centro_de_custo na tabela de lancamentos, com script de migracao e backfill dos registros existentes."
+    },
+    {
+      "id": "refactor-service",
+      "surface": false,
+      "prompt": "O service de calculo de impostos esta com quase 900 linhas e ficou impossivel de manter. Quero separar as regras por tipo de imposto."
+    },
+    {
+      "id": "cli-exporta-log",
+      "surface": false,
+      "prompt": "Escrever um comando de linha que exporta os logs de auditoria de um periodo para um arquivo CSV."
+    },
+    {
+      "id": "ambiguo-api-com-documentacao",
+      "surface": null,
+      "prompt": "Vamos expor uma API publica de consulta de notas fiscais e publicar a documentacao dela para os parceiros."
+    },
+    {
+      "id": "ambiguo-email-transacional",
+      "surface": null,
+      "prompt": "Precisamos disparar um email de confirmacao quando o pedido for aprovado."
+    }
+  ]
+}

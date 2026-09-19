@@ -1,0 +1,57 @@
+{
+  "skill": "skills/writing-plans/SKILL.md",
+  "notes": [
+    "Mede a escolha entre execucao inline (executing-plans) e subagentes (subagent-driven-development)",
+    "no handoff de writing-plans, dado um plano ja escrito.",
+    "A politica alvo e um limiar objetivo DERROTAVEL: os casos 'clean' medem aderencia ao default,",
+    "os casos 'override' medem se a critica do default funciona quando ha razao plantada para desviar.",
+    "Um acerto em caso 'override' exige a escolha certa E a razao citada - escolher certo por acaso nao conta.",
+    "Escrito ANTES da alteracao da skill."
+  ],
+  "cases": [
+    {
+      "id": "clean-03-tarefas",
+      "kind": "clean",
+      "fixture": "plan-03-1fase.md",
+      "expected": "inline",
+      "why": "plano curto: o custo de despachar subagentes nao se paga"
+    },
+    {
+      "id": "clean-06-tarefas",
+      "kind": "clean",
+      "fixture": "plan-06-1fase.md",
+      "expected": "inline",
+      "why": "no limite superior do default inline"
+    },
+    {
+      "id": "clean-10-tarefas",
+      "kind": "clean",
+      "fixture": "plan-10-3fases.md",
+      "expected": "subagent",
+      "why": "acima do corte; 3 fases coesas viram 3 batches"
+    },
+    {
+      "id": "clean-18-tarefas",
+      "kind": "clean",
+      "fixture": "plan-18-3fases.md",
+      "expected": "subagent",
+      "why": "plano longo: inline terminaria com a janela quase cheia antes da rodada de correcao"
+    },
+    {
+      "id": "override-diff-grande",
+      "kind": "override",
+      "fixture": "plan-05-diff-grande.md",
+      "expected": "subagent",
+      "expectedReasonAxis": "diff",
+      "why": "so 5 tarefas (default seria inline), mas reescreve ~40 arquivos: grande para a revisao"
+    },
+    {
+      "id": "override-forte-acoplamento",
+      "kind": "override",
+      "fixture": "plan-12-acoplado.md",
+      "expected": "inline",
+      "expectedReasonAxis": "acoplamento",
+      "why": "12 tarefas (default seria subagente), mas todas dividem as mesmas assinaturas: um contexto so ve todas"
+    }
+  ]
+}
