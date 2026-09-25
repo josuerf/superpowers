@@ -104,6 +104,38 @@ OUT=$(stop "$H" "$D" "$H/t.jsonl" s2)
 assert "deleted ledger -> reminder from snapshot" "true" "$(has "$OUT" 'superpowers-ledgers/my-plan.md')"
 rm -rf "$H" "$D"
 
+# archive dir of a test repo (inside its git dir)
+archive() { printf '%s/.git/superpowers-ledgers' "$1"; }
+
+# 6. reminded.json keeps only the last 30 days
+H=$(mktemp -d); D=$(mkws); ledger_with_rulings "$D"; transcript "$H/t.jsonl" "git merge --no-ff feat/x"
+mkdir -p "$(archive "$D")"
+node -e "
+const old=new Date(Date.now()-40*864e5).toISOString(), recent=new Date(Date.now()-864e5).toISOString();
+require('fs').writeFileSync(process.argv[1], JSON.stringify({'old-session:x.md':old,'recent-session:y.md':recent}));
+" "$(archive "$D")/reminded.json"
+stop "$H" "$D" "$H/t.jsonl" s-new >/dev/null
+SENT=$(cat "$(archive "$D")/reminded.json" 2>/dev/null)
+assert "entry older than 30 days is pruned" "false" "$(has "$SENT" 'old-session')"
+assert "recent entry is kept" "true" "$(has "$SENT" 'recent-session')"
+assert "the new reminder is recorded" "true" "$(has "$SENT" 's-new:')"
+rm -rf "$H" "$D"
+
+# 7. The transcript is scanned incrementally: bytes already read are not re-read.
+# Rewriting the already-scanned part in place (same size) is invisible; an
+# appended merge is seen.
+H=$(mktemp -d); D=$(mkws); ledger_with_rulings "$D"
+transcript "$H/t.jsonl" "npm test --silent --reporter=dot"
+assert "first stop without a merge -> silent" "{}" "$(stop "$H" "$D" "$H/t.jsonl" s7)"
+transcript "$H/t.jsonl" "git merge --no-ff feat/abcdefghi"
+assert "same-size rewrite of scanned bytes is not re-read" "{}" "$(stop "$H" "$D" "$H/t.jsonl" s7)"
+node -e "
+const fs=require('fs');
+fs.appendFileSync(process.argv[1], JSON.stringify({type:'assistant',message:{content:[{type:'tool_use',name:'Bash',input:{command:'gh pr create --fill'}}]}})+'\n');
+" "$H/t.jsonl"
+assert "appended merge is seen" "true" "$(has "$(stop "$H" "$D" "$H/t.jsonl" s7)" 'Lessons:')"
+rm -rf "$H" "$D"
+
 echo ""
 echo "test-stop-reminders: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

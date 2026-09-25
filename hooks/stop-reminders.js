@@ -394,6 +394,9 @@ function checkSessionLogSize(cwd) {
 const LEDGER_ARCHIVE_DIR = 'superpowers-ledgers';
 const LEDGER_ARCHIVE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const REFLOG_WINDOW_MS = 2 * 60 * 60 * 1000;
+// reminded.json / transcript-scan.json entries older than this are dropped:
+// they only guard sessions that are long over, and the files grew forever.
+const REMINDER_STATE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Commands that close out a branch.
 const FINISH_COMMAND_RE =
@@ -536,15 +539,45 @@ function newestArchivedLedger(archiveDir) {
   return best;
 }
 
-/** Bash commands this session ran, read from the transcript (null if unreadable). */
-function getSessionBashCommands(transcriptPath) {
+/**
+ * Bash commands in the transcript from byte `fromOffset` on, as
+ * { commands, end } — `end` is the offset just past the last complete line
+ * read, where the next scan resumes (a trailing partial line is re-read next
+ * time). A transcript shorter than `fromOffset` was rewritten: it is read
+ * from the start. null when the transcript is unreadable.
+ */
+function readTranscriptCommands(transcriptPath, fromOffset = 0) {
   if (!transcriptPath) return null;
-  let content;
+  let fd;
   try {
-    content = fs.readFileSync(transcriptPath, 'utf8');
+    fd = fs.openSync(transcriptPath, 'r');
+    const size = fs.fstatSync(fd).size;
+    const start = fromOffset > 0 && fromOffset <= size ? fromOffset : 0;
+    const buf = Buffer.alloc(size - start);
+    let read = 0;
+    while (read < buf.length) {
+      const n = fs.readSync(fd, buf, read, buf.length - read, start + read);
+      if (n <= 0) break;
+      read += n;
+    }
+    const chunk = buf.subarray(0, read);
+    const lastNl = chunk.lastIndexOf(0x0a);
+    const end = lastNl === -1 ? start : start + lastNl + 1;
+    return { commands: commandsFromTranscriptText(chunk.toString('utf8')), end };
   } catch {
     return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // ignore
+      }
+    }
   }
+}
+
+function commandsFromTranscriptText(content) {
   const commands = [];
   for (const line of content.split('\n')) {
     if (!line.includes('tool_use')) continue;
@@ -567,14 +600,70 @@ function getSessionBashCommands(transcriptPath) {
   return commands;
 }
 
+/** Bash commands this session ran, read from the transcript (null if unreadable). */
+function getSessionBashCommands(transcriptPath) {
+  const r = readTranscriptCommands(transcriptPath, 0);
+  return r ? r.commands : null;
+}
+
+/** Parsed JSON state file in the archive dir, with entries older than 30 days dropped. */
+function readPrunedState(file, nowMs) {
+  let state = {};
+  try {
+    state = JSON.parse(readSafe(file) || '{}');
+  } catch {
+    state = {};
+  }
+  if (!state || typeof state !== 'object' || Array.isArray(state)) state = {};
+  let pruned = false;
+  for (const [key, value] of Object.entries(state)) {
+    const at = typeof value === 'string' ? value : value && value.at;
+    const t = Date.parse(at);
+    if (!Number.isFinite(t) || nowMs - t > REMINDER_STATE_MAX_AGE_MS) {
+      delete state[key];
+      pruned = true;
+    }
+  }
+  return { state, pruned };
+}
+
+function writeState(file, state) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * True when this session closed out a branch. The transcript is the source of
  * truth; without one, fall back to a merge in the reflog within the last two
  * hours.
+ *
+ * With `scanFile`, the transcript is scanned incrementally: the offset
+ * reached for this session is kept there, and a later Stop reads only what
+ * was appended since. Every Stop used to re-read the whole transcript, which
+ * grows for the entire session.
  */
-function sessionFinishedBranch(data, cwd, nowMs = Date.now()) {
-  const commands = getSessionBashCommands(data && data.transcript_path);
-  if (commands) return commands.some(c => FINISH_COMMAND_RE.test(c));
+function sessionFinishedBranch(data, cwd, nowMs = Date.now(), scanFile = null) {
+  const transcriptPath = data && data.transcript_path;
+  const sessionKey = `${(data && data.session_id) || 'no-session'}:${transcriptPath || ''}`;
+  let scan = null;
+  let from = 0;
+  if (scanFile && transcriptPath) {
+    scan = readPrunedState(scanFile, nowMs).state;
+    const prev = scan[sessionKey];
+    if (prev && typeof prev.offset === 'number') from = prev.offset;
+  }
+  const read = readTranscriptCommands(transcriptPath, from);
+  if (read) {
+    if (scan) {
+      scan[sessionKey] = { offset: read.end, at: new Date(nowMs).toISOString() };
+      writeState(scanFile, scan);
+    }
+    return read.commands.some(c => FINISH_COMMAND_RE.test(c));
+  }
   const reflog = runGit(['reflog', '-n', '30', '--format=%ct %gs'], cwd);
   return reflog.split('\n').some(line => {
     const m = line.match(/^(\d+) (merge\b|pull\b.*merge)/);
@@ -612,32 +701,35 @@ function checkLessonsReminder(data, cwd, nowMs = Date.now()) {
     // No SDD here and nothing archived: skip reading the transcript at all.
     if (live.length === 0 && !(archiveDir && fs.existsSync(archiveDir))) return null;
 
-    if (!sessionFinishedBranch(data, cwd, nowMs)) return null;
-
     const ledger =
       live.sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ||
       (archiveDir ? newestArchivedLedger(archiveDir) : null);
     if (!ledger) return null;
 
     // Once per session per ledger: the merge command stays in the transcript,
-    // so without this every later Stop in the session would repeat it.
-    if (archiveDir) {
-      const sentFile = path.join(archiveDir, 'reminded.json');
-      let sent = {};
-      try {
-        sent = JSON.parse(readSafe(sentFile) || '{}');
-      } catch {
-        sent = {};
+    // so without this every later Stop in the session would repeat it. Checked
+    // BEFORE the transcript is read — an already-reminded ledger costs nothing.
+    const sentFile = archiveDir ? path.join(archiveDir, 'reminded.json') : null;
+    const key = `${data.session_id || 'no-session'}:${ledgerSnapshotName(ledger.path)}`;
+    let sent = {};
+    let pruned = false;
+    if (sentFile) {
+      ({ state: sent, pruned } = readPrunedState(sentFile, nowMs));
+      if (sent[key]) {
+        if (pruned) writeState(sentFile, sent);
+        return null;
       }
-      const key = `${data.session_id || 'no-session'}:${ledgerSnapshotName(ledger.path)}`;
-      if (sent[key]) return null;
+    }
+
+    const scanFile = archiveDir ? path.join(archiveDir, 'transcript-scan.json') : null;
+    if (!sessionFinishedBranch(data, cwd, nowMs, scanFile)) {
+      if (sentFile && pruned) writeState(sentFile, sent);
+      return null;
+    }
+
+    if (sentFile) {
       sent[key] = new Date(nowMs).toISOString();
-      try {
-        fs.mkdirSync(archiveDir, { recursive: true });
-        fs.writeFileSync(sentFile, JSON.stringify(sent));
-      } catch {
-        // ignore
-      }
+      writeState(sentFile, sent);
     }
 
     const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
@@ -739,6 +831,7 @@ if (require.main === module) {
     countLedgerRulings,
     listLedgers,
     sessionFinishedBranch,
+    readTranscriptCommands,
     snapshotLedgers,
     checkSessionLogSize,
     checkStateMdStaleness,
