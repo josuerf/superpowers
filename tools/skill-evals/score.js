@@ -8,6 +8,7 @@
  * Com dois arquivos, imprime a comparacao antes/depois lado a lado.
  */
 const fs = require('fs');
+const { classify } = require('./business-rule-detector');
 
 // --- deteccao: oferta do visual companion ------------------------------------
 // Um termo visual sozinho nao e oferta ("vamos discutir o layout" nao e).
@@ -173,6 +174,37 @@ function scoreExecution(suite) {
   };
 }
 
+function scoreBusinessRule(suite) {
+  const byCase = new Map();
+  for (const r of usableRuns(suite).runs) {
+    if (!byCase.has(r.caseId)) byCase.set(r.caseId, { meta: r, runs: [] });
+    byCase.get(r.caseId).runs.push(classify(r.text, r.expected));
+  }
+  const count = (runs, v) => runs.filter((x) => x.verdict === v).length;
+  let hits = 0, sevOk = 0, noBlock = 0, all = 0;
+  const rows = [];
+  for (const [id, c] of byCase) {
+    const n = c.runs.length;
+    const h = count(c.runs, 'hit');
+    all += n; hits += h; noBlock += count(c.runs, 'noBlock');
+    sevOk += c.runs.filter((x) => x.verdict === 'hit' && x.severityOk).length;
+    rows.push({
+      id, mechanism: c.meta.mechanism, n, hits: h, rate: pct(h, n),
+      wrongCategory: count(c.runs, 'wrongCategory'), wrongLine: count(c.runs, 'wrongLine'),
+      miss: count(c.runs, 'miss'), noBlock: count(c.runs, 'noBlock'),
+      cited: c.runs.map((x) => x.finding ? `${x.finding.category}@${x.finding.line}/${x.finding.severity}` : '-').join(' '),
+    });
+  }
+  return {
+    descartados: usableRuns(suite).discarded,
+    total: usableRuns(suite).all,
+    rows,
+    reencontro: { num: hits, den: all, pct: pct(hits, all) },
+    severidadeOk: { num: sevOk, den: hits, pct: pct(sevOk, hits) },
+    semBloco: { num: noBlock, den: all, pct: pct(noBlock, all) },
+  };
+}
+
 function totalTokens(data) {
   return data.suites.flatMap((s) => s.runs).reduce((a, r) => a + (r.usage?.total || 0), 0);
 }
@@ -181,7 +213,9 @@ function report(file) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   const out = { file, ref: data.ref, label: data.label, model: data.model, reps: data.reps, tokens: totalTokens(data), suites: {} };
   for (const s of data.suites) {
-    out.suites[s.suite] = s.suite === 'visual-companion' ? scoreVisual(s) : scoreExecution(s);
+    out.suites[s.suite] = s.suite === 'visual-companion' ? scoreVisual(s)
+      : s.suite === 'business-rule' ? scoreBusinessRule(s)
+        : scoreExecution(s);
   }
   return out;
 }
@@ -210,6 +244,16 @@ function printOne(r) {
     console.log(`  DESVIO CORRETO (casos com razao plantada): ${e.desvioCorreto.pct}  [${e.desvioCorreto.num}/${e.desvioCorreto.den}]`);
     console.log(`  nao classificado: ${e.naoClassificado.pct}`);
   }
+  const b = r.suites['business-rule'];
+  if (b) {
+    console.log('\n-- business-rule (carrasco sobre diff real) --');
+    for (const row of b.rows) {
+      console.log(`  ${row.id.padEnd(28)} ${String(row.mechanism).padEnd(22)} achou ${row.hits}/${row.n}  outra-cat ${row.wrongCategory}  outra-linha ${row.wrongLine}  sem-bloco ${row.noBlock}  [${row.cited}]`);
+    }
+    console.log(`  REENCONTRO (arquivo + linha + business-rule): ${b.reencontro.pct}  [${b.reencontro.num}/${b.reencontro.den}]`);
+    console.log(`  severidade >= minima entre os acertos: ${b.severidadeOk.pct}`);
+    console.log(`  sem bloco REVIEWER_DECISION: ${b.semBloco.pct}`);
+  }
 }
 
 const files = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -231,6 +275,9 @@ if (reports.length === 2) {
   if (a.suites['execution-choice'] && b.suites['execution-choice']) {
     line('aderencia ao default', a.suites['execution-choice'].aderenciaDefault.pct, b.suites['execution-choice'].aderenciaDefault.pct);
     line('desvio correto (com a razao)', a.suites['execution-choice'].desvioCorreto.pct, b.suites['execution-choice'].desvioCorreto.pct);
+  }
+  if (a.suites['business-rule'] && b.suites['business-rule']) {
+    line('reencontro business-rule', a.suites['business-rule'].reencontro.pct, b.suites['business-rule'].reencontro.pct);
   }
   line('tokens gastos no eval', a.tokens.toLocaleString(), b.tokens.toLocaleString());
   console.log('\n  Nota: com poucas repeticoes, diferencas de poucos pontos percentuais nao sao sinal.');

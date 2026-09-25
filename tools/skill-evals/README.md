@@ -15,6 +15,7 @@ custo muito menor.
 |---|---|---|
 | `visual-companion` | O companion é oferecido quando a demanda tem superfície visual? | sensibilidade (ofereceu quando devia) e falso positivo (ofereceu quando não devia) |
 | `execution-choice` | O handoff escolhe inline ou subagentes, e justifica? | aderência ao default em casos limpos; desvio correto em casos com razão plantada |
+| `business-rule` | O carrasco reencontra achados business-rule reais (HIGH/CRITICAL) no diff do MR? | reencontro: achado no arquivo esperado, linha na tolerância, `category: business-rule` |
 
 ## Como funciona
 
@@ -36,8 +37,28 @@ node tools/skill-evals/score.js results/<arquivo>.json
 node tools/skill-evals/score.js results/<antes>.json results/<depois>.json   # comparação
 ```
 
-Opções de `run.js`: `--suite visual|execution|both`, `--reps N`, `--case ID`,
+Opções de `run.js`: `--suite visual|execution|both|business`, `--reps N`, `--case ID`,
 `--model NOME`, `--label TEXTO`.
+
+### Suíte business-rule
+
+Não entra em `both`: cada caso é uma revisão inteira (~20–45k caracteres de
+prompt). Rode com `--suite business` e, para fumaça, `--case ID --reps 1`.
+
+- O prompt é o do harness, não uma cópia: `build-review-prompt.ts` chama
+  `buildReviewPlan` (chunking + pré-check de lógica comentada) com
+  `reviewAggressiveness` no nível carrasco e usa o chunk que contém o arquivo
+  alvo.
+- Os fixtures (`fixtures/business-rule/<repo>-<mr>.diff`) são o diff real do
+  MR, recortado para ~400 linhas; `fixtureTrim` no JSON diz o que ficou de
+  fora e `source.base`/`source.head` dizem de onde veio. Casos do mesmo MR
+  reaproveitam a mesma resposta na mesma repetição.
+- O revisor roda **sem ferramentas** (`--tools ""`) e vê só o diff: o
+  repositório daquele MR não está aqui. Casos `sibling` medem se ele acha a
+  divergência pelo que o diff mostra, não se consultaria o repositório.
+- O detector fica em `business-rule-detector.js` e é testado de verdade por
+  `detector-test.js`. Resposta sem bloco `REVIEWER_DECISION` parseável conta
+  como "sem bloco", não como "não achou".
 
 ## Como comparar antes/depois honestamente
 
