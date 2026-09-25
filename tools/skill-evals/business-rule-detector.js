@@ -11,18 +11,41 @@
 
 const SEVERITY_RANK = { low: 1, medium: 2, high: 3, critical: 4 };
 
-function extractFindings(text) {
-  if (!text) return null;
-  const marked = text.match(/<!--\s*REVIEWER_DECISION\s*-->([\s\S]*?)<!--\s*\/REVIEWER_DECISION\s*-->/);
-  const region = marked ? marked[1] : text;
-  const fence = region.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const raw = (fence ? fence[1] : region).trim();
+function tryFindings(raw) {
   try {
-    const obj = JSON.parse(raw);
+    const obj = JSON.parse(raw.trim());
     return Array.isArray(obj.findings) ? obj.findings : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Devolve { findings, harnessParses }. Primeiro tenta como o parser do
+ * harness (lib/harness/reviewers/parser.ts: cerca ```json nao-gulosa); se
+ * falhar, tenta da primeira cerca ate a ULTIMA dentro dos marcadores — o
+ * revisor as vezes poe um bloco ``` dentro da string "suggestion", e a cerca
+ * nao-gulosa corta o JSON ali. `harnessParses: false` separa "o revisor achou,
+ * mas o harness perderia a decisao" de "o revisor nao achou".
+ */
+function extractDecision(text) {
+  if (!text) return { findings: null, harnessParses: false };
+  const marked = text.match(/<!--\s*REVIEWER_DECISION\s*-->([\s\S]*?)<!--\s*\/REVIEWER_DECISION\s*-->/);
+  const region = marked ? marked[1] : text;
+  const lazy = region.match(/```json\s*\n?([\s\S]*?)\n?\s*```/);
+  const strict = tryFindings(lazy ? lazy[1] : region);
+  if (strict) return { findings: strict, harnessParses: true };
+  const open = region.indexOf('```');
+  const close = region.lastIndexOf('```');
+  if (open > -1 && close > open) {
+    const greedy = tryFindings(region.slice(open, close).replace(/^```(?:json)?/, ''));
+    if (greedy) return { findings: greedy, harnessParses: false };
+  }
+  return { findings: null, harnessParses: false };
+}
+
+function extractFindings(text) {
+  return extractDecision(text).findings;
 }
 
 /** Normaliza para comparar por sufixo: barra, prefixo a/ b/ e ./ fora. */
@@ -56,10 +79,15 @@ function atLeast(sev, min) {
  *   miss          nada disso
  *   noBlock       resposta sem bloco REVIEWER_DECISION parseavel
  * `severityOk` so vale para hit: o achado veio na severidade minima esperada?
+ * `harnessParses` diz se o parser do harness leria esse bloco.
  */
 function classify(text, expected) {
-  const findings = extractFindings(text);
-  if (!findings) return { verdict: 'noBlock', finding: null, severityOk: false, total: 0 };
+  const { findings, harnessParses } = extractDecision(text);
+  if (!findings) return { verdict: 'noBlock', finding: null, severityOk: false, total: 0, harnessParses };
+  return { ...match(findings, expected), harnessParses };
+}
+
+function match(findings, expected) {
   const tol = expected.lineTolerance ?? 3;
   const inFile = findings.filter((f) => sameFile(f.file, expected.file));
   const near = inFile.filter((f) => {
@@ -75,4 +103,4 @@ function classify(text, expected) {
   return { verdict: 'miss', finding: null, severityOk: false, total: findings.length };
 }
 
-module.exports = { extractFindings, sameFile, lineOf, classify };
+module.exports = { extractDecision, extractFindings, sameFile, lineOf, classify };

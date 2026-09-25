@@ -126,6 +126,9 @@ console.log('--- business-rule: classificacao ---');
   ['noBlock', 'Aprovo a mudanca, nada a apontar.', 'sem bloco'],
   ['noBlock', '<!-- REVIEWER_DECISION -->\n```json\n{ quebrado\n```\n<!-- /REVIEWER_DECISION -->', 'JSON invalido'],
 ].forEach(([want, text, label]) => check(classify(text, EXP).verdict === want, `${want.padEnd(13)} ${label}`));
+const fenced = classify(block([F({ suggestion: "Restore:\n```java\nand lr.flag = 'S'\n```" })]), EXP);
+check(fenced.verdict === 'hit' && fenced.harnessParses === false, 'cerca ``` dentro da suggestion: acha, e marca que o harness nao leria');
+check(classify(block([F({})]), EXP).harnessParses === true, 'bloco limpo: harness leria');
 check(classify(block([F({ severity: 'Medium' })]), EXP).severityOk === false, 'hit Medium nao cumpre minSeverity High');
 check(classify(block([F({ severity: 'Critical' })]), EXP).severityOk === true, 'hit Critical cumpre minSeverity High');
 

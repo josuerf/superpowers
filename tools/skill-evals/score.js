@@ -181,13 +181,14 @@ function scoreBusinessRule(suite) {
     byCase.get(r.caseId).runs.push(classify(r.text, r.expected));
   }
   const count = (runs, v) => runs.filter((x) => x.verdict === v).length;
-  let hits = 0, sevOk = 0, noBlock = 0, all = 0;
+  let hits = 0, sevOk = 0, noBlock = 0, harnessLoses = 0, all = 0;
   const rows = [];
   for (const [id, c] of byCase) {
     const n = c.runs.length;
     const h = count(c.runs, 'hit');
     all += n; hits += h; noBlock += count(c.runs, 'noBlock');
     sevOk += c.runs.filter((x) => x.verdict === 'hit' && x.severityOk).length;
+    harnessLoses += c.runs.filter((x) => x.verdict !== 'noBlock' && !x.harnessParses).length;
     rows.push({
       id, mechanism: c.meta.mechanism, n, hits: h, rate: pct(h, n),
       wrongCategory: count(c.runs, 'wrongCategory'), wrongLine: count(c.runs, 'wrongLine'),
@@ -202,6 +203,7 @@ function scoreBusinessRule(suite) {
     reencontro: { num: hits, den: all, pct: pct(hits, all) },
     severidadeOk: { num: sevOk, den: hits, pct: pct(sevOk, hits) },
     semBloco: { num: noBlock, den: all, pct: pct(noBlock, all) },
+    harnessNaoLeria: { num: harnessLoses, den: all, pct: pct(harnessLoses, all) },
   };
 }
 
@@ -253,6 +255,7 @@ function printOne(r) {
     console.log(`  REENCONTRO (arquivo + linha + business-rule): ${b.reencontro.pct}  [${b.reencontro.num}/${b.reencontro.den}]`);
     console.log(`  severidade >= minima entre os acertos: ${b.severidadeOk.pct}`);
     console.log(`  sem bloco REVIEWER_DECISION: ${b.semBloco.pct}`);
+    console.log(`  bloco que o parser do harness rejeitaria (cerca dentro da string): ${b.harnessNaoLeria.pct}  [${b.harnessNaoLeria.num}/${b.harnessNaoLeria.den}]`);
   }
 }
 
