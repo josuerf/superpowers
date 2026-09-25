@@ -66,6 +66,11 @@ describe("getSeverityPolicy", () => {
 		expect(p).toContain("BLOCK");
 		expect(p).toContain("High");
 	});
+	test("category list names business-rule and does not make it escalate", () => {
+		const p = getSeverityPolicy("High");
+		expect(p).toContain("`business-rule`");
+		expect(p).toMatch(/`business-rule` — .*does not escalate/);
+	});
 });
 
 describe("getStandardsDirective", () => {

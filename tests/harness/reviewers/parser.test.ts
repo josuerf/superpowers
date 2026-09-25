@@ -199,6 +199,34 @@ describe("parseReviewerResponse", () => {
 		expect(result!.findings[0].category).toBe("security");
 	});
 
+	// Before business-rule was a valid category the parser dropped it, and the
+	// aggregator then read the finding as maintainability: the most serious
+	// domain defect became the mildest label.
+	test("keeps the business-rule category", () => {
+		const response = `\`\`\`json
+{
+  "harness_action": "BLOCK",
+  "metrics": { "total_findings": 1, "critical_high_count": 1 },
+  "asi_target": null,
+  "findings": [
+    {
+      "severity": "High",
+      "category": "business-rule",
+      "file": "src/main/java/EmpenhoRepository.java",
+      "line": 88,
+      "issue": "fiscal-year filter present in the sibling findByEntidade (EmpenhoRepository.java:52) was dropped",
+      "suggestion": "restore AND e.exercicio = :exercicio"
+    }
+  ]
+}
+\`\`\``;
+
+		const result = parseReviewerResponse(response);
+		expect(result).not.toBeNull();
+		expect(result!.findings).toHaveLength(1);
+		expect(result!.findings[0].category).toBe("business-rule");
+	});
+
 	test("leaves category undefined when the reviewer omits it", () => {
 		const response = `\`\`\`json
 {

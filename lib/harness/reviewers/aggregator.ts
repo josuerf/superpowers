@@ -35,7 +35,11 @@ function thresholdRank(
 const DEFAULT_CATEGORY: NonNullable<ReviewerFinding["category"]> =
 	"maintainability";
 
-/** Categories that block regardless of severity. */
+/**
+ * Categories that block regardless of severity. `business-rule` is left out on
+ * purpose: most real business-rule findings are Medium, and escalating all of
+ * them would turn the gate into an obstacle. It is judged by the threshold.
+ */
 const ESCALATING_CATEGORIES: ReadonlySet<string> = new Set([
 	"security",
 	"governance",

@@ -61,6 +61,13 @@ Subagent (general-purpose):
     Cross-cutting changes are legitimate named risks: if the diff changes
     lock ordering, a function or API contract, or shared mutable state,
     checking the call sites is the right method.
+    Reading the SIBLING methods of the changed code — the other methods of
+    the same service/repository that solve the same kind of problem — is a
+    named, legitimate risk by the same criterion: it is the only way to see
+    a guard that was forgotten. Find siblings with `forge_siblings(symbol)` when
+    the forge MCP is available, otherwise grep (state the command and the
+    match count). Name the sibling you read in your report, with file:line.
+    <!-- [fork] -->
 
     Your review is read-only on this checkout. Do not mutate the working
     tree, the index, HEAD, or branch state in any way.

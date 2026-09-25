@@ -343,13 +343,21 @@ export type ReviewerSeverity = "Critical" | "High" | "Medium" | "Low";
  * `security` and `governance` escalate to BLOCK at any severity - see
  * `aggregateCarrascoResponses`. The category describes the type of the
  * problem, never its weight.
+ *
+ * `business-rule` is code that is technically correct but produces the wrong
+ * result under the domain's rule (a vanished tenant/fiscal-year filter, an
+ * export that no longer matches the rule that generated it). It deliberately
+ * does NOT escalate: it goes through `severityThreshold` like `correctness`.
+ * Without the label a reviewer that saw the problem had no name for it, and
+ * the parser used to drop the category, demoting it to `maintainability`.
  */
 export type FindingCategory =
 	| "security"
 	| "governance"
 	| "correctness"
 	| "maintainability"
-	| "test";
+	| "test"
+	| "business-rule";
 export interface ReviewerFinding {
 	severity: ReviewerSeverity;
 	/**

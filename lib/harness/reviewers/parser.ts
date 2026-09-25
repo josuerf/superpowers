@@ -18,6 +18,7 @@ const VALID_CATEGORIES = [
 	"correctness",
 	"maintainability",
 	"test",
+	"business-rule",
 ];
 export function parseReviewerResponse(
 	response: string,

@@ -223,6 +223,67 @@ describe("aggregateCarrascoResponses", () => {
 		expect(report.harness_action).toBe("APPROVE");
 	});
 
+	// business-rule is nameable but NOT escalating: most real business-rule
+	// findings are Medium, and blocking all of them would make the gate an
+	// obstacle. It must go through severityThreshold like correctness.
+	test("a business-rule Low finding does not escalate below the threshold", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "Low",
+						category: "business-rule",
+						file: "a.ts",
+						line: 1,
+					},
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("APPROVE");
+		expect(report.findings[0].category).toBe("business-rule");
+	});
+
+	test("a business-rule Medium finding asks for review instead of blocking", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "Medium",
+						category: "business-rule",
+						file: "a.ts",
+						line: 1,
+					},
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("NEEDS_HUMAN_REVIEW");
+	});
+
+	test("a business-rule High finding blocks at the High threshold", () => {
+		const report = aggregateCarrascoResponses(
+			"feat",
+			[
+				decisionResponse("chunk-1", "APPROVE", [
+					{
+						severity: "High",
+						category: "business-rule",
+						file: "a.ts",
+						line: 1,
+					},
+				]),
+			],
+			raConfig(),
+			TS,
+		);
+		expect(report.harness_action).toBe("BLOCK");
+	});
+
 	// An explicit BLOCK from the reviewer is honoured even with no findings
 	// attached: the chunk-level verdict is the reviewer's conclusion, and the
 	// aggregator must not talk it out of a stop.
