@@ -83,6 +83,102 @@ describe("detectCommentedOutLogic", () => {
 		expect(detectCommentedOutLogic(PROSE_DIFF)).toEqual([]);
 	});
 
+	describe("SQL `--` in the middle of the line", () => {
+		// Shape of api-licitacao MR 6287: SQL inside a Java text block whose
+		// opening `"""` is outside the hunk.
+		const JAVA_SQL_DIFF = `diff --git a/src/BiddingResultFilterImpl.java b/src/BiddingResultFilterImpl.java
+--- a/src/BiddingResultFilterImpl.java
++++ b/src/BiddingResultFilterImpl.java
+@@ -445,6 +445,6 @@ public class BiddingResultFilterImpl {
+ 				inner join contrato c on c.id = ca.contrato_id
+-				inner join tab_temp ttsi on cai.item_id = ttsi.id and c.fornecedor_uuid = ttsi.fornecedorUuid
++				inner join tab_temp ttsi on cai.item_id = ttsi.id --and c.fornecedor_uuid = ttsi.fornecedorUuid
+ 				,valor_aditivos as(
+ 					select
+-						cai.fornecedorUuid as fornecedorUuid,
++						--cai.fornecedorUuid as fornecedorUuid,
+ 						sum(cai.quantidade * cai.valor) as valor_aditivos
+ 					from aditivos cai
+-					group by cai.solicitacao_item_id, cai.fornecedorUuid
++					group by cai.solicitacao_item_id--, cai.fornecedorUuid
+ 				)
+`;
+
+		test("flags a commented join condition, SELECT column and GROUP BY column", () => {
+			const f = detectCommentedOutLogic(JAVA_SQL_DIFF);
+			expect(f.map((x) => [x.line, x.category])).toEqual([
+				[446, "business-rule"],
+				[449, "correctness"],
+				[452, "business-rule"],
+			]);
+			expect(f[0].issue).toContain("a WHERE/filter clause");
+			expect(f[1].issue).toContain("a SELECT column");
+			expect(f[2].issue).toContain("a GROUP BY/ORDER BY column");
+			expect(f[2].issue).toContain("cai.fornecedorUuid");
+		});
+
+		test("flags it in .sql files, @Query strings and Java text blocks", () => {
+			const diff = `diff --git a/db/q.sql b/db/q.sql
+--- a/db/q.sql
++++ b/db/q.sql
+@@ -1,1 +1,2 @@
+ select a from t
++where t.x = 1 -- and t.y = 2
+diff --git a/src/Repo.java b/src/Repo.java
+--- a/src/Repo.java
++++ b/src/Repo.java
+@@ -10,1 +10,6 @@
+ class Repo {
++    @Query(value = "select * from lr where lr.a = :a --and lr.flag = 'S' ", nativeQuery = true)
++    String SQL = """
++        select x.id,
++               x.total--, x.fornecedor
++        """;
+`;
+			const f = detectCommentedOutLogic(diff);
+			expect(f.map((x) => `${x.file}:${x.line}`)).toEqual([
+				"db/q.sql:2",
+				"src/Repo.java:11",
+				"src/Repo.java:14",
+			]);
+		});
+
+		test("does not treat decrements, CLI flags or quoted `--` as SQL comments", () => {
+			const diff = `diff --git a/src/A.java b/src/A.java
+--- a/src/A.java
++++ b/src/A.java
+@@ -1,1 +1,7 @@
+ class A {
++    for (int i = n; i >= 0; i--) { total--; }
++    f(i--, j.value);
++    while (n-- > 0) { x = count--, y.z; }
++    --i;
++    args.includes("--help");
++    String s = "a--, b.c";
+diff --git a/db/q.sql b/db/q.sql
+--- a/db/q.sql
++++ b/db/q.sql
+@@ -1,1 +1,3 @@
+ select 1
++where t.name = '--, t.other'
++select t.total -- the running total, see t.notes
+diff --git a/docs/a.md b/docs/a.md
+--- a/docs/a.md
++++ b/docs/a.md
+@@ -1,1 +1,2 @@
+ # A
++and then -- see config.yml, x.y
+diff --git a/run.sh b/run.sh
+--- a/run.sh
++++ b/run.sh
+@@ -1,1 +1,2 @@
+ #!/bin/sh
++set -- a.b c.d,
+`;
+			expect(detectCommentedOutLogic(diff)).toEqual([]);
+		});
+	});
+
 	test("ignores removed lines and empty diffs", () => {
 		expect(detectCommentedOutLogic("")).toEqual([]);
 		expect(

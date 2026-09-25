@@ -41,7 +41,7 @@
       "cited": "business-rule@592/High",
       "tokens": 210894,
       "ms": 90675,
-      "note": "pre-check deterministico de logica comentada NAO disparou: o SQL comenta com -- no meio da linha (group by x--, y) e em coluna do select, fora dos padroes de commented-out.ts"
+      "note": "pre-check deterministico de logica comentada NAO disparou: o SQL comenta com -- no meio da linha (group by x--, y) e em coluna do select, fora dos padroes de commented-out.ts (coberto depois: SQL -- no meio da linha e coluna de select, 16 avisos neste fixture incluindo a linha 592)"
     }
   ],
   "cases": [
