@@ -351,6 +351,31 @@ describe("parseReviewerResponse", () => {
 			expect(parseReviewerResponse(response)).toBeNull();
 		});
 
+		test("a valid ```json example in the prose before the decision does not hide it", () => {
+			const example = '```json\n{ "note": "example of a config the change reads" }\n```';
+			const response = `Summary. The config looks like:\n\n${example}\n\n<!-- REVIEWER_DECISION -->\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.harness_action).toBe("BLOCK");
+		});
+
+		test("without markers, the LAST decision-shaped fence wins over an earlier example", () => {
+			const example = '```json\n{ "harness_action": "APPROVE", "metrics": { "total_findings": 0, "critical_high_count": 0 }, "findings": [] }\n```';
+			const response = `The format is:\n\n${example}\n\nMy decision:\n\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\``;
+			const result = parseReviewerResponse(response);
+			expect(result!.harness_action).toBe("BLOCK");
+		});
+
+		test("between markers, prose json then the decision fence parses the decision", () => {
+			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n{ "a": 1 }\n\`\`\`\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			expect(parseReviewerResponse(response)!.harness_action).toBe("BLOCK");
+		});
+
+		test("valid json fences with no decision shape are still rejected", () => {
+			const response = 'Here:\n```json\n{ "a": 1 }\n```\nand\n```json\n[1, 2]\n```';
+			expect(parseReviewerResponse(response)).toBeNull();
+		});
+
 		test("does not stitch JSON across prose between two fences", () => {
 			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n{ "harness_action": "BLOCK",\n\`\`\`\nsome prose\n\`\`\`json\n"metrics": {} }\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
 			expect(parseReviewerResponse(response)).toBeNull();

@@ -26,16 +26,12 @@ export function parseReviewerResponse(
 	const startIdx = response.indexOf(REVIEWER_DECISION_START);
 	const endIdx = response.indexOf(REVIEWER_DECISION_END);
 	if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-		const parsed = parseJsonFence(response, /```json\s*\n/);
-		return parsed === undefined ? null : validateReviewerDecision(parsed);
+		return lastDecisionFence(response);
 	}
 	const jsonBlock = response
 		.substring(startIdx + REVIEWER_DECISION_START.length, endIdx)
 		.trim();
-	if (jsonBlock.includes("```json")) {
-		const parsed = parseJsonFence(jsonBlock, /```json\s*\n?/);
-		return parsed === undefined ? null : validateReviewerDecision(parsed);
-	}
+	if (jsonBlock.includes("```json")) return lastDecisionFence(jsonBlock);
 	try {
 		return validateReviewerDecision(JSON.parse(jsonBlock));
 	} catch {
@@ -43,17 +39,33 @@ export function parseReviewerResponse(
 	}
 }
 /**
- * Parses the first ```json fence. The closing fence is the first ``` after
- * the opening one whose body is valid JSON, not simply the first ```: a
- * reviewer often puts a ```java/```diff block inside a "suggestion" string,
- * and stopping there would drop the whole decision (and a BLOCK with it).
- * Only a body that JSON.parse accepts is returned, so prose between two
- * fences is never stitched into a decision.
+ * The decision in the LAST ```json fence that parses AND has the shape of a
+ * decision. A reviewer often quotes a ```json example (a config, a payload,
+ * even a sample decision) in its prose before the real verdict; taking the
+ * first fence turned that into a null parse — and a BLOCK into an
+ * "unparseable chunk". Fences that parse but are not decisions are skipped;
+ * with none left the result is null, so garbage is still rejected.
  */
-function parseJsonFence(text: string, open: RegExp): unknown | undefined {
-	const match = open.exec(text);
-	if (!match) return undefined;
-	const bodyStart = match.index + match[0].length;
+function lastDecisionFence(text: string): ReviewerDecision | null {
+	const open = /```json[ \t]*\r?\n?/g;
+	let found: ReviewerDecision | null = null;
+	for (let m = open.exec(text); m !== null; m = open.exec(text)) {
+		const parsed = parseJsonFenceAt(text, m.index + m[0].length);
+		if (parsed === undefined) continue;
+		const decision = validateReviewerDecision(parsed);
+		if (decision) found = decision;
+	}
+	return found;
+}
+/**
+ * Parses the ```json fence whose body starts at `bodyStart`. The closing
+ * fence is the first ``` after the opening one whose body is valid JSON, not
+ * simply the first ```: a reviewer often puts a ```java/```diff block inside
+ * a "suggestion" string, and stopping there would drop the whole decision
+ * (and a BLOCK with it). Only a body that JSON.parse accepts is returned, so
+ * prose between two fences is never stitched into a decision.
+ */
+function parseJsonFenceAt(text: string, bodyStart: number): unknown | undefined {
 	for (
 		let close = text.indexOf("```", bodyStart);
 		close !== -1;
