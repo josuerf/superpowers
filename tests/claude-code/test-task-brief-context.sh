@@ -237,6 +237,24 @@ main() {
         fail "task-brief without task-brief-context next to it degrades to the plain brief (rc $bare_rc)"
     fi
 
+    # --- a failing task-brief-context does not abort the brief ---
+    local broken="$TEST_ROOT/broken"
+    mkdir -p "$broken"
+    cp "$SDD_SCRIPTS/task-brief" "$SDD_SCRIPTS/sdd-workspace" "$broken/"
+    printf '#!/usr/bin/env bash\necho "# Context envelope PARTIAL"\nexit 1\n' > "$broken/task-brief-context"
+    local broken_out="$TEST_ROOT/broken.md" broken_err="$TEST_ROOT/broken.err" broken_rc=0
+    (cd "$repo" && bash "$broken/task-brief" full.md 1-2 "$broken_out" >/dev/null 2>"$broken_err") || broken_rc=$?
+    if [[ "$broken_rc" -eq 0 ]] && grep -q TASK-ONE-BODY "$broken_out" && grep -q TASK-TWO-BODY "$broken_out"; then
+        pass "failing task-brief-context: brief still carries every task"
+    else
+        fail "failing task-brief-context: brief still carries every task (rc $broken_rc)"
+    fi
+    if grep -qi 'task-brief-context failed' "$broken_err" && ! grep -q 'PARTIAL' "$broken_out"; then
+        pass "failing task-brief-context: warning on stderr, no partial envelope in the brief"
+    else
+        fail "failing task-brief-context: warning on stderr, no partial envelope in the brief"
+    fi
+
     echo ""
     if [[ "$FAILURES" -ne 0 ]]; then
         echo "FAILED: $FAILURES assertion(s)."
