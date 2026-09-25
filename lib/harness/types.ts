@@ -166,6 +166,26 @@ export interface ReviewPlan {
 	totalChunks: number;
 	stacks: string[];
 	chunks: ReviewChunk[];
+	/**
+	 * Present only when the change's plan declares `Risk flags` other than
+	 * none and `carrasco.redTeamEnabled` is true.
+	 */
+	redTeam?: RedTeamDispatch;
+	/**
+	 * Warnings from deterministic diff checks (today: logic commented out
+	 * instead of removed). Never blocking on their own.
+	 */
+	deterministicFindings?: ReviewerFinding[];
+}
+
+/** One extra red-team dispatch, triggered by the plan's `Risk flags`. */
+export interface RedTeamDispatch {
+	agent: string;
+	flags: string[];
+	focusCategories: string[];
+	/** Dispatch together with the carrasco chunks (true) or after them. */
+	parallel: boolean;
+	prompt: string;
 }
 
 export interface ChunkVerdict {
@@ -343,13 +363,21 @@ export type ReviewerSeverity = "Critical" | "High" | "Medium" | "Low";
  * `security` and `governance` escalate to BLOCK at any severity - see
  * `aggregateCarrascoResponses`. The category describes the type of the
  * problem, never its weight.
+ *
+ * `business-rule` is code that is technically correct but produces the wrong
+ * result under the domain's rule (a vanished tenant/fiscal-year filter, an
+ * export that no longer matches the rule that generated it). It deliberately
+ * does NOT escalate: it goes through `severityThreshold` like `correctness`.
+ * Without the label a reviewer that saw the problem had no name for it, and
+ * the parser used to drop the category, demoting it to `maintainability`.
  */
 export type FindingCategory =
 	| "security"
 	| "governance"
 	| "correctness"
 	| "maintainability"
-	| "test";
+	| "test"
+	| "business-rule";
 export interface ReviewerFinding {
 	severity: ReviewerSeverity;
 	/**

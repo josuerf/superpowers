@@ -127,6 +127,11 @@ Subagent (general-purpose):
     If you find issues with the plan itself rather than the implementation,
     say so.
 
+    **What would prove you wrong:** before closing the report, name the
+    evidence that would overturn your main finding, and say whether you
+    looked for it. A finding whose refutation was not attempted goes into
+    the report with that caveat written. <!-- [fork] -->
+
     ## Output Format
 
     ### Strengths
