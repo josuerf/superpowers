@@ -284,5 +284,100 @@ assert "invalid mode blocks" "true" "$(has "$(runhook "$D")" '"decision":"block"
 rm -rf "$D"
 
 echo ""
+echo "test-verify-on-stop: projectRoots glob and baseRef range (M3)"
+
+# A workspace whose products are separate repositories ignored by the
+# workspace git (projects/*/ in .gitignore), each with its own history.
+WS=$(mk)
+mkdir -p "$WS/projects/x/src" "$WS/projects/y/src" "$WS/projects/.hidden"
+printf 'projects/*/\n' > "$WS/.gitignore"
+printf '<project/>\n'         > "$WS/projects/x/pom.xml"
+printf 'class A {}\n'         > "$WS/projects/x/src/A.java"
+printf '{"name":"y"}'         > "$WS/projects/y/package.json"
+printf 'export const y = 1\n' > "$WS/projects/y/src/y.ts"
+gitinit "$WS/projects/x"
+git -C "$WS/projects/x" branch -M main >/dev/null 2>&1
+gitinit "$WS/projects/y"
+gitinit "$WS"
+
+# 32. "projects/*" expands to every (non-hidden) project directory
+cfg "$WS" '{"verifyOnStop":{"projectRoots":["projects/*"]}}'
+assert "glob projectRoots expands to both projects" '["projects/x","projects/y"]' \
+  "$(hookcall resolveVerifyRoots '["{WS}", []]')"
+
+# 33. A modified .java inside an ignored nested repo is seen through the glob root
+printf 'class A { int v; }\n' > "$WS/projects/x/src/A.java"
+assert "ignored nested repo change is visible" "true" \
+  "$(has "$(hookcall getChangedSourceFiles '["{WS}/projects/x", null]')" "projects/x/src/A.java")"
+
+# 34. Once committed on a branch, the change disappears from the working tree...
+git -C "$WS/projects/x" checkout -qb feature >/dev/null 2>&1
+git -C "$WS/projects/x" -c user.email=t@t -c user.name=t commit -qam work >/dev/null 2>&1
+assert "committed change invisible without baseRef" "false" \
+  "$(has "$(hookcall getChangedSourceFiles '["{WS}/projects/x", null]')" "src/A.java")"
+# 35. ... but the branch range still reports it
+assert "committed change visible with baseRef" "true" \
+  "$(has "$(hookcall getChangedSourceFiles '["{WS}/projects/x", "main"]')" "src/A.java")"
+# 36. A baseRef that does not exist degrades to the working tree without failing
+assert "missing baseRef degrades to working tree" "[]" \
+  "$(hookcall getChangedSourceFiles '["{WS}/projects/x", "origin/main"]')"
+# 37. getBaseRef reads the config
+cfg "$WS" '{"verifyOnStop":{"baseRef":"origin/main"}}'
+assert "getBaseRef reads verifyOnStop.baseRef" "origin/main"   "$(node -e "process.stdout.write(String(require(process.argv[1]).getBaseRef(process.argv[2])))" "$HOOK" "$WS" 2>/dev/null)"
+
+rm -rf "$WS" 2>/dev/null
+
+echo ""
+echo "test-verify-on-stop: deep stack detection and fail-closed (M4)"
+
+WS=$(mk)
+mkdir -p "$WS/projects/api-x/backend/src" "$WS/projects/api-y/src"
+printf '<project/>\n'  > "$WS/projects/api-x/backend/pom.xml"
+printf 'class B {}\n'  > "$WS/projects/api-x/backend/src/B.java"
+printf 'class C {}\n'  > "$WS/projects/api-y/src/C.java"
+
+# 38. A manifest two levels below a declared root is found
+assert "manifest at depth 2 is found" '"projects/api-x/backend"' \
+  "$(hookcall findStackDirDeep '["{WS}/projects/api-x"]')"
+# 39. The changed file's own manifest directory is what gets verified
+assert "changed file resolves to its manifest dir" '["projects/api-x/backend"]' \
+  "$(hookcall resolveDeclaredVerifyDirs '["{WS}/projects/api-x", ["{WS}/projects/api-x/backend/src/B.java"]]')"
+# 40. A declared root with no manifest at all resolves to nothing (fail closed)
+assert "declared root without manifest -> []" "[]" \
+  "$(hookcall resolveDeclaredVerifyDirs '["{WS}/projects/api-y", ["{WS}/projects/api-y/src/C.java"]]')"
+rm -rf "$WS" 2>/dev/null
+
+# End to end: projects/api-y has a changed .java and no manifest anywhere.
+m4_ws() {
+  local d; d=$(mk)
+  mkdir -p "$d/projects/api-y/src"
+  printf 'class C {}\n' > "$d/projects/api-y/src/C.java"
+  printf '.superpowers/\n' > "$d/.gitignore"
+  gitinit "$d"
+  printf 'class C { int v; }\n' > "$d/projects/api-y/src/C.java"
+  echo "$d"
+}
+
+# 41. Declared + block -> blocks with the configuration-defect message
+D=$(m4_ws); cfg "$D" '{"verifyOnStop":{"minFiles":1,"projectRoots":["projects/*"]}}'
+OUT=$(runhook "$D")
+assert "declared undetected stack blocks" "true" "$(has "$OUT" '"decision":"block"')"
+assert "block names the configuration defect" "true" "$(has "$OUT" "configuration defect")"
+rm -rf "$D"
+
+# 42. Declared + warn -> {} and a gate-log line
+D=$(m4_ws); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"warn","projectRoots":["projects/*"]}}'
+OUT=$(runhook "$D")
+assert "declared undetected stack in warn returns {}" "{}" "$OUT"
+assert "declared undetected stack in warn is logged" "true" \
+  "$(has "$(cat "$D/.superpowers/gate-log.jsonl" 2>/dev/null)" "undetected stack")"
+rm -rf "$D"
+
+# 43. Not declared -> fails open exactly as before
+D=$(m4_ws); cfg "$D" '{"verifyOnStop":{"minFiles":1}}'
+assert "undeclared undetected stack fails open" "{}" "$(runhook "$D")"
+rm -rf "$D"
+
+echo ""
 echo "test-verify-on-stop: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

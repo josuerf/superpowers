@@ -267,6 +267,59 @@ function getUncommittedSourceFiles(dir) {
   }
 }
 
+// merge-base(baseRef, HEAD) in the repository that owns `dir`, or null when the
+// ref does not resolve there (no origin/main in a fresh clone, a repo with no
+// commits, not a repo at all). Each nested repository answers for itself, since
+// every project of a workspace has its own origin.
+function resolveMergeBase(dir, baseRef) {
+  if (!baseRef) return null;
+  try {
+    const res = spawnSync('git', ['merge-base', baseRef, 'HEAD'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    if (res.status !== 0 || res.error) return null;
+    const sha = (res.stdout || '').trim();
+    return sha || null;
+  } catch {
+    return null;
+  }
+}
+
+// Changed source files under `dir`: the working tree (as above) plus, when a
+// baseRef is configured, everything committed on the branch since
+// merge-base(baseRef, HEAD). Without the range, committing a change hid it from
+// the gate. A baseRef that does not resolve degrades to the working tree only.
+function getChangedSourceFiles(dir, baseRef) {
+  const files = getUncommittedSourceFiles(dir);
+  if (!baseRef) return files;
+  const root = realPath(dir || process.cwd());
+  const mergeBase = resolveMergeBase(root, baseRef);
+  if (!mergeBase) return files;
+  try {
+    const res = spawnSync('git', ['diff', '--name-only', `${mergeBase}..HEAD`], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    if (res.status !== 0 || res.error) return files;
+    const top = realPath(gitTopLevel(root) || root);
+    const seen = new Set(files.map((f) => normalizeCase(f)));
+    for (const line of (res.stdout || '').split('\n')) {
+      const rel = line.trim();
+      if (!rel || shouldExclude(rel)) continue;
+      const abs = path.resolve(top, rel);
+      if (!isInside(abs, root) || seen.has(normalizeCase(abs))) continue;
+      seen.add(normalizeCase(abs));
+      files.push(abs);
+    }
+    return files;
+  } catch {
+    return files;
+  }
+}
+
 // Editing tools whose targets count as "changes this session made".
 const SESSION_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 
@@ -379,21 +432,82 @@ function findProjectRoot(file, cwdAbs) {
   }
 }
 
+// `*` / `?` inside one path segment, matching directory names only. Enough for
+// "projects/*" without pulling a glob library into a dependency-free hook.
+function segmentToRegExp(segment) {
+  const body = segment
+    .split('')
+    .map((ch) => {
+      if (ch === '*') return '.*';
+      if (ch === '?') return '.';
+      return ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    })
+    .join('');
+  return new RegExp(`^${body}$`, process.platform === 'win32' ? 'i' : '');
+}
+
+function isDirectory(p) {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+// Expand one projectRoots entry to absolute directory paths. An entry without
+// wildcards comes back as-is (existence is checked by the caller); a segment
+// with wildcards is matched against the directories present, skipping hidden
+// ones, so "projects/*" never picks up projects/.git or a stray file.
+function expandRootPattern(cwdAbs, entry) {
+  if (!/[*?]/.test(entry)) return [path.resolve(cwdAbs, entry)];
+  const start = path.isAbsolute(entry) ? path.parse(entry).root : cwdAbs;
+  const rest = path.isAbsolute(entry) ? entry.slice(start.length) : entry;
+  let current = [start];
+  for (const segment of rest.split(/[\\/]+/).filter(Boolean)) {
+    if (!/[*?]/.test(segment)) {
+      current = current.map((dir) => path.join(dir, segment));
+      continue;
+    }
+    const re = segmentToRegExp(segment);
+    const next = [];
+    for (const dir of current) {
+      let names;
+      try {
+        names = fs.readdirSync(dir);
+      } catch {
+        continue;
+      }
+      for (const name of names.sort()) {
+        if (name.startsWith('.') || !re.test(name)) continue;
+        const child = path.join(dir, name);
+        if (isDirectory(child)) next.push(child);
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
 // Explicit override from .harness.config.json (verifyOnStop.projectRoots), for
 // workspaces where inference is not enough — a project the session edits through
 // generated files, say. Entries are relative to cwd (absolute paths are accepted
-// too) and anything that is not an existing directory inside cwd is dropped, so a
-// stale or malformed entry degrades to inference instead of breaking the gate.
+// too) and may use per-segment wildcards ("projects/*"). Anything that is not an
+// existing directory inside cwd is dropped, so a stale or malformed entry
+// degrades to inference instead of breaking the gate.
 function getDeclaredProjectRoots(cwdAbs) {
   try {
     const configPath = path.join(cwdAbs, '.harness.config.json');
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     const declared = raw && raw.verifyOnStop && raw.verifyOnStop.projectRoots;
     if (!Array.isArray(declared)) return [];
-    const roots = [];
+    const candidates = [];
     for (const entry of declared) {
       if (typeof entry !== 'string' || entry.trim().length === 0) continue;
-      const abs = realPath(path.resolve(cwdAbs, entry));
+      candidates.push(...expandRootPattern(cwdAbs, entry.trim()));
+    }
+    const roots = [];
+    for (const candidate of candidates) {
+      const abs = realPath(candidate);
       if (!isInside(abs, cwdAbs)) continue;
       try {
         if (!fs.statSync(abs).isDirectory()) continue;
@@ -473,15 +587,107 @@ function isUndetectedStackFailure(result) {
   return /Could not detect stack for project/.test(result.stderr || '');
 }
 
+// ── Fail-closed stack detection for declared roots ───────────────────────────
+// When the workspace DECLARES verifyOnStop.projectRoots, someone has stated that
+// a project lives at each of those paths, so "no stack found" is a
+// configuration defect rather than an exotic environment — the gate fails
+// closed there (block mode) or logs it (warn mode). Without a declaration the
+// fail-open behavior above is unchanged. A declared root may keep its build
+// one or more levels down (projects/api/backend/pom.xml), so manifests are
+// searched up to MAX_STACK_DEPTH levels below it.
+const MAX_STACK_DEPTH = 3;
+const DEEP_SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'target', 'bin', 'obj', 'vendor']);
+
+function depthBelow(dir, root) {
+  const rel = path.relative(root, dir);
+  return rel ? rel.split(path.sep).length : 0;
+}
+
+// Nearest directory at or above `file` that has a stack manifest, staying
+// inside `root` and at most MAX_STACK_DEPTH levels below it; null otherwise.
+function nearestManifestDir(file, root) {
+  const rootAbs = realPath(root);
+  let dir = realPath(path.dirname(path.resolve(file)));
+  if (!isInside(dir, rootAbs)) return null;
+  for (;;) {
+    if (depthBelow(dir, rootAbs) <= MAX_STACK_DEPTH && hasStackManifest(dir)) return dir;
+    if (normalizeCase(dir) === normalizeCase(rootAbs)) return null;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+// Shallowest directory under `root` (root included, up to `maxDepth` levels
+// down, breadth-first, hidden and build-output directories skipped) that has a
+// stack manifest; null when there is none.
+function findStackDirDeep(root, maxDepth = MAX_STACK_DEPTH) {
+  let level = [realPath(root)];
+  for (let depth = 0; depth <= maxDepth && level.length > 0; depth++) {
+    const next = [];
+    for (const dir of level) {
+      if (hasStackManifest(dir)) return dir;
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (!e.isDirectory() || e.name.startsWith('.') || DEEP_SKIP_DIRS.has(e.name)) continue;
+        next.push(path.join(dir, e.name));
+      }
+    }
+    level = next;
+  }
+  return null;
+}
+
+// Directories to hand verify-all for a declared root: the manifest directories
+// that own the changed files, else the shallowest manifest found under the
+// root. An empty list means the root has no detectable stack.
+function resolveDeclaredVerifyDirs(root, changedFiles) {
+  const dirs = [];
+  for (const file of changedFiles || []) {
+    const dir = nearestManifestDir(file, root);
+    if (dir && !dirs.some((d) => normalizeCase(d) === normalizeCase(dir))) dirs.push(dir);
+  }
+  if (dirs.length > 0) return dirs;
+  const deep = findStackDirDeep(root);
+  return deep ? [deep] : [];
+}
+
+function buildUndetectedStackMessage(where) {
+  return [
+    `The harness could not detect the stack of ${where}, and this workspace declares`,
+    'verifyOnStop.projectRoots — that is, someone stated that a project lives there.',
+    'This is a configuration defect, not an environment the harness does not know.',
+    'Fix projectRoots or add the stack detector in lib/harness/discovery.ts.',
+  ].join('\n');
+}
+
+function undetectedStackFailure(cwd, dir) {
+  return {
+    root: dir,
+    result: { stdout: '', stderr: buildUndetectedStackMessage(relForLog(cwd, dir)) },
+    reason: 'undetected stack in a declared project root',
+  };
+}
+
 // Carrasco gate — ask the harness CLI whether a fresh, passing carrasco code
 // review exists for the current change set. This is cheap (fingerprint compare),
 // the single source of truth lives in TS, and it fails OPEN on any error so a
 // broken setup never traps the user at session stop.
-function runCarrascoGate(cwd) {
+// With a baseRef, --base is passed so the fingerprint covers the branch range:
+// without it, the fingerprint of a reviewed change set stopped matching the
+// moment that change set was committed.
+function runCarrascoGate(cwd, baseRef) {
   try {
+    const cliArgs = ['tsx', CLI_PATH, 'review', 'gate-status', '--root', cwd];
+    if (baseRef) cliArgs.push('--base', baseRef);
     const result = spawnSync(
       'npx',
-      ['tsx', CLI_PATH, 'review', 'gate-status', '--root', cwd].map(shellQuote),
+      cliArgs.map(shellQuote),
       {
         cwd: cwd || process.cwd(),
         encoding: 'utf8',
@@ -590,16 +796,20 @@ async function main() {
     // Which project(s) this session touched. The transcript is the better signal
     // because it records edits the workspace's own git never sees; git status at
     // cwd is the fallback for harnesses that omit transcript_path.
+    const baseRef = getBaseRef(cwd);
     const touched =
-      sessionEdited !== null ? [...sessionEdited] : getUncommittedSourceFiles(cwd);
+      sessionEdited !== null ? [...sessionEdited] : getChangedSourceFiles(cwd, baseRef);
     const roots = resolveVerifyRoots(cwd, touched);
+    // Fail closed on an undetectable stack only when the roots were declared.
+    const failClosed = getDeclaredProjectRoots(cwd).length > 0;
 
-    // Count uncommitted source changes per root, each read from its own git
-    // repository, then verify only the projects that actually have changes.
+    // Count changed source files per root (working tree, plus the branch range
+    // when baseRef is set), each read from its own git repository, then verify
+    // only the projects that actually have changes.
     const targets = [];
     let sourceFileCount = 0;
     for (const root of roots) {
-      const changed = getUncommittedSourceFiles(root).filter(
+      const changed = getChangedSourceFiles(root, baseRef).filter(
         (f) => sessionEdited === null || sessionEdited.has(normalizePath(cwd, f)),
       );
       sourceFileCount += changed.length;
@@ -614,7 +824,7 @@ async function main() {
     // Carrasco code-review gate (fingerprint-based, runs on every stop with
     // significant changes; not subject to the verify-all TTL guard). Fails open.
     const mode = getGateMode(cwd);
-    const carrasco = runCarrascoGate(cwd);
+    const carrasco = runCarrascoGate(cwd, baseRef);
     if (carrasco && carrasco.block) {
       console.error(`[verify-on-stop] Carrasco gate ${carrasco.gate}: ${carrasco.reason}`);
       if (mode === 'warn') {
@@ -649,36 +859,56 @@ async function main() {
     const failures = [];
     let remainingMs = VERIFY_TOTAL_BUDGET_MS;
 
-    for (const target of targets) {
-      // A root with no stack manifest is a workspace/orchestration directory,
-      // not a project. The harness would "detect" node-std from stray scripts,
-      // run no tests and report 0% coverage — a measurement gap, not a code
-      // problem, so fail open here like the other setup-error cases.
-      if (!hasStackManifest(target.root)) {
-        console.error(
-          `[verify-on-stop] ${target.root} has no stack manifest — nothing for the harness to verify, skipping.`,
-        );
-        continue;
-      }
-      if (remainingMs < MIN_VERIFY_SLICE_MS) {
-        console.error(
-          `[verify-on-stop] verification budget exhausted — ${target.root} not verified.`,
-        );
-        break;
+    outer: for (const target of targets) {
+      let dirs;
+      if (failClosed) {
+        dirs = resolveDeclaredVerifyDirs(target.root, target.changed);
+        if (dirs.length === 0) {
+          console.error(
+            `[verify-on-stop] ${target.root} is a declared project root with no detectable stack — failing closed.`,
+          );
+          failures.push(undetectedStackFailure(cwd, target.root));
+          continue;
+        }
+      } else {
+        // A root with no stack manifest is a workspace/orchestration directory,
+        // not a project. The harness would "detect" node-std from stray scripts,
+        // run no tests and report 0% coverage — a measurement gap, not a code
+        // problem, so fail open here like the other setup-error cases.
+        if (!hasStackManifest(target.root)) {
+          console.error(
+            `[verify-on-stop] ${target.root} has no stack manifest — nothing for the harness to verify, skipping.`,
+          );
+          continue;
+        }
+        dirs = [target.root];
       }
 
-      const startedAt = Date.now();
-      const result = runVerifyAll(target.root, remainingMs);
-      remainingMs -= Date.now() - startedAt;
+      for (const dir of dirs) {
+        if (remainingMs < MIN_VERIFY_SLICE_MS) {
+          console.error(
+            `[verify-on-stop] verification budget exhausted — ${dir} not verified.`,
+          );
+          break outer;
+        }
 
-      if (result.success) continue;
-      if (isUndetectedStackFailure(result)) {
-        console.error(
-          `[verify-on-stop] Harness could not detect a known stack for ${target.root} — nothing to verify, failing open.`,
-        );
-        continue;
+        const startedAt = Date.now();
+        const result = runVerifyAll(dir, remainingMs);
+        remainingMs -= Date.now() - startedAt;
+
+        if (result.success) continue;
+        if (isUndetectedStackFailure(result)) {
+          if (failClosed) {
+            failures.push(undetectedStackFailure(cwd, dir));
+            continue;
+          }
+          console.error(
+            `[verify-on-stop] Harness could not detect a known stack for ${dir} — nothing to verify, failing open.`,
+          );
+          continue;
+        }
+        failures.push({ root: dir, result });
       }
-      failures.push({ root: target.root, result });
     }
 
     setGuard();
@@ -695,7 +925,7 @@ async function main() {
 
     if (mode === 'warn') {
       for (const f of failures) {
-        const target = targets.find((t) => t.root === f.root);
+        const target = targets.find((t) => isInside(f.root, t.root));
         appendGateLog(cwd, {
           repo: relForLog(cwd, f.root),
           reason: f.reason || 'verify-all failed',
@@ -724,6 +954,14 @@ if (require.main === module) {
     shouldFire,
     setGuard,
     getUncommittedSourceFiles,
+    getChangedSourceFiles,
+    resolveMergeBase,
+    expandRootPattern,
+    nearestManifestDir,
+    findStackDirDeep,
+    resolveDeclaredVerifyDirs,
+    buildUndetectedStackMessage,
+    MAX_STACK_DEPTH,
     getSessionEditedFiles,
     normalizePath,
     normalizeCase,
