@@ -373,6 +373,280 @@ function checkSessionLogSize(cwd) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Lessons reminder (plan M, M15)
+//
+// When a session finishes a branch (merge, PR/MR creation, branch or worktree
+// removal) and the SDD ledger carries `Ruling:`, `parked` or `minor (deferred)`
+// lines, remind the agent to propose pattern entries from them before the
+// explanation is lost. This lives in a hook on purpose: the natural home would
+// be finishing-a-development-branch, which is an upstream file the fork keeps
+// untouched.
+//
+// SDD deletes the plan workspace (ledger included) after the final review and
+// BEFORE finishing the branch, so by merge time the live ledger is usually
+// gone. Every Stop therefore snapshots ledgers that hold rulings into the git
+// common dir (never tracked, shared by worktrees, survives `rm -rf <workspace>`);
+// the reminder points at the live ledger when it still exists, else at the
+// snapshot.
+// ---------------------------------------------------------------------------
+
+const LEDGER_ARCHIVE_DIR = 'superpowers-ledgers';
+const LEDGER_ARCHIVE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+const REFLOG_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+// Commands that close out a branch.
+const FINISH_COMMAND_RE =
+  /\bgit\s+(?:-C\s+\S+\s+)?merge\b(?!-)|\bgh\s+pr\s+(?:create|merge)\b|\bglab\s+mr\s+(?:create|merge)\b|\bgit\s+(?:-C\s+\S+\s+)?branch\s+-[dD]\b|\bgit\s+(?:-C\s+\S+\s+)?worktree\s+remove\b/;
+
+function runGit(args, cwd) {
+  try {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 5000 });
+    if (r.status !== 0 || r.error) return '';
+    return (r.stdout || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** Nearest directory at or above startDir that holds .superpowers/sdd, or null. */
+function findSddRoot(startDir) {
+  let dir = path.resolve(startDir);
+  for (;;) {
+    try {
+      if (fs.statSync(path.join(dir, '.superpowers', 'sdd')).isDirectory()) return dir;
+    } catch {
+      // keep walking up
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+/** Ledger files: plan-scoped `<slug>/progress.md` plus legacy flat `progress*.md`. */
+function listLedgers(sddDir) {
+  const out = [];
+  let entries = [];
+  try {
+    entries = fs.readdirSync(sddDir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries) {
+    const full = path.join(sddDir, e.name);
+    if (e.isFile() && /^progress.*\.md$/.test(e.name)) out.push(full);
+    else if (e.isDirectory() && fs.existsSync(path.join(full, 'progress.md'))) {
+      out.push(path.join(full, 'progress.md'));
+    }
+  }
+  return out;
+}
+
+/**
+ * Count ledger lines by kind. A `parked` line also carries `Ruling:`; it is
+ * counted once, as parked, so the totals add up to distinct lines.
+ */
+function countLedgerRulings(content) {
+  const counts = { rulings: 0, parked: 0, deferred: 0 };
+  for (const line of (content || '').split('\n')) {
+    if (/minor \(deferred\)/i.test(line)) counts.deferred++;
+    else if (/:\s*parked\b/.test(line)) counts.parked++;
+    else if (/Ruling:/.test(line)) counts.rulings++;
+  }
+  return counts;
+}
+
+function totalRulings(c) {
+  return c.rulings + c.parked + c.deferred;
+}
+
+function readSafe(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+/** Archive dir for ledger snapshots, inside the git common dir of `root`. */
+function getLedgerArchiveDir(root) {
+  const common = runGit(['rev-parse', '--git-common-dir'], root);
+  if (!common) return null;
+  return path.join(path.resolve(root, common), LEDGER_ARCHIVE_DIR);
+}
+
+/** Snapshot name: the plan workspace slug, or the flat ledger's basename. */
+function ledgerSnapshotName(ledgerPath) {
+  const base = path.basename(ledgerPath);
+  return base === 'progress.md' ? `${path.basename(path.dirname(ledgerPath))}.md` : base;
+}
+
+/**
+ * Copy every live ledger that holds rulings into the archive (only when it
+ * changed), and prune snapshots older than two weeks. Returns the live ledgers
+ * with their counts.
+ */
+function snapshotLedgers(root, archiveDir, nowMs = Date.now()) {
+  const live = [];
+  for (const ledger of listLedgers(path.join(root, '.superpowers', 'sdd'))) {
+    const content = readSafe(ledger);
+    const counts = countLedgerRulings(content);
+    if (totalRulings(counts) === 0) continue;
+    live.push({ path: ledger, counts, mtimeMs: fs.statSync(ledger).mtimeMs });
+    if (!archiveDir) continue;
+    try {
+      fs.mkdirSync(archiveDir, { recursive: true });
+      const dest = path.join(archiveDir, ledgerSnapshotName(ledger));
+      if (readSafe(dest) !== content) fs.writeFileSync(dest, content);
+    } catch {
+      // A failed snapshot must never block Stop
+    }
+  }
+  if (archiveDir) {
+    try {
+      for (const f of fs.readdirSync(archiveDir)) {
+        const full = path.join(archiveDir, f);
+        if (/\.md$/.test(f) && nowMs - fs.statSync(full).mtimeMs > LEDGER_ARCHIVE_MAX_AGE_MS) {
+          fs.unlinkSync(full);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return live;
+}
+
+/** Most recently touched snapshot with rulings, as { path, counts, mtimeMs }. */
+function newestArchivedLedger(archiveDir) {
+  let best = null;
+  try {
+    for (const f of fs.readdirSync(archiveDir)) {
+      if (!/\.md$/.test(f)) continue;
+      const full = path.join(archiveDir, f);
+      const counts = countLedgerRulings(readSafe(full));
+      if (totalRulings(counts) === 0) continue;
+      const mtimeMs = fs.statSync(full).mtimeMs;
+      if (!best || mtimeMs > best.mtimeMs) best = { path: full, counts, mtimeMs };
+    }
+  } catch {
+    // no archive
+  }
+  return best;
+}
+
+/** Bash commands this session ran, read from the transcript (null if unreadable). */
+function getSessionBashCommands(transcriptPath) {
+  if (!transcriptPath) return null;
+  let content;
+  try {
+    content = fs.readFileSync(transcriptPath, 'utf8');
+  } catch {
+    return null;
+  }
+  const commands = [];
+  for (const line of content.split('\n')) {
+    if (!line.includes('tool_use')) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const blocks =
+      entry && entry.message && Array.isArray(entry.message.content)
+        ? entry.message.content
+        : Array.isArray(entry && entry.content) ? entry.content : [];
+    for (const b of blocks) {
+      if (b && b.type === 'tool_use' && b.input && typeof b.input.command === 'string') {
+        commands.push(b.input.command);
+      }
+    }
+  }
+  return commands;
+}
+
+/**
+ * True when this session closed out a branch. The transcript is the source of
+ * truth; without one, fall back to a merge in the reflog within the last two
+ * hours.
+ */
+function sessionFinishedBranch(data, cwd, nowMs = Date.now()) {
+  const commands = getSessionBashCommands(data && data.transcript_path);
+  if (commands) return commands.some(c => FINISH_COMMAND_RE.test(c));
+  const reflog = runGit(['reflog', '-n', '30', '--format=%ct %gs'], cwd);
+  return reflog.split('\n').some(line => {
+    const m = line.match(/^(\d+) (merge\b|pull\b.*merge)/);
+    return m && nowMs - Number(m[1]) * 1000 < REFLOG_WINDOW_MS;
+  });
+}
+
+function toSlash(p) {
+  return p.split(path.sep).join('/');
+}
+
+function buildLessonsReminder(ledger, projectName, pluginRoot) {
+  const c = ledger.counts;
+  return (
+    `Lessons: this branch closes with ${c.rulings} \`Ruling:\` line(s), ${c.parked} \`parked\` and ` +
+    `${c.deferred} \`minor (deferred)\` in the SDD ledger. Before ending, walk through them and ` +
+    'propose (do not record) the entries that survive the error-recovery criterion: the pattern ' +
+    'recurred in 2+ files or 2+ repositories, or review classified it as business-rule. Run:\n\n' +
+    `  npx tsx ${toSlash(pluginRoot)}/tools/patterns/cli.ts record --from-review ${toSlash(ledger.path)} --project ${projectName}\n\n` +
+    'What does not become an entry now never will: the ledger goes away with the plan workspace ' +
+    'and the explanation lives only in your head.'
+  );
+}
+
+/**
+ * The lessons reminder for this Stop, or null. Snapshots ledgers as a side
+ * effect (every Stop), and reminds at most once per session per ledger.
+ */
+function checkLessonsReminder(data, cwd, nowMs = Date.now()) {
+  try {
+    const root = findSddRoot(cwd);
+    const gitRoot = root || cwd;
+    const archiveDir = getLedgerArchiveDir(gitRoot);
+    const live = root ? snapshotLedgers(root, archiveDir, nowMs) : [];
+    // No SDD here and nothing archived: skip reading the transcript at all.
+    if (live.length === 0 && !(archiveDir && fs.existsSync(archiveDir))) return null;
+
+    if (!sessionFinishedBranch(data, cwd, nowMs)) return null;
+
+    const ledger =
+      live.sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ||
+      (archiveDir ? newestArchivedLedger(archiveDir) : null);
+    if (!ledger) return null;
+
+    // Once per session per ledger: the merge command stays in the transcript,
+    // so without this every later Stop in the session would repeat it.
+    if (archiveDir) {
+      const sentFile = path.join(archiveDir, 'reminded.json');
+      let sent = {};
+      try {
+        sent = JSON.parse(readSafe(sentFile) || '{}');
+      } catch {
+        sent = {};
+      }
+      const key = `${data.session_id || 'no-session'}:${ledgerSnapshotName(ledger.path)}`;
+      if (sent[key]) return null;
+      sent[key] = new Date(nowMs).toISOString();
+      try {
+        fs.mkdirSync(archiveDir, { recursive: true });
+        fs.writeFileSync(sentFile, JSON.stringify(sent));
+      } catch {
+        // ignore
+      }
+    }
+
+    const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
+    return buildLessonsReminder(ledger, path.basename(gitRoot), pluginRoot);
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
@@ -398,7 +672,12 @@ function evaluatePayload(data) {
   const edits = getRecentEdits(sessionId);
 
   // File-based guard prevents infinite loop for reminder injection
-  if (!shouldFire()) return {};
+  if (!shouldFire()) {
+    // Still snapshot SDD ledgers: a Stop that shows nothing must not skip it.
+    const root = findSddRoot(cwd);
+    if (root) snapshotLedgers(root, getLedgerArchiveDir(root));
+    return {};
+  }
 
   const reminders = generateReminders(edits, cwd);
 
@@ -423,6 +702,10 @@ function evaluatePayload(data) {
   // Session-log size guard: warn if last 2 [saved] entries exceed token budget
   const sizeWarning = checkSessionLogSize(cwd);
   if (sizeWarning) reminders.push(sizeWarning);
+
+  // Lessons: branch finished with rulings left in the SDD ledger (M15)
+  const lessons = checkLessonsReminder(data, cwd);
+  if (lessons) reminders.push(lessons);
 
   if (reminders.length === 0) return {};
 
@@ -451,6 +734,12 @@ if (require.main === module) {
   main();
 } else {
   module.exports = {
+    buildLessonsReminder,
+    checkLessonsReminder,
+    countLedgerRulings,
+    listLedgers,
+    sessionFinishedBranch,
+    snapshotLedgers,
     checkSessionLogSize,
     checkStateMdStaleness,
     evaluatePayload,

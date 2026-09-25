@@ -251,6 +251,16 @@ export interface HarnessConfig {
 		 */
 		baseRef?: string;
 	};
+	/**
+	 * PreToolUse (Task|Agent) hook that points subagent dispatches at the
+	 * workspace's harness files by path (known-issues.md, architecture maps).
+	 * Opt-in: off unless `enabled` is true. `paths` replaces the default list,
+	 * relative to the config's directory. See hooks/inject-harness-context.js.
+	 */
+	injectHarnessContext?: {
+		enabled: boolean;
+		paths?: string[];
+	};
 	securityScan: {
 		enabled: boolean;
 		tools: Record<string, boolean>;
