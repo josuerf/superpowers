@@ -89,6 +89,9 @@ Subagent (general-purpose):
     YAGNI," "kept it simple deliberately," or any other justification is the
     implementer grading their own work. Judge the code on its merits — a
     stated rationale never downgrades a finding's severity.
+    The implementer's readback of the brief (what it says it understood
+    and will preserve) is self-declaration, not proof: "I said I would keep
+    the invariant" never shows the diff kept it. <!-- [fork] -->
 
     ## Tests
 
