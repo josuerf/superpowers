@@ -379,5 +379,23 @@ assert "undeclared undetected stack fails open" "{}" "$(runhook "$D")"
 rm -rf "$D"
 
 echo ""
+echo "test-verify-on-stop: infrastructure files re-included (M6)"
+
+# excl <path> -> what shouldExclude returns for that path
+excl() {
+  node -e "const m=require(process.argv[1]);process.stdout.write(String(m.shouldExclude(process.argv[2])))" "$HOOK" "$1" 2>/dev/null
+}
+
+assert "helm values.yaml is NOT excluded" "false" "$(excl helm/eprocessos/values.yaml)"
+assert "nested chart template is NOT excluded" "false" "$(excl deploy/charts/api/templates/deployment.yml)"
+assert "k8s manifest is NOT excluded" "false" "$(excl k8s/prod/ingress.yaml)"
+assert "flyway json is NOT excluded" "false" "$(excl db/migration/V2__seed.json)"
+assert "application.yml is NOT excluded" "false" "$(excl src/main/resources/application.yml)"
+assert "package.json is excluded" "true" "$(excl package.json)"
+assert "README.md is excluded" "true" "$(excl README.md)"
+assert "a root docker-compose.yml is still excluded" "true" "$(excl docker-compose.yml)"
+assert "a plain .github workflow yaml is still excluded" "true" "$(excl .github/workflows/ci.yml)"
+
+echo ""
 echo "test-verify-on-stop: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

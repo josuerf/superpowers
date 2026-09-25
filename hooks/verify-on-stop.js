@@ -154,8 +154,23 @@ const EXCLUDED_PATTERNS = [
   /\.git/,
 ];
 
+// Data files that are NOT "just configuration": a wrong Helm chart takes a
+// service down as surely as a NullPointerException. A chart whose values point
+// at another product's image host is invisible to the gate by construction
+// while every .yaml is excluded without exception, so infrastructure,
+// migration and application-resource files are re-included before the
+// exclusion list is consulted.
+const FORCE_INCLUDE_PATTERNS = [
+  /(^|\/)(helm|charts?|k8s|kubernetes|deploy|manifests)\/.*\.ya?ml$/i,
+  /(^|\/)(migrations?|db\/migration|flyway|liquibase)\/.*\.(ya?ml|json|sql)$/i,
+  /(^|\/)src\/main\/resources\/.*\.(ya?ml|properties)$/i,
+];
+
 function shouldExclude(filePath) {
-  return EXCLUDED_PATTERNS.some(p => p.test(filePath));
+  // git reports forward slashes; normalize so an absolute Windows path matches too.
+  const p = String(filePath).replace(/\\/g, '/');
+  if (FORCE_INCLUDE_PATTERNS.some(re => re.test(p))) return false;
+  return EXCLUDED_PATTERNS.some(re => re.test(p));
 }
 
 function shouldFire() {
@@ -985,6 +1000,8 @@ if (require.main === module) {
     MIN_FILES_FOR_VERIFY,
     getMinFilesForVerify,
     EXCLUDED_PATTERNS,
+    FORCE_INCLUDE_PATTERNS,
+    shouldExclude,
     getGateMode,
     getBaseRef,
     appendGateLog,
