@@ -194,7 +194,12 @@ Expected: PASS
 
 ```bash
 git add <files>
-git commit -m "<message>"
+# [fork] SDD trailers: tools/sdd-metrics traces commits to plans by them. Drop SDD-Batch when execution is inline.
+git commit -m "<message>
+
+SDD-Plan: docs/superpowers-prepared/plans/<plan-file>.md
+SDD-Task: <N>
+SDD-Batch: <N>-<M>"
 ```
 ````
 

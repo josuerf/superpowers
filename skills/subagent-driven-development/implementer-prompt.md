@@ -46,6 +46,7 @@ Subagent (general-purpose):
     2. Implement only requested scope.
     3. Run task verification commands.
     4. Commit changes.
+       Keep the plan's `SDD-Plan:`/`SDD-Task:` trailers and set `SDD-Batch:` to your brief's task range. <!-- [fork] -->
     5. Perform a self-review before reporting. If self-review finds fixable issues: fix them, re-run verification, then include findings in report.
 
     If you have questions about:
