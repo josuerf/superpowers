@@ -467,12 +467,19 @@ async function runReview(): Promise<void> {
 async function recordReviewPatterns(cwd: string, report: { feature: string; findings: import("../../lib/harness/types.js").ReviewerFinding[] }): Promise<void> {
 	try {
 		const { PatternCatalog } = await import("../../lib/patterns/catalog.js");
-		const { loadPatternsConfig, resolveWikiPaths } = await import("../../lib/patterns/config.js");
+		const { loadPatternsConfig, resolveReviewPatternsWiki } = await import("../../lib/patterns/config.js");
 		const { recordFindings } = await import("../../lib/patterns/record.js");
 		const { parseDecisionJson } = await import("../../lib/patterns/review-sources.js");
 		const cfg = loadPatternsConfig(cwd);
 		if (!cfg.enabled || report.findings.length === 0) return;
-		const wiki = resolveWikiPaths(cfg, cwd).global;
+		// The project's wiki, never the global one (see resolveReviewPatternsWiki).
+		const wiki = resolveReviewPatternsWiki(cfg, cwd);
+		if (!wiki) {
+			console.log(
+				`  Patterns record skipped: no project patterns wiki in ${cwd} (.superpowers/patterns-wiki or docs/superpowers-prepared/patterns-wiki)`,
+			);
+			return;
+		}
 		const project = path.basename(cwd);
 		const findings = parseDecisionJson(JSON.stringify({ feature: report.feature, findings: report.findings }), project);
 		const s = recordFindings(findings, new PatternCatalog(wiki, wiki), cfg, {

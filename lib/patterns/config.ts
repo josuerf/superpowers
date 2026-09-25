@@ -57,3 +57,28 @@ export function resolveWikiPaths(config: PatternsConfig, projectRoot: string): W
 
   return { global: globalPath, project: projectWiki };
 }
+
+/**
+ * Where `review aggregate` records the verdict's Critical/High findings as
+ * pending patterns (M13): the PROJECT's wiki, never the global one. A review
+ * finding is evidence about this codebase; writing it to ~/.superpowers by
+ * default spread one project's pending entries into every other project's
+ * catalog. The project wiki is the one resolveWikiPaths names
+ * (<root>/.superpowers/patterns-wiki), or docs/superpowers-prepared/patterns-wiki
+ * where a project keeps it versioned. Only an existing directory counts —
+ * null means "no project wiki here, skip recording".
+ */
+export function resolveReviewPatternsWiki(config: PatternsConfig, projectRoot: string): string | null {
+  const candidates = [
+    resolveWikiPaths(config, projectRoot).project,
+    path.join(projectRoot, "docs", "superpowers-prepared", "patterns-wiki"),
+  ];
+  for (const dir of candidates) {
+    try {
+      if (fs.statSync(dir).isDirectory()) return dir;
+    } catch {
+      // not there
+    }
+  }
+  return null;
+}
