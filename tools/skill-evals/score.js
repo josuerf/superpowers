@@ -8,6 +8,7 @@
  * Com dois arquivos, imprime a comparacao antes/depois lado a lado.
  */
 const fs = require('fs');
+const { runChecks } = require('./checks');
 
 // --- deteccao: oferta do visual companion ------------------------------------
 // Um termo visual sozinho nao e oferta ("vamos discutir o layout" nao e).
@@ -173,6 +174,32 @@ function scoreExecution(suite) {
   };
 }
 
+// --- suites por caso: checks declarados no JSON (checks.js) --------------------
+function scoreChecks(suite) {
+  const { runs, discarded, all } = usableRuns(suite);
+  const byCase = new Map();
+  const byCheck = new Map();
+  for (const r of runs) {
+    const res = runChecks(r.checks, r);
+    if (!byCase.has(r.caseId)) byCase.set(r.caseId, { n: 0, pass: 0, fails: new Map() });
+    const c = byCase.get(r.caseId);
+    c.n += 1;
+    if (res.pass) c.pass += 1;
+    for (const x of res.results) {
+      const key = `${r.caseId}/${x.id}`;
+      if (!byCheck.has(key)) byCheck.set(key, { n: 0, pass: 0, detail: new Set() });
+      const k = byCheck.get(key);
+      k.n += 1;
+      if (x.pass) k.pass += 1; else k.detail.add(x.detail);
+    }
+  }
+  const rows = [...byCase].map(([id, c]) => ({ id, n: c.n, pass: c.pass, rate: pct(c.pass, c.n) }));
+  const checks = [...byCheck].map(([id, k]) => ({ id, n: k.n, pass: k.pass, rate: pct(k.pass, k.n), falhas: [...k.detail].join('; ') }));
+  const casePass = rows.reduce((a, r) => a + r.pass, 0);
+  const caseDen = rows.reduce((a, r) => a + r.n, 0);
+  return { kind: 'checks', descartados: discarded, total: all, rows, checks, casosAprovados: { num: casePass, den: caseDen, pct: pct(casePass, caseDen) } };
+}
+
 function totalTokens(data) {
   return data.suites.flatMap((s) => s.runs).reduce((a, r) => a + (r.usage?.total || 0), 0);
 }
@@ -181,7 +208,8 @@ function report(file) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   const out = { file, ref: data.ref, label: data.label, model: data.model, reps: data.reps, tokens: totalTokens(data), suites: {} };
   for (const s of data.suites) {
-    out.suites[s.suite] = s.suite === 'visual-companion' ? scoreVisual(s) : scoreExecution(s);
+    out.suites[s.suite] = s.kind === 'checks' ? scoreChecks(s)
+      : s.suite === 'visual-companion' ? scoreVisual(s) : scoreExecution(s);
   }
   return out;
 }
@@ -210,6 +238,16 @@ function printOne(r) {
     console.log(`  DESVIO CORRETO (casos com razao plantada): ${e.desvioCorreto.pct}  [${e.desvioCorreto.num}/${e.desvioCorreto.den}]`);
     console.log(`  nao classificado: ${e.naoClassificado.pct}`);
   }
+  for (const [name, c] of Object.entries(r.suites)) {
+    if (c.kind !== 'checks') continue;
+    console.log(`
+-- ${name} --${c.descartados ? `  (${c.descartados} execucao(oes) sem resposta descartada(s))` : ''}`);
+    for (const row of c.rows) console.log(`  ${row.id.padEnd(32)} caso aprovado ${row.pass}/${row.n} (${row.rate})`);
+    for (const k of c.checks) {
+      console.log(`    ${k.id.padEnd(52)} ${k.pass}/${k.n}${k.falhas ? '  [' + k.falhas + ']' : ''}`);
+    }
+    console.log(`  CASOS APROVADOS (todos os checks): ${c.casosAprovados.pct}  [${c.casosAprovados.num}/${c.casosAprovados.den}]`);
+  }
 }
 
 const files = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -231,6 +269,11 @@ if (reports.length === 2) {
   if (a.suites['execution-choice'] && b.suites['execution-choice']) {
     line('aderencia ao default', a.suites['execution-choice'].aderenciaDefault.pct, b.suites['execution-choice'].aderenciaDefault.pct);
     line('desvio correto (com a razao)', a.suites['execution-choice'].desvioCorreto.pct, b.suites['execution-choice'].desvioCorreto.pct);
+  }
+  for (const name of Object.keys(a.suites)) {
+    if (a.suites[name].kind === 'checks' && b.suites[name]?.kind === 'checks') {
+      line(`${name}: casos aprovados`, a.suites[name].casosAprovados.pct, b.suites[name].casosAprovados.pct);
+    }
   }
   line('tokens gastos no eval', a.tokens.toLocaleString(), b.tokens.toLocaleString());
   console.log('\n  Nota: com poucas repeticoes, diferencas de poucos pontos percentuais nao sao sinal.');
