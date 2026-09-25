@@ -9,6 +9,7 @@
  */
 const fs = require('fs');
 const { runChecks } = require('./checks');
+const { classify } = require('./business-rule-detector');
 
 // --- deteccao: oferta do visual companion ------------------------------------
 // Um termo visual sozinho nao e oferta ("vamos discutir o layout" nao e).
@@ -200,6 +201,39 @@ function scoreChecks(suite) {
   return { kind: 'checks', descartados: discarded, total: all, rows, checks, casosAprovados: { num: casePass, den: caseDen, pct: pct(casePass, caseDen) } };
 }
 
+function scoreBusinessRule(suite) {
+  const byCase = new Map();
+  for (const r of usableRuns(suite).runs) {
+    if (!byCase.has(r.caseId)) byCase.set(r.caseId, { meta: r, runs: [] });
+    byCase.get(r.caseId).runs.push(classify(r.text, r.expected));
+  }
+  const count = (runs, v) => runs.filter((x) => x.verdict === v).length;
+  let hits = 0, sevOk = 0, noBlock = 0, harnessLoses = 0, all = 0;
+  const rows = [];
+  for (const [id, c] of byCase) {
+    const n = c.runs.length;
+    const h = count(c.runs, 'hit');
+    all += n; hits += h; noBlock += count(c.runs, 'noBlock');
+    sevOk += c.runs.filter((x) => x.verdict === 'hit' && x.severityOk).length;
+    harnessLoses += c.runs.filter((x) => x.verdict !== 'noBlock' && !x.harnessParses).length;
+    rows.push({
+      id, mechanism: c.meta.mechanism, n, hits: h, rate: pct(h, n),
+      wrongCategory: count(c.runs, 'wrongCategory'), wrongLine: count(c.runs, 'wrongLine'),
+      miss: count(c.runs, 'miss'), noBlock: count(c.runs, 'noBlock'),
+      cited: c.runs.map((x) => x.finding ? `${x.finding.category}@${x.finding.line}/${x.finding.severity}` : '-').join(' '),
+    });
+  }
+  return {
+    descartados: usableRuns(suite).discarded,
+    total: usableRuns(suite).all,
+    rows,
+    reencontro: { num: hits, den: all, pct: pct(hits, all) },
+    severidadeOk: { num: sevOk, den: hits, pct: pct(sevOk, hits) },
+    semBloco: { num: noBlock, den: all, pct: pct(noBlock, all) },
+    harnessNaoLeria: { num: harnessLoses, den: all, pct: pct(harnessLoses, all) },
+  };
+}
+
 function totalTokens(data) {
   return data.suites.flatMap((s) => s.runs).reduce((a, r) => a + (r.usage?.total || 0), 0);
 }
@@ -209,7 +243,9 @@ function report(file) {
   const out = { file, ref: data.ref, label: data.label, model: data.model, reps: data.reps, tokens: totalTokens(data), suites: {} };
   for (const s of data.suites) {
     out.suites[s.suite] = s.kind === 'checks' ? scoreChecks(s)
-      : s.suite === 'visual-companion' ? scoreVisual(s) : scoreExecution(s);
+      : s.suite === 'visual-companion' ? scoreVisual(s)
+        : s.suite === 'business-rule' ? scoreBusinessRule(s)
+          : scoreExecution(s);
   }
   return out;
 }
@@ -248,6 +284,17 @@ function printOne(r) {
     }
     console.log(`  CASOS APROVADOS (todos os checks): ${c.casosAprovados.pct}  [${c.casosAprovados.num}/${c.casosAprovados.den}]`);
   }
+  const b = r.suites['business-rule'];
+  if (b) {
+    console.log('\n-- business-rule (carrasco sobre diff real) --');
+    for (const row of b.rows) {
+      console.log(`  ${row.id.padEnd(28)} ${String(row.mechanism).padEnd(22)} achou ${row.hits}/${row.n}  outra-cat ${row.wrongCategory}  outra-linha ${row.wrongLine}  sem-bloco ${row.noBlock}  [${row.cited}]`);
+    }
+    console.log(`  REENCONTRO (arquivo + linha + business-rule): ${b.reencontro.pct}  [${b.reencontro.num}/${b.reencontro.den}]`);
+    console.log(`  severidade >= minima entre os acertos: ${b.severidadeOk.pct}`);
+    console.log(`  sem bloco REVIEWER_DECISION: ${b.semBloco.pct}`);
+    console.log(`  bloco que o parser do harness rejeitaria (cerca dentro da string): ${b.harnessNaoLeria.pct}  [${b.harnessNaoLeria.num}/${b.harnessNaoLeria.den}]`);
+  }
 }
 
 const files = process.argv.slice(2).filter((a) => !a.startsWith('--'));
@@ -274,6 +321,9 @@ if (reports.length === 2) {
     if (a.suites[name].kind === 'checks' && b.suites[name]?.kind === 'checks') {
       line(`${name}: casos aprovados`, a.suites[name].casosAprovados.pct, b.suites[name].casosAprovados.pct);
     }
+  }
+  if (a.suites['business-rule'] && b.suites['business-rule']) {
+    line('reencontro business-rule', a.suites['business-rule'].reencontro.pct, b.suites['business-rule'].reencontro.pct);
   }
   line('tokens gastos no eval', a.tokens.toLocaleString(), b.tokens.toLocaleString());
   console.log('\n  Nota: com poucas repeticoes, diferencas de poucos pontos percentuais nao sao sinal.');

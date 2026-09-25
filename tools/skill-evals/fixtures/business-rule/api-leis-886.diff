@@ -1,0 +1,387 @@
+diff --git a/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/response/integration/planning/InitialForecastSourceExpenseResponse.java b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/response/integration/planning/InitialForecastSourceExpenseResponse.java
+index d2be66e0..5e0e5b14 100644
+--- a/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/response/integration/planning/InitialForecastSourceExpenseResponse.java
++++ b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/response/integration/planning/InitialForecastSourceExpenseResponse.java
+@@ -20,6 +20,9 @@ public class InitialForecastSourceExpenseResponse {
+     @JsonProperty("marcadorStn")
+     public StnMarkerResponse markerStn;
+ 
++    @JsonProperty("emendaParlamentar")
++    public ParliamentaryAmendmentTypeTceResponse parliamentaryAmendmentTypeTce;
++
+     @JsonProperty("grupoFonte")
+     public SourceGroupResponse groupSource;
+ 
+diff --git a/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/common/ExecutorTransacional.java b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/common/ExecutorTransacional.java
+new file mode 100644
+index 00000000..1aebe9f2
+--- /dev/null
++++ b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/common/ExecutorTransacional.java
+@@ -0,0 +1,9 @@
++package br.com.equiplano.nova.asgard.leis.service.common;
++
++import java.util.function.Supplier;
++
++public interface ExecutorTransacional {
++
++    <T> T executar(Supplier<T> acao);
++
++}
+diff --git a/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/common/ExecutorTransacionalSpring.java b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/common/ExecutorTransacionalSpring.java
+new file mode 100644
+index 00000000..f2bc62d3
+--- /dev/null
++++ b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/common/ExecutorTransacionalSpring.java
+@@ -0,0 +1,26 @@
++package br.com.equiplano.nova.asgard.leis.service.impl.common;
++
++import br.com.equiplano.nova.asgard.leis.service.common.ExecutorTransacional;
++import org.springframework.stereotype.Component;
++import org.springframework.transaction.PlatformTransactionManager;
++import org.springframework.transaction.TransactionDefinition;
++import org.springframework.transaction.support.TransactionTemplate;
++
++import java.util.function.Supplier;
++
++@Component
++public class ExecutorTransacionalSpring implements ExecutorTransacional {
++
++    private final TransactionTemplate transacaoIndependente;
++
++    public ExecutorTransacionalSpring(PlatformTransactionManager gerenciadorDeTransacao) {
++        this.transacaoIndependente = new TransactionTemplate(gerenciadorDeTransacao);
++        this.transacaoIndependente.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
++    }
++
++    @Override
++    public <T> T executar(Supplier<T> acao) {
++        return transacaoIndependente.execute(status -> acao.get());
++    }
++
++}
+diff --git a/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImpl.java b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImpl.java
+index b7494392..d46d50b2 100644
+--- a/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImpl.java
++++ b/projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImpl.java
+@@ -23,18 +23,23 @@ import br.com.equiplano.nova.asgard.leis.response.integration.accounting.Contabi
+ import br.com.equiplano.nova.asgard.leis.response.integration.enumeration.ProcessPeriodTypeEnum;
+ import br.com.equiplano.nova.asgard.leis.response.programacaofinanceira.ProgramacaoFinanceiraDespesaResponse;
+ import br.com.equiplano.nova.asgard.leis.response.programacaofinanceira.ProgramacaoFinanceiraResponse;
++import br.com.equiplano.nova.asgard.leis.service.common.ExecutorTransacional;
+ import br.com.equiplano.nova.asgard.leis.service.programacaofinanceira.ProgramacaoFinanceiraService;
+ import br.com.equiplano.nova.asgard.leis.util.HeadersBuilder;
++import br.com.equiplano.nova.asgard.leis.util.TenantContext;
+ import br.com.equiplano.nova.asgard.leis.util.Utils;
+ import br.com.equiplano.nova.asgard.leis.views.programacaofinanceira.ProgramacaoFinanceiraView;
++import feign.FeignException;
+ import lombok.AllArgsConstructor;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
+ import org.springframework.data.domain.PageImpl;
+ import org.springframework.data.domain.PageRequest;
+ import org.springframework.data.domain.Sort;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.stereotype.Service;
++import org.springframework.transaction.support.TransactionSynchronizationManager;
+ 
+-import javax.transaction.Transactional;
+ import java.math.BigDecimal;
+ import java.time.LocalDate;
+ import java.util.ArrayList;
+@@ -42,8 +47,8 @@ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Map;
+-import java.util.Set;
+ import java.util.Objects;
++import java.util.Set;
+ import java.util.stream.Collectors;
+ 
+ import static java.util.Objects.isNull;
+@@ -54,6 +59,14 @@ import static org.springframework.data.domain.Sort.Direction.ASC;
+ @AllArgsConstructor
+ public class ProgramacaoFinanceiraServiceImpl implements ProgramacaoFinanceiraService {
+ 
++    private static final Logger LOGGER = LoggerFactory.getLogger(ProgramacaoFinanceiraServiceImpl.class);
++
++    private static final Integer CRONOGRAMA_DESEMBOLSO_INICIAL = 4;
++    private static final Integer CRONOGRAMA_DESEMBOLSO_ADICIONAL = 5;
++    private static final Integer CRONOGRAMA_DESEMBOLSO_DIMINUTIVO = 6;
++    private static final Set<Integer> TIPOS_OPERACAO_CRONOGRAMA_DESEMBOLSO = Set.of(
++            CRONOGRAMA_DESEMBOLSO_INICIAL, CRONOGRAMA_DESEMBOLSO_ADICIONAL, CRONOGRAMA_DESEMBOLSO_DIMINUTIVO);
++
+     private ProgramacaoFinanceiraMapper mapper;
+     private ProgramacaoFinanceiraRepository repository;
+     private DecreeRepository decreeRepository;
+@@ -62,6 +75,7 @@ public class ProgramacaoFinanceiraServiceImpl implements ProgramacaoFinanceiraSe
+     private TipoOperacaoProgFinanceiraTceRepository tipoOperacaoProgFinanceiraTceRepository;
+     private FonteRecursoRepository fonteRecursoRepository;
+     private ContabilAPI contabilAPI;
++    private ExecutorTransacional transacao;
+ 
+     @Override
+     public PageReturn<List<ProgramacaoFinanceiraDespesaResponse>> list(Integer skip, Integer take, String sort,
+@@ -265,12 +320,6 @@ List<ProgramacaoFinanceiraDespesa> models = new ArrayList<>();
+         }
+     }
+ 
+-    private Map<GroupKey, Set<Long>> obterGruposAfetados(List<ProgramacaoFinanceiraDespesa> models) {
+-        Map<GroupKey, Set<Long>> gruposAfetados = new LinkedHashMap<>();
+-        models.forEach(model -> adicionarGrupoAfetado(gruposAfetados, model));
+-        return gruposAfetados;
+-    }
+-
+     private void adicionarGrupoAfetado(Map<GroupKey, Set<Long>> gruposAfetados, ProgramacaoFinanceiraDespesa model) {
+         GroupKey key = GroupKey.fromModel(model);
+         gruposAfetados.computeIfAbsent(key, ignored -> new LinkedHashSet<>());
+@@ -279,46 +328,94 @@ List<ProgramacaoFinanceiraDespesa> models = new ArrayList<>();
+         }
+     }
+ 
+-    private void sincronizarGruposPersistidos(Map<GroupKey, Set<Long>> gruposAfetados,
+-                                              String exerciseUuid,
+-                                              String entityUuid,
+-                                              String userUuid,
+-                                              String ipOrigem) {
+-        if (gruposAfetados.isEmpty()) {
++    private Map<GroupKey, List<ProgramacaoFinanceiraDespesa>> desvincularGrupos(Map<GroupKey, Set<Long>> gruposAfetados) {
++        Map<GroupKey, List<ProgramacaoFinanceiraDespesa>> gruposPersistidos = new LinkedHashMap<>();
++        gruposAfetados.forEach((groupKey, lancamentosAntigos) ->
++                gruposPersistidos.put(groupKey, desvincularGrupo(groupKey, lancamentosAntigos)));
++        return gruposPersistidos;
++    }
++
++    private List<ProgramacaoFinanceiraDespesa> desvincularGrupo(GroupKey groupKey, Set<Long> lancamentosAntigos) {
++        List<ProgramacaoFinanceiraDespesa> grupoPersistido = buscarGrupoPersistido(groupKey);
++        List<ProgramacaoFinanceiraDespesa> vinculados = new ArrayList<>();
++        grupoPersistido.stream().filter(model -> nonNull(model.getLancamentoContabilId())).forEach(vinculados::add);
++        vinculados.forEach(model -> lancamentosAntigos.add(model.getLancamentoContabilId()));
++        aplicarLancamentoNoGrupo(vinculados, null);
++        return grupoPersistido;
++    }
++
++    private List<ProgramacaoFinanceiraDespesa> buscarGrupoPersistido(GroupKey groupKey) {
++        return repository.findAtivosByGrupo(
++                groupKey.exerciseUuid,
++                groupKey.lei,
++                groupKey.tipoOperacao,
++                groupKey.fonteRecursoUuid,
++                groupKey.dataInclusaoTceProgFinDesp);
++    }
++
++    private void contabilizarGrupos(Map<GroupKey, List<ProgramacaoFinanceiraDespesa>> gruposDesvinculados,
++                                    Map<GroupKey, Set<Long>> gruposAfetados,
++                                    String entityUuid, String userUuid, String ipOrigem) {
++        garantirSemTransacaoAberta();
++        gruposDesvinculados.forEach((groupKey, grupoPersistido) ->
++                contabilizarGrupoPersistido(grupoPersistido, groupKey, gruposAfetados.get(groupKey), entityUuid, userUuid, ipOrigem));
++    }
++
++    private void garantirSemTransacaoAberta() {
++        if (TransactionSynchronizationManager.isActualTransactionActive()) {
++            throw new IllegalStateException(
++                    "A contabilizacao da programacao financeira nao pode rodar dentro de transacao aberta: as linhas travadas bloqueiam o api-contabil.");
++        }
++    }
++
++    private void contabilizarGrupoPersistido(List<ProgramacaoFinanceiraDespesa> models,
++                                             GroupKey groupKey,
++                                             Set<Long> lancamentosAntigos,
++                                             String entityUuid, String userUuid, String ipOrigem) {
++        if (!contabilizavel(groupKey.tipoOperacao)) {
+             return;
+         }
++        ContabilizacaoProgramacaoFinanceiraGrupoRequest contabilRequest = montarRequestContabil(models, groupKey, lancamentosAntigos);
++        Map<String, Object> headers = montarHeaders(groupKey.exerciseUuid, entityUuid, userUuid, ipOrigem);
++        ContabilizacaoProgramacaoFinanceiraGrupoResponse contabilResponse = contabilizarGrupo(contabilRequest, headers, entityUuid);
++        Long novoLancamentoId = nonNull(contabilResponse) ? contabilResponse.getLancamentoContabilId() : null;
++        vincularLancamentoNovo(models, novoLancamentoId, entityUuid);
++    }
+ 
+-        gruposAfetados.forEach((groupKey, lancamentosAntigos) -> {
+-            List<ProgramacaoFinanceiraDespesa> grupoPersistido = repository.findAtivosByGrupo(
+-                    groupKey.exerciseUuid,
+-                    groupKey.lei,
+-                    groupKey.tipoOperacao,
+-                    groupKey.fonteRecursoUuid,
+-                    groupKey.dataInclusaoTceProgFinDesp);
+-            sincronizarLancamentoAgrupado(grupoPersistido, groupKey, lancamentosAntigos, entityUuid, userUuid, ipOrigem);
+-        });
+-    }
+-
+-    private void sincronizarLancamentoAgrupado(List<ProgramacaoFinanceiraDespesa> models,
+-                                               GroupKey groupKey,
+-                                               Set<Long> lancamentosAntigosInformados,
+-                                               String entityUuid,
+-                                               String userUuid,
+-                                               String ipOrigem) {
+-        ProgramacaoFinanceiraDespesa referencia = models.isEmpty() ? null : models.get(0);
+-        FonteRecurso fonteRecurso = fonteRecursoRepository.findByUuid(groupKey.fonteRecursoUuid);
+-        Utils.validateNull(fonteRecurso, "fonte_recurso", groupKey.fonteRecursoUuid);
++    private void vincularLancamentoNovo(List<ProgramacaoFinanceiraDespesa> models, Long novoLancamentoId, String entityUuid) {
++        if (models.isEmpty()) {
++            return;
++        }
++        try {
++            transacao.executar(() -> vincularLancamento(models, novoLancamentoId));
++        } catch (RuntimeException excecao) {
++            registrarFalhaNoVinculo(models, novoLancamentoId, entityUuid, excecao);
++            throw new BaseException(HttpStatus.BAD_REQUEST, mensagemVinculoNaoSalvo(novoLancamentoId));
++        }
++    }
+ 
+-        BigDecimal valorTotal = models.stream()
+-                .map(ProgramacaoFinanceiraDespesa::getValor)
+-                .reduce(BigDecimal.ZERO, BigDecimal::add);
++    private Boolean vincularLancamento(List<ProgramacaoFinanceiraDespesa> models, Long novoLancamentoId) {
++        aplicarLancamentoNoGrupo(models, novoLancamentoId);
++        return Boolean.TRUE;
++    }
++
++    private String mensagemVinculoNaoSalvo(Long novoLancamentoId) {
++        return String.format("Programação financeira gravada e contabilizada (lançamento %d), mas o vínculo com o lançamento não foi salvo. "
++                + "Acione o suporte informando o lançamento %d.", novoLancamentoId, novoLancamentoId);
++    }
++
++    private void registrarFalhaNoVinculo(List<ProgramacaoFinanceiraDespesa> models, Long novoLancamentoId, String entityUuid, RuntimeException excecao) {
++        List<String> uuids = models.stream().map(model -> model.uuid).collect(Collectors.toList());
++        LOGGER.error("Programacao financeira contabilizada, mas o vinculo do lancamento novo nao foi salvo. tenant={} entidade={} exercicio={} "
++                        + "lancamentoNovo={} programacoes={} motivo={}",
++                TenantContext.getCurrentTenant(), entityUuid, models.get(0).exerciseUuid, novoLancamentoId, uuids, excecao.getMessage(), excecao);
++    }
+ 
+-        Set<Long> idsAntigos = new LinkedHashSet<>(models.stream()
+-                .map(ProgramacaoFinanceiraDespesa::getLancamentoContabilId)
+-                .filter(Objects::nonNull)
+-                .distinct()
+-                .collect(Collectors.toList()));
+-        idsAntigos.addAll(lancamentosAntigosInformados);
++    private ContabilizacaoProgramacaoFinanceiraGrupoRequest montarRequestContabil(List<ProgramacaoFinanceiraDespesa> models,
++                                                                                  GroupKey groupKey,
++                                                                                  Set<Long> lancamentosAntigos) {
++        FonteRecurso fonteRecurso = fonteRecursoRepository.findByUuid(groupKey.fonteRecursoUuid);
++        Utils.validateNull(fonteRecurso, "fonte_recurso", groupKey.fonteRecursoUuid);
+ 
+         ContabilizacaoProgramacaoFinanceiraGrupoRequest contabilRequest = new ContabilizacaoProgramacaoFinanceiraGrupoRequest();
+         contabilRequest.setExercicioUuid(groupKey.exerciseUuid);
+@@ -328,25 +425,79 @@ List<ProgramacaoFinanceiraDespesa> models = new ArrayList<>();
+         contabilRequest.setDataInclusaoTce(groupKey.dataInclusaoTceProgFinDesp);
+         contabilRequest.setFonteRecursoUuid(groupKey.fonteRecursoUuid);
+         contabilRequest.setFonteRecursoCodigo(fonteRecurso.codigo.intValue());
+-        contabilRequest.setValorTotal(valorTotal);
++        contabilRequest.setValorTotal(somarValores(models));
+         contabilRequest.setGerarLancamento(!models.isEmpty());
+-        contabilRequest.setLancamentosContabeisSubstituir(new ArrayList<>(idsAntigos));
++        contabilRequest.setLancamentosContabeisSubstituir(new ArrayList<>(lancamentosAntigos));
++        return contabilRequest;
++    }
+ 
+-        Map<String, Object> headers = HeadersBuilder.build()
++    private BigDecimal somarValores(List<ProgramacaoFinanceiraDespesa> models) {
++        return models.stream()
++                .map(ProgramacaoFinanceiraDespesa::getValor)
++                .reduce(BigDecimal.ZERO, BigDecimal::add);
++    }
++
++    private Map<String, Object> montarHeaders(String exerciseUuid, String entityUuid, String userUuid, String ipOrigem) {
++        return HeadersBuilder.build()
+                 .entityUuid(entityUuid)
+-                .exerciseUuid(groupKey.exerciseUuid)
++                .exerciseUuid(exerciseUuid)
+                 .userUuid(userUuid)
+                 .ipOrigem(ipOrigem)
+                 .init();
++    }
++
++    private void aplicarLancamentoNoGrupo(List<ProgramacaoFinanceiraDespesa> models, Long lancamentoContabilId) {
++        if (models.isEmpty()) {
++            return;
++        }
++        models.forEach(model -> model.setLancamentoContabilId(lancamentoContabilId));
++        repository.saveAll(models);
++    }
+ 
+-        ContabilizacaoProgramacaoFinanceiraGrupoResponse contabilResponse = contabilAPI
+-                .contabilizarProgramacaoFinanceiraGrupo(contabilRequest, headers);
++    private ContabilizacaoProgramacaoFinanceiraGrupoResponse contabilizarGrupo(ContabilizacaoProgramacaoFinanceiraGrupoRequest contabilRequest,
++                                                                              Map<String, Object> headers, String entityUuid) {
++        try {
++            return contabilAPI.contabilizarProgramacaoFinanceiraGrupo(contabilRequest, headers);
++        } catch (FeignException excecao) {
++            String motivo = motivoDaFalha(excecao);
++            registrarFalhaNaContabilizacao(contabilRequest, entityUuid, motivo);
++            throw new BaseException(HttpStatus.BAD_REQUEST, mensagemContabilizacaoFalhou(contabilRequest, motivo));
++        }
++    }
+ 
+-        Long novoLancamentoId = nonNull(contabilResponse) ? contabilResponse.getLancamentoContabilId() : null;
+-        if (!models.isEmpty()) {
+-            models.forEach(model -> model.setLancamentoContabilId(novoLancamentoId));
+-            repository.saveAll(models);
++    private String motivoDaFalha(FeignException excecao) {
++        try {
++            Utils.tratarErroFeign(excecao);
++        } catch (BaseException traduzida) {
++            return traduzida.getMessage();
+         }
++        return excecao.status() <= 0 ? "o serviço contábil não respondeu" : excecao.getMessage();
++    }
++
++    private String mensagemContabilizacaoFalhou(ContabilizacaoProgramacaoFinanceiraGrupoRequest contabilRequest, String motivo) {
++        return String.format("Programação financeira gravada, mas a contabilização falhou: %s. %s",
++                motivo, orientacaoDeSuporte(contabilRequest.getLancamentosContabeisSubstituir()));
++    }
++
++    private String orientacaoDeSuporte(List<Long> lancamentosAntigos) {
++        if (lancamentosAntigos.isEmpty()) {
++            return "Acione o suporte para regularizar a contabilização.";
++        }
++        return String.format("Acione o suporte informando os lançamentos %s.", lancamentosAntigos);
++    }
++
++    private void registrarFalhaNaContabilizacao(ContabilizacaoProgramacaoFinanceiraGrupoRequest contabilRequest, String entityUuid, String motivo) {
++        LOGGER.error("Programacao financeira gravada, mas a contabilizacao falhou. tenant={} entidade={} exercicio={} lei={} tipoOperacao={} "
++                        + "fonteRecurso={} lancamentosSubstituir={} gerarLancamento={} motivo={}",
++                TenantContext.getCurrentTenant(), entityUuid, contabilRequest.getExercicioUuid(), contabilRequest.getLeiCodigo(),
++                contabilRequest.getTipoOperacaoCodigo(), contabilRequest.getFonteRecursoCodigo(),
++                contabilRequest.getLancamentosContabeisSubstituir(), contabilRequest.getGerarLancamento(), motivo);
++    }
++
++    private boolean contabilizavel(TipoOperacaoProgFinanceiraTce tipoOperacao) {
++        return nonNull(tipoOperacao)
++                && nonNull(tipoOperacao.codigo)
++                && TIPOS_OPERACAO_CRONOGRAMA_DESEMBOLSO.contains(tipoOperacao.codigo);
+     }
+ 
+     private static class GroupKey {
+diff --git a/projects/api-leis/src/main/resources/db/migration/V66__add_tipo_emenda_parlamentar_tce.sql b/projects/api-leis/src/main/resources/db/migration/V66__add_tipo_emenda_parlamentar_tce.sql
+new file mode 100644
+index 00000000..92446610
+--- /dev/null
++++ b/projects/api-leis/src/main/resources/db/migration/V66__add_tipo_emenda_parlamentar_tce.sql
+@@ -0,0 +1 @@
++alter table ato_alteracao_orcamentaria add tipo_emenda_parlamentar_tce_uuid varchar(36);
+diff --git a/projects/api-leis/src/main/resources/db/migration/V67__remove_tipo_emenda_parlamentar_tce.sql b/projects/api-leis/src/main/resources/db/migration/V67__remove_tipo_emenda_parlamentar_tce.sql
+new file mode 100644
+index 00000000..6b9600b7
+--- /dev/null
++++ b/projects/api-leis/src/main/resources/db/migration/V67__remove_tipo_emenda_parlamentar_tce.sql
+@@ -0,0 +1,18 @@
++-- CONTAB-4740 / CONTAB-4741: desfaz a coluna criada pela V66.
++--
++-- A emenda parlamentar do TCE e atributo da dotacao (previsao_inicial_despesa_fonte,
++-- no banco do planejamento), nao do ato de alteracao orcamentaria. Herdar valor aqui
++-- significa ler da dotacao vinculada e mostrar na tela, nao guardar uma copia.
++--
++-- ato_alteracao_orcamentaria ja aponta para a dotacao por
++-- previsao_inicial_despesa_fonte_uuid, e nao guarda marcador_stn nem fonte_recurso, que
++-- sao os campos irmaos da emenda: eles sao lidos pelo vinculo. So o grupo de fonte e
++-- denormalizado, porque e escolhido por dotacao, o que nao e o caso da emenda.
++--
++-- Quem leva a emenda ate a tela e o proprio retorno da dotacao
++-- (InitialForecastSourceExpenseResponse.emendaParlamentar), que continua no lugar.
++--
++-- A V66 nao pode ser editada: ela ja rodou em DEV e HOMOLOG e o Flyway guardou o
++-- checksum dela. Por isso o desfazer vem como migracao nova.
++
++alter table ato_alteracao_orcamentaria drop column if exists tipo_emenda_parlamentar_tce_uuid;

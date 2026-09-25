@@ -1,0 +1,20 @@
+diff --git a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java
+index bc07609e3..7a9d44ed7 100644
+--- a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java
++++ b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java
+@@ -27,14 +27,7 @@ public class AcaoAnoArquivo extends BaseEstrategiaTCE implements FileExportTypeS
+     @Override
+     public void execute(FileGenerateFilter filter) {
+         try {
+-            List<AcaoAno> dados;
+-            if (repository.ehPrimeiroAnoDoPpa(filter.getFrom().getYear())) {
+-                int anoInicial = filter.getFrom().getYear();
+-                List<Integer> anosExercicio = List.of(anoInicial, anoInicial + 1, anoInicial + 2, anoInicial + 3);
+-                dados = repository.buscarDadosArquivoSimamAcaoAnoDoPrimeiroAnoDoPpa(anosExercicio, anoInicial, filter.getEntityUuid(), filter.getFrom(), filter.getTo());
+-            } else {
+-                dados = repository.buscarDadosArquivoSimamAcaoAno(filter.getFrom().getYear(), filter.getFrom(), filter.getTo());
+-            }
++            List<AcaoAno> dados = repository.buscarDadosArquivoSimamAcaoAno(filter.getFrom().getYear(), filter.getFrom(), filter.getTo());
+ 
+             if (!dados.isEmpty()) {
+                 Collection<Collection<String>> lines = new ArrayList<>();

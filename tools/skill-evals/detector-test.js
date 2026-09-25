@@ -183,5 +183,30 @@ check(!passes('cases-readback.json', 'readback-honestidade', RB.replace(/por que
 check(passes('cases-readback.json', 'revisor-plano-desconfirmatorio', '**Status:** Issues Found\n- Blast Radius: a linha nao tem comando nem contagem; FormulaResolver consome calcular.\n**What would prove me wrong:** um grep sem resultado.').pass, 'revisor que nomeia a refutacao passa');
 check(!passes('cases-readback.json', 'revisor-plano-desconfirmatorio', '**Status:** Approved').pass, 'revisor que so aprova reprova');
 
+// business-rule: este detector e importado de verdade (modulo proprio), sem copia.
+const { classify } = require('./business-rule-detector');
+const EXP = { file: 'projects/presta-contas-api/src/main/java/x/Repo.java', line: 44, lineTolerance: 3, minSeverity: 'High' };
+const block = (findings) => `Resumo.\n\n<!-- REVIEWER_DECISION -->\n\`\`\`json\n${JSON.stringify({ harness_action: 'BLOCK', findings })}\n\`\`\`\n<!-- /REVIEWER_DECISION -->\n\n## Report`;
+const F = (o) => ({ severity: 'High', category: 'business-rule', file: EXP.file, line: 44, issue: 'x', ...o });
+
+console.log('--- business-rule: classificacao ---');
+[
+  ['hit', block([F({})]), 'caminho completo, linha exata'],
+  ['hit', block([F({ file: 'src/main/java/x/Repo.java', line: 46 })]), 'sem prefixo projects/<repo>, linha na tolerancia'],
+  ['hit', block([F({ file: 'b/projects/presta-contas-api/src/main/java/x/Repo.java', line: '42-44' })]), 'prefixo b/ e faixa de linha'],
+  ['hit', block([F({ category: 'correctness', line: 44 }), F({ line: 45 })]), 'segundo achado e o business-rule'],
+  ['wrongCategory', block([F({ category: 'correctness' })]), 'arquivo e linha certos, correctness'],
+  ['wrongLine', block([F({ line: 120 })]), 'business-rule no arquivo, longe da linha'],
+  ['miss', block([F({ file: 'src/main/java/x/Outro.java' })]), 'outro arquivo'],
+  ['miss', block([]), 'sem achados'],
+  ['noBlock', 'Aprovo a mudanca, nada a apontar.', 'sem bloco'],
+  ['noBlock', '<!-- REVIEWER_DECISION -->\n```json\n{ quebrado\n```\n<!-- /REVIEWER_DECISION -->', 'JSON invalido'],
+].forEach(([want, text, label]) => check(classify(text, EXP).verdict === want, `${want.padEnd(13)} ${label}`));
+const fenced = classify(block([F({ suggestion: "Restore:\n```java\nand lr.flag = 'S'\n```" })]), EXP);
+check(fenced.verdict === 'hit' && fenced.harnessParses === false, 'cerca ``` dentro da suggestion: acha, e marca que o harness nao leria');
+check(classify(block([F({})]), EXP).harnessParses === true, 'bloco limpo: harness leria');
+check(classify(block([F({ severity: 'Medium' })]), EXP).severityOk === false, 'hit Medium nao cumpre minSeverity High');
+check(classify(block([F({ severity: 'Critical' })]), EXP).severityOk === true, 'hit Critical cumpre minSeverity High');
+
 console.log('\ndetector: ' + ok + '/' + (ok + bad) + ' corretos');
 process.exit(bad === 0 ? 0 : 1);

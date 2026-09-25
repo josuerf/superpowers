@@ -5,6 +5,8 @@
  * Mede as duas decisoes que as skills tomam, sem executar trabalho real:
  *   1. brainstorming oferece o visual companion quando a demanda tem superficie visual?
  *   2. writing-plans escolhe inline ou subagentes no handoff, e justifica?
+ *   3. (--suite business) o carrasco reencontra achados business-rule reais
+ *      no diff do MR? Fora de "both": cada caso e uma revisao inteira.
  *
  * Como funciona: o conteudo da SKILL.md sob teste e injetado no prompt e o
  * cenario e apresentado logo depois. Isso mede exatamente o que estamos
@@ -17,8 +19,12 @@
  * ativacao.
  *
  * Uso:
- *   node tools/skill-evals/run.js --suite visual|execution|both|blast|readback|risk|all [--reps N]
- *                                 [--model NOME] [--label TEXTO] [--case ID]
+ *   node tools/skill-evals/run.js --suite visual|execution|both|blast|readback|risk|all|business
+ *                                 [--reps N] [--model NOME] [--label TEXTO] [--case ID] [--dry-run]
+ *
+ *   `all` nao inclui `business` (cada caso e uma revisao inteira): rode-a a parte.
+ *   --dry-run monta todos os prompts (inclusive task-brief e build-review-prompt)
+ *   sem chamar o modelo e sem gravar resultado — confere a fiacao de cada suite.
  */
 const fs = require('fs');
 const os = require('os');
@@ -39,6 +45,7 @@ const REPS = parseInt(arg('reps', '3'), 10);
 const MODEL = arg('model', '');
 const ONLY = arg('case', '');
 const LABEL = arg('label', '');
+const DRY = process.argv.includes('--dry-run');
 
 const PROJECT_CONTEXT = `Contexto do projeto, ja explorado nesta sessao: sistema web de gestao
 publica em React no front e Node/TypeScript no back. Ha telas em \`src/pages\`,
@@ -102,12 +109,17 @@ function runClaude(prompt, opts = {}) {
   // O prompt carrega a SKILL.md inteira e estoura o limite de linha de comando
   // do Windows (~8k). Entregar por stdin evita isso e dispensa escaping.
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--max-turns', String(opts.maxTurns || 4)];
+  if (opts.extraArgs) args.push(...opts.extraArgs);
   if (MODEL) args.push('--model', MODEL);
   // Suites por caso: ferramentas de leitura liberadas, sem MCP da maquina — um
   // servidor instalado aqui mudaria o que o caso mede de uma maquina para outra.
   if (opts.allowedTools) args.push('--allowedTools', opts.allowedTools.join(','));
   if (opts.strictMcp) args.push('--strict-mcp-config');
   const started = Date.now();
+  if (DRY) {
+    process.stderr.write(`[dry-run ${prompt.length} chars] `);
+    return { text: '', tools: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, ms: 0, error: null };
+  }
   const res = spawnSync('claude', args, {
     encoding: 'utf8',
     cwd: opts.cwd || ROOT,
@@ -323,6 +335,48 @@ const CHECK_SUITES = {
   risk: ['risk-flags', 'cases-risk-flags.json'],
 };
 
+/**
+ * Suite business-rule: o prompt do carrasco montado pelo proprio harness
+ * (build-review-prompt.ts) sobre o diff real do MR. Sem ferramentas: o
+ * revisor ve so o diff, porque o repositorio daquele MR nao esta aqui.
+ * Casos que compartilham fixture (mesmo MR) reaproveitam a mesma resposta
+ * na mesma repeticao — e a mesma revisao, pontuada contra achados diferentes.
+ */
+function runBusinessRule(checkpoint) {
+  const cfgFile = 'cases-business-rule-reviewer.json';
+  const cfg = JSON.parse(fs.readFileSync(path.join(HERE, cfgFile), 'utf8'));
+  const cases = (ONLY ? cfg.cases.filter((c) => c.id === ONLY) : cfg.cases).filter((c) => c.fixture);
+  const runs = [];
+  const cache = new Map();
+  const total = cases.length * REPS;
+  let n = 0;
+  for (const c of cases) {
+    for (let rep = 1; rep <= REPS; rep++) {
+      n += 1;
+      const key = `${c.fixture}#${rep}`;
+      process.stderr.write(`  [business-rule] ${n}/${total} ${c.id} rep${rep} ... `);
+      let r = cache.get(key);
+      if (r) {
+        process.stderr.write('reaproveitado\n');
+        runs.push({ caseId: c.id, rep, ...c, text: r.text, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, ms: 0, error: r.error, sharedWith: r.caseId });
+        checkpoint({ suite: 'business-rule', skill: cfg.skill, runs });
+        continue;
+      }
+      const built = spawnSync('npx', ['tsx', path.join(HERE, 'build-review-prompt.ts'), path.join(HERE, 'fixtures', c.fixture), c.expected.file], {
+        encoding: 'utf8', cwd: ROOT, shell: process.platform === 'win32', maxBuffer: 64 * 1024 * 1024,
+      });
+      if (built.status !== 0) throw new Error(`build-review-prompt falhou em ${c.id}: ${built.stderr}`);
+      const { prompt, chunkId, chunks } = JSON.parse(built.stdout);
+      r = { ...runClaude(prompt, { maxTurns: 2, extraArgs: ['--tools', ''] }), caseId: c.id };
+      cache.set(key, r);
+      process.stderr.write(r.error ? `ERRO (${r.ms}ms)\n` : `ok (${r.ms}ms, ${r.usage.total} tok)\n`);
+      runs.push({ caseId: c.id, rep, ...c, chunkId, chunks, text: r.text, usage: r.usage, ms: r.ms, error: r.error });
+      checkpoint({ suite: 'business-rule', skill: cfg.skill, runs });
+    }
+  }
+  return { suite: 'business-rule', skill: cfg.skill, runs };
+}
+
 function main() {
   fs.mkdirSync(RESULTS, { recursive: true });
   const ref = currentRef();
@@ -331,6 +385,7 @@ function main() {
   const suites = [];
 
   const flush = (partial) => {
+    if (DRY) return;
     const done = partial ? [...suites, partial] : suites;
     fs.writeFileSync(file, JSON.stringify(
       { ref, label: LABEL, model: MODEL || '(default)', reps: REPS, at: new Date().toISOString(), partial: !!partial, suites: done },
@@ -353,6 +408,14 @@ function main() {
     }, flush));
   }
 
+  if (SUITE === 'business') {
+    suites.push(runBusinessRule(flush));
+  }
+
+  if (DRY) {
+    console.log(`dry-run: ${suites.reduce((n, x) => n + x.runs.length, 0)} execucoes montadas, nada gravado`);
+    return;
+  }
   flush(null);
   console.log(file);
 }
