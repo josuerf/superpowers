@@ -124,7 +124,8 @@ export function fileRole(file: string): string {
   const f = file.replace(/\\/g, "/");
   const lower = f.toLowerCase();
   const base = f.split("/").pop() ?? f;
-  const stem = base.replace(/\.[^.]+$/, "");
+  // A version suffix (ConsoleControladorV2) says nothing about the layer.
+  const stem = base.replace(/\.[^.]+$/, "").replace(/_?[Vv]\d+$/, "");
 
   if (/(^|\/)(test|tests|__tests__|spec)\//.test(lower) || /(Test|Tests|Spec)$/.test(stem) || /[._-](test|spec)$/i.test(stem)) return "test";
   if (/^chart\.ya?ml$/i.test(base) || /values\.ya?ml$/i.test(base) || /(^|\/)templates\/.*\.ya?ml$/.test(lower) || /^(deployment|ingress|service)\.ya?ml$/i.test(base)) return "helm";
@@ -196,25 +197,24 @@ export function normalizeTitle(title: string): string {
 }
 
 /**
- * The key phrase of a title: up to two lexicon concepts; failing that, the
- * first three significant words (identifiers, numbers, and glued slug words
- * longer than 16 characters removed), sorted so word order does not split a
- * group.
+ * The key phrase of a title: the highest-priority lexicon concept it
+ * mentions (one, not two — on the study data a second concept split groups
+ * that were the same defect, e.g. "removed filter" with and without "in the
+ * SQL"); failing that, the first three significant words (identifiers,
+ * numbers, and glued slug words longer than 16 characters removed), sorted
+ * so word order does not split a group.
  */
 export function keyPhrase(title: string): string {
   // Identifiers go first, before separators are flattened: camelCase, snake_case,
   // dotted names, ALLCAPS runs, anything with a digit.
   const withoutIds = title
     .split(/\s+/)
-    .filter((tok) => !/[a-z][A-Z]|_|\w\.\w|\d|^[A-Z]{4,}$/.test(tok))
+    .filter((tok) => !/[a-z][A-Z]|_|\w\.\w|\d|[A-Z]{4,}/.test(tok))
     .join(" ");
   const norm = normalizeTitle(title);
-  const concepts: string[] = [];
   for (const [name, re] of CONCEPTS) {
-    if (re.test(norm)) concepts.push(name);
-    if (concepts.length === 2) break;
+    if (re.test(norm)) return name;
   }
-  if (concepts.length > 0) return concepts.sort().join("+");
 
   const words = normalizeTitle(withoutIds)
     .split(" ")
