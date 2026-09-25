@@ -566,6 +566,17 @@ function resolveVerifyRoots(cwd, touchedFiles) {
   return roots.length > 0 ? roots : [cwdAbs];
 }
 
+// A glob like "projects/*" can declare dozens of repositories, and each one
+// costs a `git status` (plus a `git diff` with baseRef) on every Stop. When the
+// transcript says which files the session edited, only the declared roots that
+// hold one of them can have anything to verify, so the rest are not scanned.
+// Without a transcript (null) nothing is known and every root is kept.
+function rootsWithSessionEdits(roots, sessionEdited) {
+  if (sessionEdited === null || sessionEdited === undefined) return roots;
+  const edited = [...sessionEdited];
+  return roots.filter((root) => edited.some((f) => isInside(f, root)));
+}
+
 // Full verify-all runs share one budget (3 minutes) across every project, so a
 // workspace with five touched repositories cannot hold the session hostage for
 // fifteen. A project that gets less than MIN_VERIFY_SLICE_MS is skipped rather
@@ -826,9 +837,10 @@ async function main() {
     const baseRef = getBaseRef(cwd);
     const touched =
       sessionEdited !== null ? [...sessionEdited] : getChangedSourceFiles(cwd, baseRef);
-    const roots = resolveVerifyRoots(cwd, touched);
     // Fail closed on an undetectable stack only when the roots were declared.
     const failClosed = getDeclaredProjectRoots(cwd).length > 0;
+    const resolved = resolveVerifyRoots(cwd, touched);
+    const roots = failClosed ? rootsWithSessionEdits(resolved, sessionEdited) : resolved;
     const workspace = failClosed || isWorkspaceHarness(cwd);
 
     // Count changed source files per root (working tree, plus the branch range
@@ -1001,6 +1013,7 @@ if (require.main === module) {
     getDeclaredProjectRoots,
     resolveVerifyRoots,
     isWorkspaceHarness,
+    rootsWithSessionEdits,
     hasStackManifest,
     STACK_MANIFESTS,
     ROOT_MARKERS,

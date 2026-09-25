@@ -307,6 +307,11 @@ cfg "$WS" '{"verifyOnStop":{"projectRoots":["projects/*"]}}'
 assert "glob projectRoots expands to both projects" '["projects/x","projects/y"]' \
   "$(hookcall resolveVerifyRoots '["{WS}", []]')"
 
+# 32b. With a transcript, only declared roots holding a session edit are scanned
+assert "session edits narrow declared roots" '["projects/y"]'   "$(hookcall rootsWithSessionEdits '[["{WS}/projects/x", "{WS}/projects/y"], ["{WS}/projects/y/src/y.ts"]]')"
+# 32c. Without a transcript (null) every declared root is scanned
+assert "no transcript keeps every declared root" '["projects/x","projects/y"]'   "$(hookcall rootsWithSessionEdits '[["{WS}/projects/x", "{WS}/projects/y"], null]')"
+
 # 33. A modified .java inside an ignored nested repo is seen through the glob root
 printf 'class A { int v; }\n' > "$WS/projects/x/src/A.java"
 assert "ignored nested repo change is visible" "true" \
