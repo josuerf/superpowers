@@ -56,6 +56,20 @@ assert "enabled -> names ownership-map.md" "true" "$(has "$OUT" 'architecture/ow
 assert "missing file is not named" "false" "$(has "$OUT" 'integration-map.md')"
 assert "contents are not pasted" "false" "$(has "$OUT" '# Ownership')"
 assert "no permission decision" "false" "$(has "$OUT" 'permissionDecision')"
+# additionalContext of a PreToolUse hook reaches the CONTROLLER, not the
+# subagent: the block must travel inside the dispatch prompt (updatedInput).
+assert "block goes in updatedInput.prompt" "true" "$(printf '%s' "$OUT" | node -e "
+let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const o=JSON.parse(s).hookSpecificOutput||{};
+const p=(o.updatedInput||{}).prompt||'';
+process.stdout.write(String(p.startsWith('implement task 1') && p.includes('known-issues.md') && !('additionalContext' in o)));});")"
+rm -rf "$D"
+
+# 3b. updatedInput replaces the whole input: every other field is kept
+D=$(mkws); cfg "$D" '{"injectHarnessContext":{"enabled":true}}'
+OUT=$(node -e "process.stdout.write(JSON.stringify({tool_name:'Agent',tool_input:{prompt:'do it',description:'task 3',subagent_type:'general-purpose'},cwd:process.argv[1]}))" "$D" | node "$HOOK")
+assert "other tool_input fields preserved" "true" "$(printf '%s' "$OUT" | node -e "
+let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const u=JSON.parse(s).hookSpecificOutput.updatedInput;
+process.stdout.write(String(u.description==='task 3' && u.subagent_type==='general-purpose'));});")"
 rm -rf "$D"
 
 # 4. Config found from a nested cwd (projects/app)
