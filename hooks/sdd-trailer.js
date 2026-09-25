@@ -43,11 +43,26 @@ function git(args, cwd) {
   }
 }
 
+// `git`, any global options (-c k=v, -C <dir>, --no-pager, --git-dir=...),
+// then `commit` as the SUBCOMMAND — so `git log --grep commit`, `git show --
+// commit` and `git commit-tree` are not commits. Group 1 is the options run.
+const GIT_OPT = String.raw`(?:-c\s+\S+|-C\s+(?:"[^"]+"|'[^']+'|\S+)|--[\w-]+(?:=\S+)?)`;
+const GIT_COMMIT_SRC = String.raw`\bgit((?:\s+${GIT_OPT})*)\s+commit(?=$|[\s;&|])`;
+
 /** True when the shell command runs `git commit` (not a dry run). */
 function isGitCommitCommand(command) {
   if (typeof command !== 'string') return false;
   if (/--dry-run\b/.test(command)) return false;
-  return /\bgit\b[^;&|\n]*?\scommit\b/.test(command);
+  return new RegExp(GIT_COMMIT_SRC).test(command);
+}
+
+// Git Bash spells C:\Users as /c/Users; path.resolve on Windows would turn it
+// into C:\c\Users. Convert the drive prefix before resolving.
+function toNativePath(p) {
+  if (process.platform !== 'win32') return p;
+  const m = p.match(/^\/([a-zA-Z])(?:\/(.*))?$/);
+  if (!m) return p;
+  return path.win32.join(`${m[1].toUpperCase()}:/`, m[2] || '');
 }
 
 /**
@@ -56,10 +71,13 @@ function isGitCommitCommand(command) {
  */
 function resolveCommitDir(command, cwd) {
   const unquote = s => s.replace(/^["']|["']$/g, '');
-  const dashC = command.match(/\bgit\s+-C\s+("[^"]+"|'[^']+'|\S+)[^;&|\n]*?\scommit\b/);
-  if (dashC) return path.resolve(cwd, unquote(dashC[1]));
-  const cd = command.match(/(?:^|[;&|]\s*)cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*&&[^;|\n]*\bgit\b[^;&|\n]*?\scommit\b/);
-  if (cd) return path.resolve(cwd, unquote(cd[1]));
+  const commit = command.match(new RegExp(GIT_COMMIT_SRC));
+  const dashC = commit && commit[1].match(/-C\s+("[^"]+"|'[^']+'|\S+)/);
+  if (dashC) return path.resolve(cwd, toNativePath(unquote(dashC[1])));
+  const cd = command.match(
+    new RegExp(String.raw`(?:^|[;&|]\s*)cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)\s*&&[^;|\n]*?` + GIT_COMMIT_SRC),
+  );
+  if (cd) return path.resolve(cwd, toNativePath(unquote(cd[1])));
   return cwd;
 }
 
@@ -208,5 +226,6 @@ if (require.main === module) {
     isGitCommitCommand,
     listBriefs,
     resolveCommitDir,
+    toNativePath,
   };
 }

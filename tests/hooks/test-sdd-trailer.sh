@@ -102,6 +102,26 @@ assert "workspace brief + nested repo commit -> reminder" "true" \
   "$(has "$(hook_out "$WS" "git -C projects/app commit -m x")" 'SDD-Plan')"
 rm -rf "$WS"
 
+# isGitCommitCommand: `git commit` as the subcommand, global options allowed before it
+iscommit() { node -e "process.stdout.write(String(require(process.argv[1]).isGitCommitCommand(process.argv[2])))" "$HOOK" "$1"; }
+assert "git commit -m x -> commit" "true" "$(iscommit 'git commit -m x')"
+assert "git -c k=v commit -> commit" "true" "$(iscommit 'git -c user.name=t -c user.email=t@t commit -qm x')"
+assert "git -C dir commit -> commit" "true" "$(iscommit 'git -C projects/app commit -m x')"
+assert "cd dir && git commit -> commit" "true" "$(iscommit 'cd projects/app && git commit --amend --no-edit')"
+assert "git log --grep commit -> not a commit" "false" "$(iscommit 'git log --grep commit')"
+assert "git commit-tree -> not a commit" "false" "$(iscommit 'git commit-tree abc123 -m x')"
+assert "git show HEAD -- commit -> not a commit" "false" "$(iscommit 'git show HEAD -- commit')"
+assert "git commit --dry-run -> not a commit" "false" "$(iscommit 'git commit --dry-run')"
+
+# resolveCommitDir: a Git Bash drive path (/c/Users/...) is a Windows drive path
+# MSYS_NO_PATHCONV keeps Git Bash from rewriting the /c/... argument itself, so
+# the hook path is converted by hand.
+commitdir() { MSYS_NO_PATHCONV=1 node -e "process.stdout.write(require(process.argv[1]).resolveCommitDir(process.argv[2], process.argv[3]))" "$(cygpath -w "$HOOK" 2>/dev/null || echo "$HOOK")" "$1" "$2"; }
+if [ "$(node -p process.platform)" = "win32" ]; then
+  assert "cd /c/Users/x && git commit -> C: drive" 'C:\Users\x' "$(commitdir 'cd /c/Users/x && git commit -m y' 'D:\ws')"
+  assert "git -C /d/repo commit -> D: drive" 'D:\repo' "$(commitdir 'git -C /d/repo commit -m y' 'C:\ws')"
+fi
+
 echo ""
 echo "test-sdd-trailer: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
