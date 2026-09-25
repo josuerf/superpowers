@@ -203,5 +203,199 @@ assert "block reason keeps each failure output" "true" \
   "$([ "$(has "$REASON" 'coverage too low')" = true ] && [ "$(has "$REASON" 'lint failed')" = true ] && echo true || echo false)"
 
 echo ""
+echo "test-verify-on-stop: gate mode (block | warn) and gate log (M1)"
+
+# gatemode <dir> -> what getGateMode returns for that dir
+gatemode() {
+  node -e "const m=require(process.argv[1]);process.stdout.write(m.getGateMode(process.argv[2]))" "$HOOK" "$1" 2>/dev/null
+}
+
+# 23. No config -> block
+D=$(mk); assert "no config -> block" "block" "$(gatemode "$D")"; rm -rf "$D"
+# 24. mode:"warn" -> warn
+D=$(mk); cfg "$D" '{"verifyOnStop":{"mode":"warn"}}'; assert "mode:warn -> warn" "warn" "$(gatemode "$D")"; rm -rf "$D"
+# 25. mode:"lixo" -> block (conservative fallback)
+D=$(mk); cfg "$D" '{"verifyOnStop":{"mode":"lixo"}}'; assert "mode:lixo -> block" "block" "$(gatemode "$D")"; rm -rf "$D"
+# 26. malformed config -> block
+D=$(mk); cfg "$D" '{nope'; assert "malformed config -> block" "block" "$(gatemode "$D")"; rm -rf "$D"
+
+# 27. appendGateLog writes one JSON line with the documented fields
+D=$(mk)
+node -e "
+const m = require(process.argv[1]);
+m.appendGateLog(process.argv[2], { repo: 'projects/api', reason: 'verify-all failed', files: 7, stack: 'java-springboot' });
+m.appendGateLog(process.argv[2], { repo: '.', reason: 'carrasco absent', files: 2 });
+" "$HOOK" "$D" 2>/dev/null
+LOG="$D/.superpowers/gate-log.jsonl"
+assert "gate log has two lines" "2" "$(wc -l < "$LOG" 2>/dev/null | tr -d ' ')"
+assert "gate log line has the documented shape" "true" "$(node -e "
+const l = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8').split('\n')[0]);
+const keys = Object.keys(l).join(',');
+process.stdout.write(String(keys === 'ts,cwd,repo,wouldBlock,reason,files,stack' && l.wouldBlock === true && l.files === 7 && l.repo === 'projects/api' && /Z$/.test(l.ts)));
+" "$LOG" 2>/dev/null)"
+rm -rf "$D"
+
+# 28. Block messages no longer advertise the commit/push bypass
+assert "verify block reason has no bypass hint" "false" "$(has "$(node -e "
+const m = require(process.argv[1]);
+process.stdout.write(m.buildBlockReason({ stdout: '', stderr: 'x' }, 3));
+" "$HOOK" 2>/dev/null)" "bypass")"
+assert "carrasco block reason has no bypass hint" "false" "$(has "$(node -e "
+const m = require(process.argv[1]);
+process.stdout.write(m.buildCarrascoBlockReason({ reason: 'no review' }, 3));
+" "$HOOK" 2>/dev/null)" "bypass")"
+
+# End to end: a repo with an uncommitted source file and the carrasco gate on
+# but no review recorded, so gate-status reports "absent". No stack manifest,
+# so verify-all is skipped and only the carrasco gate decides. HOME points at
+# the temp dir so the TTL guard never touches the real ~/.claude.
+# runhook <dir> -> the hook's stdout
+runhook() {
+  printf '{"cwd":"%s"}' "$(node -e "process.stdout.write(JSON.stringify(require('fs').realpathSync.native(process.argv[1])).slice(1,-1))" "$1")" \
+    | HOME="$1" USERPROFILE="$1" node "$HOOK" 2>/dev/null
+}
+e2e_repo() {
+  local d; d=$(mk)
+  mkdir -p "$d/src"
+  printf 'export const a = 1\n' > "$d/src/a.ts"
+  printf '.superpowers/\n' > "$d/.gitignore"
+  gitinit "$d"
+  printf 'export const a = 2\n' >> "$d/src/a.ts"
+  echo "$d"
+}
+
+# 29. block mode (default) -> decision:block
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1},"reviewAggressiveness":{"enabled":true}}'
+OUT=$(runhook "$D")
+assert "block mode blocks on carrasco absent" "true" "$(has "$OUT" '"decision":"block"')"
+assert "block mode writes no gate log" "false" "$([ -f "$D/.superpowers/gate-log.jsonl" ] && echo true || echo false)"
+rm -rf "$D"
+
+# 30. warn mode -> {} and one gate-log line
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"warn"},"reviewAggressiveness":{"enabled":true}}'
+OUT=$(runhook "$D")
+assert "warn mode returns {}" "{}" "$OUT"
+assert "warn mode logs the would-be block" "1" "$(wc -l < "$D/.superpowers/gate-log.jsonl" 2>/dev/null | tr -d ' ')"
+rm -rf "$D"
+
+# 31. invalid mode -> behaves as block
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"lixo"},"reviewAggressiveness":{"enabled":true}}'
+assert "invalid mode blocks" "true" "$(has "$(runhook "$D")" '"decision":"block"')"
+rm -rf "$D"
+
+echo ""
+echo "test-verify-on-stop: projectRoots glob and baseRef range (M3)"
+
+# A workspace whose products are separate repositories ignored by the
+# workspace git (projects/*/ in .gitignore), each with its own history.
+WS=$(mk)
+mkdir -p "$WS/projects/x/src" "$WS/projects/y/src" "$WS/projects/.hidden"
+printf 'projects/*/\n' > "$WS/.gitignore"
+printf '<project/>\n'         > "$WS/projects/x/pom.xml"
+printf 'class A {}\n'         > "$WS/projects/x/src/A.java"
+printf '{"name":"y"}'         > "$WS/projects/y/package.json"
+printf 'export const y = 1\n' > "$WS/projects/y/src/y.ts"
+gitinit "$WS/projects/x"
+git -C "$WS/projects/x" branch -M main >/dev/null 2>&1
+gitinit "$WS/projects/y"
+gitinit "$WS"
+
+# 32. "projects/*" expands to every (non-hidden) project directory
+cfg "$WS" '{"verifyOnStop":{"projectRoots":["projects/*"]}}'
+assert "glob projectRoots expands to both projects" '["projects/x","projects/y"]' \
+  "$(hookcall resolveVerifyRoots '["{WS}", []]')"
+
+# 33. A modified .java inside an ignored nested repo is seen through the glob root
+printf 'class A { int v; }\n' > "$WS/projects/x/src/A.java"
+assert "ignored nested repo change is visible" "true" \
+  "$(has "$(hookcall getChangedSourceFiles '["{WS}/projects/x", null]')" "projects/x/src/A.java")"
+
+# 34. Once committed on a branch, the change disappears from the working tree...
+git -C "$WS/projects/x" checkout -qb feature >/dev/null 2>&1
+git -C "$WS/projects/x" -c user.email=t@t -c user.name=t commit -qam work >/dev/null 2>&1
+assert "committed change invisible without baseRef" "false" \
+  "$(has "$(hookcall getChangedSourceFiles '["{WS}/projects/x", null]')" "src/A.java")"
+# 35. ... but the branch range still reports it
+assert "committed change visible with baseRef" "true" \
+  "$(has "$(hookcall getChangedSourceFiles '["{WS}/projects/x", "main"]')" "src/A.java")"
+# 36. A baseRef that does not exist degrades to the working tree without failing
+assert "missing baseRef degrades to working tree" "[]" \
+  "$(hookcall getChangedSourceFiles '["{WS}/projects/x", "origin/main"]')"
+# 37. getBaseRef reads the config
+cfg "$WS" '{"verifyOnStop":{"baseRef":"origin/main"}}'
+assert "getBaseRef reads verifyOnStop.baseRef" "origin/main"   "$(node -e "process.stdout.write(String(require(process.argv[1]).getBaseRef(process.argv[2])))" "$HOOK" "$WS" 2>/dev/null)"
+
+rm -rf "$WS" 2>/dev/null
+
+echo ""
+echo "test-verify-on-stop: deep stack detection and fail-closed (M4)"
+
+WS=$(mk)
+mkdir -p "$WS/projects/api-x/backend/src" "$WS/projects/api-y/src"
+printf '<project/>\n'  > "$WS/projects/api-x/backend/pom.xml"
+printf 'class B {}\n'  > "$WS/projects/api-x/backend/src/B.java"
+printf 'class C {}\n'  > "$WS/projects/api-y/src/C.java"
+
+# 38. A manifest two levels below a declared root is found
+assert "manifest at depth 2 is found" '"projects/api-x/backend"' \
+  "$(hookcall findStackDirDeep '["{WS}/projects/api-x"]')"
+# 39. The changed file's own manifest directory is what gets verified
+assert "changed file resolves to its manifest dir" '["projects/api-x/backend"]' \
+  "$(hookcall resolveDeclaredVerifyDirs '["{WS}/projects/api-x", ["{WS}/projects/api-x/backend/src/B.java"]]')"
+# 40. A declared root with no manifest at all resolves to nothing (fail closed)
+assert "declared root without manifest -> []" "[]" \
+  "$(hookcall resolveDeclaredVerifyDirs '["{WS}/projects/api-y", ["{WS}/projects/api-y/src/C.java"]]')"
+rm -rf "$WS" 2>/dev/null
+
+# End to end: projects/api-y has a changed .java and no manifest anywhere.
+m4_ws() {
+  local d; d=$(mk)
+  mkdir -p "$d/projects/api-y/src"
+  printf 'class C {}\n' > "$d/projects/api-y/src/C.java"
+  printf '.superpowers/\n' > "$d/.gitignore"
+  gitinit "$d"
+  printf 'class C { int v; }\n' > "$d/projects/api-y/src/C.java"
+  echo "$d"
+}
+
+# 41. Declared + block -> blocks with the configuration-defect message
+D=$(m4_ws); cfg "$D" '{"verifyOnStop":{"minFiles":1,"projectRoots":["projects/*"]}}'
+OUT=$(runhook "$D")
+assert "declared undetected stack blocks" "true" "$(has "$OUT" '"decision":"block"')"
+assert "block names the configuration defect" "true" "$(has "$OUT" "configuration defect")"
+rm -rf "$D"
+
+# 42. Declared + warn -> {} and a gate-log line
+D=$(m4_ws); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"warn","projectRoots":["projects/*"]}}'
+OUT=$(runhook "$D")
+assert "declared undetected stack in warn returns {}" "{}" "$OUT"
+assert "declared undetected stack in warn is logged" "true" \
+  "$(has "$(cat "$D/.superpowers/gate-log.jsonl" 2>/dev/null)" "undetected stack")"
+rm -rf "$D"
+
+# 43. Not declared -> fails open exactly as before
+D=$(m4_ws); cfg "$D" '{"verifyOnStop":{"minFiles":1}}'
+assert "undeclared undetected stack fails open" "{}" "$(runhook "$D")"
+rm -rf "$D"
+
+echo ""
+echo "test-verify-on-stop: infrastructure files re-included (M6)"
+
+# excl <path> -> what shouldExclude returns for that path
+excl() {
+  node -e "const m=require(process.argv[1]);process.stdout.write(String(m.shouldExclude(process.argv[2])))" "$HOOK" "$1" 2>/dev/null
+}
+
+assert "helm values.yaml is NOT excluded" "false" "$(excl helm/eprocessos/values.yaml)"
+assert "nested chart template is NOT excluded" "false" "$(excl deploy/charts/api/templates/deployment.yml)"
+assert "k8s manifest is NOT excluded" "false" "$(excl k8s/prod/ingress.yaml)"
+assert "flyway json is NOT excluded" "false" "$(excl db/migration/V2__seed.json)"
+assert "application.yml is NOT excluded" "false" "$(excl src/main/resources/application.yml)"
+assert "package.json is excluded" "true" "$(excl package.json)"
+assert "README.md is excluded" "true" "$(excl README.md)"
+assert "a root docker-compose.yml is still excluded" "true" "$(excl docker-compose.yml)"
+assert "a plain .github workflow yaml is still excluded" "true" "$(excl .github/workflows/ci.yml)"
+
+echo ""
 echo "test-verify-on-stop: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -17,6 +17,7 @@ export async function validateTests(
 		"csharp-aspnet": `dotnet test --no-build --logger "console;verbosity=normal" 2>&1 || true`,
 		"python-fastapi": `pytest --tb=short 2>&1 || true`,
 		"java-springboot": `mvn test 2>&1 || ./gradlew test 2>&1 || true`,
+		"java8-spring": `mvn test 2>&1 || true`,
 		"go-std": `go test ./... 2>&1 || true`,
 		terraform: 'echo "No test framework for Terraform"',
 	};

@@ -132,6 +132,7 @@ If the file does not exist, **all defaults are used**. If it exists, it is merge
       "node-fastify": 10,
       "node-elysia": 10,
       "java-springboot": 10,
+      "java8-spring": 10,
       "csharp-dotnet": 15,
       "csharp-aspnet": 15,
       "python-fastapi": 10,
@@ -194,15 +195,62 @@ session, instead of on every individual edit.
 ```json
 {
   "verifyOnStop": {
-    "minFiles": 3
+    "minFiles": 3,
+    "mode": "block"
   }
 }
 ```
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `minFiles` | `number` | `3` | Minimum number of session-edited source files with uncommitted changes required to trigger the gate. Set to `1` to gate every edit; raise it to make the gate fire less often. |
-| `projectRoots` | `string[]` | inferred | Which projects the gate verifies, as paths relative to the project root. Only needed when inference is not enough — see below. |
+| `minFiles` | `number` | `3` | Minimum number of session-edited changed source files required to trigger the gate. Set to `1` to gate every edit; raise it to make the gate fire less often. |
+| `mode` | `"block"` \| `"warn"` | `"block"` | `"block"` returns `decision: "block"` when a check fails. `"warn"` lets the session end and appends what the gate *would* have done to `.superpowers/gate-log.jsonl` (see below). Any other value falls back to `"block"`. |
+| `baseRef` | `string` | — | Comparison ref, e.g. `"origin/main"`. When set, the changed-file set is `merge-base(baseRef, HEAD)..HEAD` plus the working tree, per repository — see below. |
+| `projectRoots` | `string[]` | inferred | Which projects the gate verifies, as paths relative to the project root. Entries may use `*` / `?` wildcards per path segment (`"projects/*"`). Only needed when inference is not enough — see below. Declaring it also makes the gate fail closed on an undetectable stack. |
+
+#### `mode: "warn"` and the gate log
+
+Turning a gate on in the dark is how a team learns to route around it. In
+`warn` mode the hook never blocks: it returns `{}` and appends one JSON line
+per would-be block to `.superpowers/gate-log.jsonl` at the session root, so
+you can count how often the gate would fire before promoting it to `block`:
+
+```json
+{"ts":"2026-09-30T14:02:11Z","cwd":"/home/x/workspace","repo":"projects/api-contabil","wouldBlock":true,"reason":"verify-all failed","files":7,"stack":null}
+```
+
+| Field | Meaning |
+|---|---|
+| `ts` | UTC timestamp of the stop |
+| `cwd` | Session root the hook ran in |
+| `repo` | Project that would have blocked, relative to `cwd` (`.` for the carrasco gate, which runs at the session root) |
+| `wouldBlock` | Always `true` today — the line exists because the gate would have blocked |
+| `reason` | `verify-all failed`, `carrasco <gate>: <reason>`, or `undetected stack in a declared project root` |
+| `files` | Changed source files counted for that project |
+| `stack` | Stack of the project when the hook knows it, else `null` |
+
+Every gate that would fire is logged: in `warn` mode a stale or missing
+carrasco review is recorded and `verify-all` still runs. The file is local
+measurement data; add `.superpowers/` to `.gitignore` if you do not want it
+versioned.
+
+#### `baseRef`: gating the branch, not just the working tree
+
+Without `baseRef`, the gate only sees uncommitted changes — committing a change
+hid it from the gate. With `baseRef` set, each project root counts the files
+changed since `merge-base(baseRef, HEAD)` plus the working tree, computed in
+the repository that owns that root (every nested repository resolves its own
+merge-base). A ref that does not resolve in a repository (a fresh clone with no
+`origin/main`, a repository with no commits) degrades to the working tree for
+that repository instead of failing. The files still have to be ones this
+session edited, so a long-lived branch does not re-gate old work on every stop.
+
+`baseRef` also feeds the carrasco review: the hook passes `--base <baseRef>`
+to `review gate-status`, and the CLI uses `verifyOnStop.baseRef` as the default
+`--base` for `review plan`, `review aggregate` and `review gate-status`. The
+review fingerprint then covers the diff from the merge-base to the working tree
+(plus untracked files) and ignores staging flags, so committing an
+already-reviewed change set no longer makes the review look stale.
 
 #### Where the gate runs (workspace harnesses)
 
@@ -218,8 +266,10 @@ hatch never opens.)
 
 Resolution order:
 
-1. **`projectRoots`**, when declared. Entries are relative to the project root;
-   an entry that is not an existing directory inside it is ignored.
+1. **`projectRoots`**, when declared. Entries are relative to the project root
+   and may use `*` / `?` per segment (`"projects/*"` expands to every
+   non-hidden directory under `projects/`); an entry that is not an existing
+   directory inside it is ignored.
 2. **Inferred** from the files this session edited: each file resolves to its
    nearest ancestor holding a stack manifest (`package.json`, `pyproject.toml`,
    `go.mod`, `pom.xml`, `Cargo.toml`, a `.csproj`, ...) or a
@@ -235,11 +285,35 @@ directory — is skipped rather than reported as 0% covered.
 ```json
 {
   "verifyOnStop": {
-    "minFiles": 3,
-    "projectRoots": ["projects/api", "projects/web"]
+    "minFiles": 1,
+    "mode": "warn",
+    "baseRef": "origin/main",
+    "projectRoots": ["projects/*"]
   }
 }
 ```
+
+#### Fail-closed when `projectRoots` is declared
+
+Without a declaration, a project whose stack the harness cannot detect is
+skipped (fail open) — the harness cannot evaluate an environment it does not
+know. A declared root is different: someone stated that a project lives there,
+so "no stack found" is a configuration defect. For declared roots the hook
+looks for a stack manifest up to 3 levels below the root (e.g.
+`projects/api/backend/pom.xml`), verifies the manifest directory that owns the
+changed files, and when there is none it blocks (`mode: "block"`) with a
+message pointing at `projectRoots` and `lib/harness/discovery.ts`, or logs the
+occurrence (`mode: "warn"`).
+
+#### Infrastructure files are in scope
+
+Configuration and documentation files (`.md`, `.json`, `.yaml`, lock files,
+`Dockerfile`, ...) never trigger the gate, with one exception: YAML/JSON/SQL
+under infrastructure and migration directories (`helm/`, `charts/`, `k8s/`,
+`kubernetes/`, `deploy/`, `manifests/`, `migrations/`, `db/migration/`,
+`flyway/`, `liquibase/`) and YAML/properties under `src/main/resources/` are
+counted as source — a wrong Helm chart takes a service down as surely as a
+code bug.
 
 ---
 
@@ -340,7 +414,8 @@ you specifically want every session gated by the most exhaustive pass.
 {
   "coverageMin": 85,
   "verifyOnStop": {
-    "minFiles": 3
+    "minFiles": 3,
+    "mode": "block"
   },
   "reviewAggressiveness": {
     "enabled": false,

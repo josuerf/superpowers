@@ -12,6 +12,7 @@ import {
 	aggregateCarrascoResponses,
 	saveCarrascoReview,
 	evaluateGateStatus,
+	resolveMergeBase,
 	featureReviewDir,
 	buildReviewExclude,
 	resolveInlineChunking,
@@ -137,6 +138,11 @@ async function runReview(): Promise<void> {
 	const config = loadProjectConfig(cwd);
 	const ra = config.reviewAggressiveness;
 	const feature = getFlag("--feature") || extractFeatureName(cwd);
+	// Comparison ref: --base, else verifyOnStop.baseRef. The range starts at
+	// merge-base(baseRef, HEAD) so it covers the branch's own commits and not
+	// whatever landed on the base since; a ref that does not resolve here
+	// degrades to the working tree (HEAD), same as passing no base at all.
+	const baseRef = getFlag("--base") || config.verifyOnStop.baseRef;
 	const dir = featureReviewDir(cwd, feature);
 
 	if (sub === "gate-status") {
@@ -150,7 +156,7 @@ async function runReview(): Promise<void> {
 			);
 			process.exit(0);
 		}
-		const status = evaluateGateStatus(cwd, feature);
+		const status = evaluateGateStatus(cwd, feature, baseRef);
 		console.log(JSON.stringify(status));
 		process.exit(status.gate === "pass" ? 0 : 1);
 	}
@@ -163,7 +169,7 @@ async function runReview(): Promise<void> {
 	// this flag").
 
 	if (sub === "plan") {
-		const base = getFlag("--base");
+		const base = resolveMergeBase(cwd, baseRef) ?? undefined;
 		const changedFiles = gatherChangedFiles(cwd, buildReviewExclude(ra), base);
 		if (changedFiles.length === 0) {
 			console.log("No changed files to review.");
@@ -223,6 +229,7 @@ async function runReview(): Promise<void> {
 			config: planConfig,
 			generatedAt: new Date().toISOString(),
 			planText,
+			projectRoot: cwd,
 		});
 
 		fs.mkdirSync(dir, { recursive: true });
@@ -326,6 +333,7 @@ async function runReview(): Promise<void> {
 				freshDiff,
 				note,
 				config: ra,
+				projectRoot: cwd,
 			});
 			fs.writeFileSync(path.join(dir, "prompts", `${chunkId}.md`), `${prompt}\n`);
 			const responsePath = path.join(dir, "responses", `${chunkId}.txt`);
@@ -387,7 +395,7 @@ async function runReview(): Promise<void> {
 			chunkFilesById,
 		);
 		if (ra.reportOutput.saveToHarness) {
-			const saved = saveCarrascoReview(cwd, report, ra);
+			const saved = saveCarrascoReview(cwd, report, ra, baseRef);
 			console.log(`Report saved to: ${saved.dir}`);
 		}
 

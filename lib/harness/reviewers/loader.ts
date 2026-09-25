@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ReviewAggressivenessConfig } from "../types";
 import { buildAggressivenessDirectives } from "./aggressiveness";
+import { isJava8Pom } from "../discovery";
 const REVIEWERS_DIR = path.resolve(__dirname);
 const STACKS_DIR = path.join(REVIEWERS_DIR, "stacks");
 const STACK_FILE_MAP: Record<string, string> = {
@@ -15,6 +16,7 @@ const STACK_FILE_MAP: Record<string, string> = {
 	"node-drizzle-typeorm": "node-drizzle-typeorm.md",
 	"python-fastapi": "python-fastapi.md",
 	"java-springboot": "java-springboot.md",
+	"java8-spring": "java8-spring.md",
 	"go-std": "go-std.md",
 	terraform: "terraform.md",
 };
@@ -54,8 +56,50 @@ export function getAvailableStacks(): string[] {
 		.filter((f) => f.endsWith(".md"))
 		.map((f) => f.replace(".md", ""));
 }
-export function resolveStacksForFiles(changedFiles: string[]): string[] {
+/**
+ * True when the nearest pom.xml at or above `file` (without leaving
+ * `projectRoot`) targets Java 8. Results are cached per pom directory for the
+ * duration of one resolveStacksForFiles call.
+ */
+function isJava8File(
+	file: string,
+	projectRoot: string,
+	cache: Map<string, boolean>,
+): boolean {
+	const root = path.resolve(projectRoot);
+	let dir = path.dirname(path.resolve(root, file));
+	for (;;) {
+		const cached = cache.get(dir);
+		if (cached !== undefined) return cached;
+		const pom = path.join(dir, "pom.xml");
+		if (fs.existsSync(pom)) {
+			let result = false;
+			try {
+				result = isJava8Pom(fs.readFileSync(pom, "utf-8"));
+			} catch {
+				result = false;
+			}
+			cache.set(dir, result);
+			return result;
+		}
+		const parent = path.dirname(dir);
+		if (dir === root || parent === dir || !dir.startsWith(root)) return false;
+		dir = parent;
+	}
+}
+
+/**
+ * Map changed files to the technology rule sets that apply. File paths alone
+ * cannot tell Java 8 from Java 21, so when `projectRoot` is given, Java files
+ * whose nearest pom.xml targets Java 8 resolve to `java8-spring` instead of
+ * `java-springboot`. Without it, the mapping is purely path-based.
+ */
+export function resolveStacksForFiles(
+	changedFiles: string[],
+	projectRoot?: string,
+): string[] {
 	const stacks = new Set<string>();
+	const java8Cache = new Map<string, boolean>();
 	for (const file of changedFiles) {
 		const ext = path.extname(file).toLowerCase();
 		const basename = path.basename(file).toLowerCase();
@@ -122,7 +166,11 @@ export function resolveStacksForFiles(changedFiles: string[]): string[] {
 			) ||
 			[".java"].includes(ext)
 		) {
-			stacks.add("java-springboot");
+			stacks.add(
+				projectRoot && isJava8File(file, projectRoot, java8Cache)
+					? "java8-spring"
+					: "java-springboot",
+			);
 		}
 		if ([".go"].includes(ext)) {
 			stacks.add("go-std");

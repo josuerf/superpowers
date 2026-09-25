@@ -11,6 +11,8 @@ import {
   resolveInlineChunking,
   INLINE_CHUNKING_DEFAULTS,
   INLINE_CONFIRM_ABOVE_FILES,
+  mergeVerifyOnStop,
+  mergeReviewAggressiveness,
 } from '../../lib/harness/config';
 
 const TEST_DIR = path.join(__dirname, '..', '..', 'tmp-test-harness-config');
@@ -145,6 +147,77 @@ describe('loadProjectConfig', () => {
     expect(config.verifyOnStop.minFiles).toBe(1);
     // unrelated defaults preserved
     expect(config.coverageMin).toBe(80);
+  });
+
+  test('default verifyOnStop.mode is block, with no baseRef', () => {
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.verifyOnStop.mode).toBe('block');
+    expect(config.verifyOnStop.baseRef).toBeUndefined();
+  });
+
+  test('a partial verifyOnStop block keeps the other defaults', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ verifyOnStop: { mode: 'warn', baseRef: 'origin/main', projectRoots: ['projects/*'] } })
+    );
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.verifyOnStop).toEqual({
+      minFiles: 3,
+      mode: 'warn',
+      baseRef: 'origin/main',
+      projectRoots: ['projects/*'],
+    });
+  });
+
+  test('an invalid verifyOnStop.mode falls back to block', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ verifyOnStop: { mode: 'lixo', minFiles: 0 } })
+    );
+    const config = loadProjectConfig(TEST_DIR);
+    expect(config.verifyOnStop.mode).toBe('block');
+    expect(config.verifyOnStop.minFiles).toBe(3);
+  });
+
+  test('reviewAggressiveness.enabled: true in the file survives the merge (M2)', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { enabled: true, level: 'strict' } })
+    );
+    const ra = loadProjectConfig(TEST_DIR).reviewAggressiveness;
+    expect(ra.enabled).toBe(true);
+    expect(ra.level).toBe('strict');
+    // nested defaults are not wiped by the partial block
+    expect(ra.carrasco.focusCategories.length).toBeGreaterThan(0);
+    expect(ra.chunking.maxFilesPerChunk).toBe(10);
+  });
+});
+
+describe('mergeVerifyOnStop', () => {
+  const base = { minFiles: 3, mode: 'block' as const };
+
+  test('non-object override returns the base', () => {
+    expect(mergeVerifyOnStop(base, undefined)).toBe(base);
+    expect(mergeVerifyOnStop(base, 'warn')).toBe(base);
+  });
+
+  test('drops blank baseRef and non-string projectRoots entries', () => {
+    const merged = mergeVerifyOnStop(base, { baseRef: '  ', projectRoots: ['a', 7, '', 'b/*'] });
+    expect(merged.baseRef).toBeUndefined();
+    expect(merged.projectRoots).toEqual(['a', 'b/*']);
+  });
+});
+
+describe('mergeReviewAggressiveness', () => {
+  const defaults = loadProjectConfig(path.join(__dirname, 'does-not-exist')).reviewAggressiveness;
+
+  test('enabled: true overrides the default false', () => {
+    expect(defaults.enabled).toBe(false);
+    expect(mergeReviewAggressiveness(defaults, { enabled: true }).enabled).toBe(true);
+  });
+
+  test('omitting enabled keeps the default', () => {
+    expect(mergeReviewAggressiveness(defaults, { level: 'strict' }).enabled).toBe(false);
   });
 });
 

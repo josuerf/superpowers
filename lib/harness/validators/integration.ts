@@ -19,6 +19,7 @@ export async function validateIntegration(
 		"csharp-aspnet": 'dotnet test --filter "Category=Integration" 2>&1 || true',
 		"python-fastapi": "pytest -m integration --tb=short 2>&1 || true",
 		"java-springboot": "mvn verify 2>&1 || ./gradlew integrationTest 2>&1 || true",
+		"java8-spring": "mvn verify 2>&1 || true",
 		"go-std": "go test -tags=integration ./... 2>&1 || true",
 		terraform: 'echo "No integration tests for Terraform"',
 	};

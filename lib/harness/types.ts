@@ -230,8 +230,26 @@ export interface HarnessConfig {
 		 * Only needed for a workspace whose repositories the gate cannot infer from
 		 * the files a session edited (generated output, say). When omitted, the gate
 		 * infers one root per touched project and falls back to the root itself.
+		 * Entries may use `*` / `?` wildcards per path segment (e.g. "projects/*"),
+		 * matching directories only. Declaring roots also makes the gate fail
+		 * closed when a declared root has no detectable stack.
 		 */
 		projectRoots?: string[];
+		/**
+		 * "block" (default) makes the Stop hook return decision:"block" when a
+		 * check fails. "warn" lets the session end and appends what the gate
+		 * WOULD have done to .superpowers/gate-log.jsonl — a way to measure how
+		 * often the gate would fire before it starts to hurt. Any other value
+		 * falls back to "block".
+		 */
+		mode?: "block" | "warn";
+		/**
+		 * Comparison ref (e.g. "origin/main"). When set, the changed-file set is
+		 * `merge-base(baseRef, HEAD)..HEAD` plus the working tree, per repository,
+		 * so committing a change no longer hides it from the gate. A ref that does
+		 * not resolve in a repository degrades to the working tree only.
+		 */
+		baseRef?: string;
 	};
 	securityScan: {
 		enabled: boolean;

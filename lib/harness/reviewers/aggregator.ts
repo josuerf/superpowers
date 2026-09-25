@@ -260,12 +260,43 @@ export function formatAggregatedMarkdown(
 }
 
 /**
+ * merge-base(baseRef, HEAD), or null when the ref does not resolve in this
+ * repository (no `origin/main` in a fresh clone, no commits yet, not a repo).
+ * Callers treat null as "no range": they degrade to the working tree.
+ */
+export function resolveMergeBase(cwd: string, baseRef?: string): string | null {
+	if (!baseRef) return null;
+	const out = runGit(["merge-base", baseRef, "HEAD"], cwd);
+	const sha = out?.trim();
+	return sha ? sha : null;
+}
+
+/**
  * Fingerprint the current working-tree changes (tracked diff vs HEAD plus
  * untracked/staged status). Used to tie a saved decision to the exact change
  * set it reviewed, so the stop gate can detect when a review is stale. Returns
  * null when git is unavailable (caller should fail open).
+ *
+ * With a `baseRef` that resolves, the fingerprint covers the branch range
+ * instead: the content diff from merge-base(baseRef, HEAD) to the working tree
+ * plus the list of untracked files. Staging flags are deliberately left out,
+ * so committing an already-reviewed change set keeps the same fingerprint —
+ * without that, every commit made a fresh review look stale. An unresolvable
+ * `baseRef` falls back to the working-tree fingerprint.
  */
-export function computeDiffFingerprint(cwd: string): string | null {
+export function computeDiffFingerprint(
+	cwd: string,
+	baseRef?: string,
+): string | null {
+	const mergeBase = resolveMergeBase(cwd, baseRef);
+	if (mergeBase) {
+		const rangeDiff = runGit(["diff", mergeBase], cwd);
+		const untracked = runGit(["ls-files", "--others", "--exclude-standard"], cwd);
+		if (rangeDiff === null && untracked === null) return null;
+		return createHash("sha256")
+			.update(`${rangeDiff ?? ""}\n--UNTRACKED--\n${untracked ?? ""}`)
+			.digest("hex");
+	}
 	const diff = runGit(["diff", "HEAD"], cwd);
 	const status = runGit(["status", "--porcelain"], cwd);
 	if (diff === null && status === null) return null;
@@ -323,6 +354,7 @@ export function saveCarrascoReview(
 	cwd: string,
 	report: AggregatedReviewReport,
 	config: ReviewAggressivenessConfig,
+	baseRef?: string,
 ): { dir: string; markdownPath?: string; jsonPath?: string; decisionPath: string } {
 	const dir = featureReviewDir(cwd, report.feature);
 	fs.mkdirSync(dir, { recursive: true });
@@ -350,7 +382,7 @@ export function saveCarrascoReview(
 		level: report.level,
 		harness_action: report.harness_action,
 		timestamp: report.timestamp,
-		fingerprint: computeDiffFingerprint(cwd),
+		fingerprint: computeDiffFingerprint(cwd, baseRef),
 		headSha: getHeadSha(cwd),
 		metrics: report.metrics,
 		chunkVerdicts: report.chunkVerdicts,
@@ -374,8 +406,9 @@ export interface GateStatus {
 export function evaluateGateStatus(
 	cwd: string,
 	feature: string,
+	baseRef?: string,
 ): GateStatus {
-	const current = computeDiffFingerprint(cwd);
+	const current = computeDiffFingerprint(cwd, baseRef);
 	if (current === null) {
 		return {
 			gate: "pass",

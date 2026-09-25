@@ -1,3 +1,7 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
 	aggregateCarrascoResponses,
 	formatAggregatedMarkdown,
@@ -610,5 +614,70 @@ describe("evaluateGateStatus / computeDiffFingerprint (git-backed)", () => {
 			"nonexistent-feature-zzz-12345",
 		);
 		expect(status.gate).toBe("absent");
+	});
+});
+
+describe("computeDiffFingerprint with a baseRef (branch range)", () => {
+	let repo: string;
+	const git = (...args: string[]) => {
+		const res = spawnSync(
+			"git",
+			["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", ...args],
+			{ cwd: repo, encoding: "utf8" },
+		);
+		if (res.status !== 0) throw new Error(`git ${args.join(" ")}: ${res.stderr}`);
+		return res.stdout;
+	};
+	const write = (file: string, content: string) =>
+		fs.writeFileSync(path.join(repo, file), content);
+
+	beforeEach(() => {
+		repo = fs.mkdtempSync(path.join(os.tmpdir(), "fp-range-"));
+		git("init", "-q", "-b", "main");
+		write("a.ts", "export const a = 1;\n");
+		git("add", "-A");
+		git("commit", "-qm", "base");
+		git("checkout", "-qb", "feature");
+		write("b.ts", "export const b = 1;\n");
+		git("add", "-A");
+		git("commit", "-qm", "feature work");
+	});
+	afterEach(() => fs.rmSync(repo, { recursive: true, force: true }));
+
+	test("stays stable when reviewed changes are committed, changes when the range changes", () => {
+		write("c.ts", "export const c = 1;\n");
+		git("add", "c.ts");
+		const reviewed = computeDiffFingerprint(repo, "main");
+		expect(reviewed).toMatch(/^[0-9a-f]{64}$/);
+
+		// Committing exactly what was reviewed does not change the range content.
+		git("commit", "-qm", "commit reviewed work");
+		expect(computeDiffFingerprint(repo, "main")).toBe(reviewed);
+
+		// New work on the branch does.
+		write("c.ts", "export const c = 2;\n");
+		expect(computeDiffFingerprint(repo, "main")).not.toBe(reviewed);
+	});
+
+	test("ignores commits that land on the base after the branch point", () => {
+		const before = computeDiffFingerprint(repo, "main");
+		git("checkout", "-q", "main");
+		write("z.ts", "export const z = 1;\n");
+		git("add", "-A");
+		git("commit", "-qm", "unrelated work on main");
+		git("checkout", "-q", "feature");
+		expect(computeDiffFingerprint(repo, "main")).toBe(before);
+	});
+
+	test("without baseRef keeps the working-tree fingerprint (differs after a commit)", () => {
+		write("c.ts", "export const c = 1;\n");
+		git("add", "c.ts");
+		const wt = computeDiffFingerprint(repo);
+		git("commit", "-qm", "commit");
+		expect(computeDiffFingerprint(repo)).not.toBe(wt);
+	});
+
+	test("an unresolvable baseRef degrades to the working-tree fingerprint", () => {
+		expect(computeDiffFingerprint(repo, "origin/main")).toBe(computeDiffFingerprint(repo));
 	});
 });

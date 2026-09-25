@@ -428,6 +428,7 @@ export {
 	formatAggregatedMarkdown,
 	saveCarrascoReview,
 	computeDiffFingerprint,
+	resolveMergeBase,
 	getHeadSha,
 	evaluateGateStatus,
 	reviewsDir,
