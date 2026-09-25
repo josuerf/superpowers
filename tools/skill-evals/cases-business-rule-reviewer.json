@@ -18,6 +18,32 @@
     "O campo 'mechanism' diz qual parte do M11 deveria achar: sibling (checagem de irmaos), removal (remocoes),",
     "commented-out (tambem coberto pelo validador deterministico lib/harness/validators/commented-out.ts), domain (so a categoria)."
   ],
+  "smoke": [
+    {
+      "at": "2026-09-25",
+      "ref": "feat/IAF-533-b2@ccd077a",
+      "case": "presta-contas-api-2404-44",
+      "reps": 1,
+      "model": "(default)",
+      "verdict": "hit",
+      "cited": "business-rule@45/High",
+      "tokens": 84756,
+      "ms": 82963,
+      "note": "o bloco REVIEWER_DECISION trazia ```java dentro da string suggestion: parseReviewerResponse do harness devolve null para esta resposta"
+    },
+    {
+      "at": "2026-09-25",
+      "ref": "feat/IAF-533-b2@1d9a966",
+      "case": "api-licitacao-6287-592",
+      "reps": 1,
+      "model": "(default)",
+      "verdict": "hit",
+      "cited": "business-rule@592/High",
+      "tokens": 210894,
+      "ms": 90675,
+      "note": "pre-check deterministico de logica comentada NAO disparou: o SQL comenta com -- no meio da linha (group by x--, y) e em coluna do select, fora dos padroes de commented-out.ts"
+    }
+  ],
   "cases": [
     {
       "id": "presta-contas-api-2404-44",
