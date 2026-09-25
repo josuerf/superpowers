@@ -79,6 +79,7 @@ count=$(printf '%s\n' $nums | wc -l | tr -d ' ')
     echo
   fi
 } > "$out"
+ctx="$(cd "$(dirname "$0")" && pwd)/task-brief-context"; [ ! -f "$ctx" ] || "${BASH:-bash}" "$ctx" "$plan" >> "$out"  # [fork]
 
 missing=""
 for n in $nums; do
