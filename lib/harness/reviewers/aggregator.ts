@@ -7,6 +7,7 @@ import type {
 	AsiTarget,
 	ChunkVerdict,
 	HarnessAction,
+	RedTeamOutcome,
 	ReviewAggressivenessConfig,
 	ReviewerDecision,
 	ReviewerFinding,
@@ -226,6 +227,13 @@ export function formatAggregatedMarkdown(
 			`- ⚠️ Chunks with no parseable verdict: ${report.metrics.chunks_unparseable} (${report.unparseableChunks.join(", ")})`,
 		);
 	}
+	if (report.redTeam) {
+		lines.push(
+			report.redTeam.status === "unreadable"
+				? "- ⚠️ Red team report (red-team.md) is unreadable — needs human review"
+				: `- Red team: Critical ${report.redTeam.critical} | High ${report.redTeam.high} | Medium ${report.redTeam.medium} (${report.redTeam.blocking} blocking)`,
+		);
+	}
 	lines.push("");
 	if (report.asi_target) {
 		lines.push("## Fix First (ASI)");
@@ -335,6 +343,8 @@ export interface SavedDecision {
 	metrics: AggregatedReviewReport["metrics"];
 	/** Per-chunk verdicts from this decision — lets `review recheck` target only chunks that didn't approve. */
 	chunkVerdicts: ChunkVerdict[];
+	/** How the red-team report entered this decision — lets `review recheck` re-run a red team that blocked. */
+	redTeam?: RedTeamOutcome;
 }
 
 export function reviewsDir(cwd: string): string {
@@ -386,6 +396,7 @@ export function saveCarrascoReview(
 		headSha: getHeadSha(cwd),
 		metrics: report.metrics,
 		chunkVerdicts: report.chunkVerdicts,
+		...(report.redTeam ? { redTeam: report.redTeam } : {}),
 	};
 	fs.writeFileSync(result.decisionPath, `${JSON.stringify(decision, null, 2)}\n`);
 	return result;
@@ -443,6 +454,25 @@ export function evaluateGateStatus(
 			action: decision.harness_action,
 			reason: "carrasco review is stale — the working tree changed since the last review",
 		};
+	}
+
+	// A red-team report written after the decision was aggregated never reached
+	// it (redTeam.parallel false dispatches the red team after the chunks). Its
+	// findings may block, so the decision is stale until aggregate runs again.
+	const redTeamPath = path.join(featureReviewDir(cwd, feature), "red-team.md");
+	try {
+		if (
+			fs.existsSync(redTeamPath) &&
+			fs.statSync(redTeamPath).mtimeMs > fs.statSync(decisionPath).mtimeMs
+		) {
+			return {
+				gate: "block",
+				action: decision.harness_action,
+				reason: "red team report is newer than the carrasco decision — re-run review aggregate",
+			};
+		}
+	} catch {
+		// stat race: fall through to the decision as saved
 	}
 
 	if (decision.harness_action === "BLOCK") {

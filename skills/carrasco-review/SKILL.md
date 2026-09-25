@@ -72,11 +72,11 @@ explicitly asked for a review, treat it as an **inline** run:
    - **Dispatch all chunks in a SINGLE message** with multiple parallel Agent tool calls when `carrasco.redTeamParallel` is true (the default). Run sequentially only if it is false.
    - **Context isolation:** construct each subagent's prompt from the chunk prompt file ONLY. Never forward this session's history or other chunks' results.
    - Append to each subagent prompt: *"You are a focused subagent. Do NOT invoke superpowers-prepared process skills (workflow-control skills such as brainstorming, writing-plans, subagent-driven-development, or any code-review pipeline including this one) and never dispatch a subagent of your own. Skills defined by this project or workspace are allowed. Return your full report including the `<!-- REVIEWER_DECISION -->` JSON block."*
-   - **Red team.** If `review plan` was run with `--plan-file <plan>` and the plan declares `Risk flags` other than `none`, `plan.json` carries a `redTeam` entry and the CLI writes `.harness/reviews/<feature>/red-team-prompt.md`. Dispatch `superpowers-prepared:red-team` with that prompt — in the same message as the chunks when `redTeam.parallel` is true, after them otherwise — and write its report to `.harness/reviews/<feature>/red-team.md` (NOT `responses/`: it is a Breakage Report, not a `REVIEWER_DECISION` block). Its Critical/High findings enter the fix loop alongside the aggregated findings. `carrasco.redTeamEnabled: false` switches this dispatch off.
+   - **Red team.** If `review plan` was run with `--plan-file <plan>` and the plan declares `Risk flags` other than `none`, `plan.json` carries a `redTeam` entry and the CLI writes `.harness/reviews/<feature>/red-team-prompt.md`. Dispatch `superpowers-prepared:red-team` with that prompt — in the same message as the chunks when `redTeam.parallel` is true, after them otherwise — and write its report to `.harness/reviews/<feature>/red-team.md` (NOT `responses/`: it is a Breakage Report, not a `REVIEWER_DECISION` block) **before** running `review aggregate`. Aggregate reads it: red-team findings at or above `severityThreshold` block exactly like carrasco findings and enter the fix loop with them; a report it cannot parse, or a planned red team with no report, makes the verdict NEEDS_HUMAN_REVIEW, never a silent pass. A `red-team.md` written after the decision makes `gate-status` stale until aggregate runs again. `carrasco.redTeamEnabled: false` switches this dispatch off.
 
 3. **Collect.** Write each subagent's returned text verbatim to `.harness/reviews/<feature>/responses/<chunk-id>.txt` (the chunk id matches the prompt filename).
 
-4. **Aggregate.** Run the harness CLI `review aggregate --feature <feature>`. It parses every response, merges findings, decides the overall verdict against `severityThreshold`, and saves the consolidated report + `decision.json`. Exit code: `0` APPROVE, `2` BLOCK, `3` NEEDS_HUMAN_REVIEW.
+4. **Aggregate.** Run the harness CLI `review aggregate --feature <feature>`. It parses every response and `red-team.md` when present, merges findings, decides the overall verdict against `severityThreshold`, and saves the consolidated report + `decision.json`. Exit code: `0` APPROVE, `2` BLOCK, `3` NEEDS_HUMAN_REVIEW.
 
 5. **Report & act.**
    - Show the verdict and the report path (`.harness/reviews/<feature>/carrasco-review.md`).
@@ -99,6 +99,10 @@ explicitly asked for a review, treat it as an **inline** run:
    - Dispatch one `superpowers-prepared:carrasco` subagent per chunk printed
      by `recheck`, exactly as in step 2, then write each response to the same
      `responses/<chunk-id>.txt` path.
+   - If `recheck` prints a **Red team** line (the last red team blocked, or
+     its report was unreadable or missing), re-dispatch
+     `superpowers-prepared:red-team` with the regenerated
+     `red-team-prompt.md` and write the new `red-team.md` before aggregating.
    - Run `review aggregate --feature <feature>` again — it merges the fresh
      verdicts for rechecked chunks with the untouched ones automatically, no
      extra flag needed.

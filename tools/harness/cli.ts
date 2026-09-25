@@ -10,6 +10,10 @@ import {
 	buildReviewPlan,
 	buildRecheckPrompt,
 	aggregateCarrascoResponses,
+	foldRedTeamReport,
+	prepareRedTeamRecheck,
+	RED_TEAM_REPORT,
+	RED_TEAM_PREVIOUS,
 	saveCarrascoReview,
 	evaluateGateStatus,
 	resolveMergeBase,
@@ -245,6 +249,10 @@ async function runReview(): Promise<void> {
 				`${chunk.prompt}\n`,
 			);
 		}
+		// A fresh plan starts a fresh review: a red-team report from an earlier
+		// plan must not be folded into this one's verdict.
+		const staleRedTeam = path.join(dir, RED_TEAM_REPORT);
+		if (fs.existsSync(staleRedTeam)) fs.renameSync(staleRedTeam, path.join(dir, RED_TEAM_PREVIOUS));
 		const redTeamPromptPath = path.join(dir, "red-team-prompt.md");
 		if (plan.redTeam) {
 			fs.writeFileSync(redTeamPromptPath, `${plan.redTeam.prompt}\n`);
@@ -271,7 +279,7 @@ async function runReview(): Promise<void> {
 		);
 		if (plan.redTeam) {
 			console.log(
-				`Red team (Risk flags: ${plan.redTeam.flags.join(", ")}): dispatch ${plan.redTeam.agent} with ${redTeamPromptPath} ${plan.redTeam.parallel ? "in the same message as the chunks" : "after the chunks"} — focus: ${plan.redTeam.focusCategories.join(", ")}. Write its report to ${path.join(dir, "red-team.md")} (not responses/); its Critical/High findings enter the fix loop.`,
+				`Red team (Risk flags: ${plan.redTeam.flags.join(", ")}): dispatch ${plan.redTeam.agent} with ${redTeamPromptPath} ${plan.redTeam.parallel ? "in the same message as the chunks" : "after the chunks"} — focus: ${plan.redTeam.focusCategories.join(", ")}. Write its report to ${path.join(dir, "red-team.md")} (not responses/) BEFORE review aggregate: aggregate reads it and its findings at or above severityThreshold block like any carrasco finding.`,
 			);
 		}
 		process.exit(0);
@@ -305,7 +313,16 @@ async function runReview(): Promise<void> {
 					.filter((c) => c.action !== "APPROVE")
 					.map((c) => c.chunkId);
 
-		if (targetIds.length === 0) {
+		// A red team that blocked (or whose report was unreadable/missing) is
+		// re-run against the fix; otherwise its old report would block forever.
+		const redTeamRecheck = prepareRedTeamRecheck(
+			dir,
+			decision.redTeam,
+			gitOut(cwd, ["diff", "HEAD"]) || "",
+			ra,
+		);
+
+		if (targetIds.length === 0 && !redTeamRecheck) {
 			console.log(
 				`No blocked chunks to recheck for '${feature}' — the last review already approved everything.`,
 			);
@@ -354,6 +371,11 @@ async function runReview(): Promise<void> {
 		console.log(
 			"Chunks not listed above keep their previous verdict — their response files are untouched and merge back in automatically.",
 		);
+		if (redTeamRecheck) {
+			console.log(
+				`Red team: re-dispatch superpowers-prepared:red-team with ${redTeamRecheck} and write its report to ${path.join(dir, RED_TEAM_REPORT)} before review aggregate (the previous report is in ${RED_TEAM_PREVIOUS}).`,
+			);
+		}
 		process.exit(0);
 	}
 
@@ -387,13 +409,17 @@ async function runReview(): Promise<void> {
 			}
 		}
 
-		const report = aggregateCarrascoResponses(
+		let report = aggregateCarrascoResponses(
 			feature,
 			responses,
 			ra,
 			new Date().toISOString(),
 			chunkFilesById,
 		);
+		// The red team's Breakage Report is not a REVIEWER_DECISION block, so it
+		// lives outside responses/; fold it in here so its findings reach the gate.
+		const redTeamPath = path.join(dir, RED_TEAM_REPORT);
+		report = foldRedTeamReport(report, dir, ra);
 		if (ra.reportOutput.saveToHarness) {
 			const saved = saveCarrascoReview(cwd, report, ra, baseRef);
 			console.log(`Report saved to: ${saved.dir}`);
@@ -406,6 +432,13 @@ async function runReview(): Promise<void> {
 		if (report.metrics.chunks_unparseable > 0) {
 			console.log(
 				`  ⚠️ Unparseable chunks: ${report.unparseableChunks.join(", ")}`,
+			);
+		}
+		if (report.redTeam) {
+			console.log(
+				report.redTeam.status !== "parsed"
+					? `  ⚠️ Red team report ${report.redTeam.status} (${redTeamPath}) — needs human review`
+					: `  Red team: Critical ${report.redTeam.critical} | High ${report.redTeam.high} | Medium ${report.redTeam.medium} (${report.redTeam.blocking} blocking)`,
 			);
 		}
 		await recordReviewPatterns(cwd, report);

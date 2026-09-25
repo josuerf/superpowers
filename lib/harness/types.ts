@@ -218,6 +218,23 @@ export interface AggregatedReviewReport {
 	unparseableChunks: string[];
 	/** Per-chunk verdict — lets a later recheck target only the chunks that didn't approve. */
 	chunkVerdicts: ChunkVerdict[];
+	/** Present when `.harness/reviews/<feature>/red-team.md` existed at aggregate time. */
+	redTeam?: RedTeamOutcome;
+}
+
+/** How the red team's Breakage Report entered the aggregated verdict. */
+export interface RedTeamOutcome {
+	/**
+	 * "unreadable": red-team.md could not be parsed; "missing": review plan asked
+	 * for a red team but no report was written. Both lift APPROVE to
+	 * NEEDS_HUMAN_REVIEW.
+	 */
+	status: "parsed" | "unreadable" | "missing";
+	critical: number;
+	high: number;
+	medium: number;
+	/** Findings at or above `carrasco.severityThreshold` — any of them makes the verdict BLOCK. */
+	blocking: number;
 }
 
 export interface HarnessConfig {
