@@ -280,6 +280,18 @@ export function resolveMergeBase(cwd: string, baseRef?: string): string | null {
 }
 
 /**
+ * The stderr warning for a configured baseRef (--base or verifyOnStop.baseRef)
+ * that does not resolve here, or null when there is nothing to say. Degrading
+ * to the working tree is the right fallback, but doing it in silence let a
+ * typo in baseRef quietly drop every committed change from the review.
+ */
+export function baseRefWarning(cwd: string, baseRef?: string): string | null {
+	if (!baseRef) return null;
+	if (resolveMergeBase(cwd, baseRef)) return null;
+	return `warning: base ref '${baseRef}' does not resolve in ${cwd} (no merge-base with HEAD) — falling back to the working tree (HEAD); committed changes on this branch are not covered.`;
+}
+
+/**
  * Fingerprint the current working-tree changes (tracked diff vs HEAD plus
  * untracked/staged status). Used to tie a saved decision to the exact change
  * set it reviewed, so the stop gate can detect when a review is stale. Returns

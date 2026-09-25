@@ -7,6 +7,7 @@ import {
 	formatAggregatedMarkdown,
 	evaluateGateStatus,
 	computeDiffFingerprint,
+	baseRefWarning,
 	type CarrascoResponse,
 } from "../../../lib/harness/reviewers/aggregator";
 import type { ReviewAggressivenessConfig } from "../../../lib/harness/types";
@@ -679,5 +680,31 @@ describe("computeDiffFingerprint with a baseRef (branch range)", () => {
 
 	test("an unresolvable baseRef degrades to the working-tree fingerprint", () => {
 		expect(computeDiffFingerprint(repo, "origin/main")).toBe(computeDiffFingerprint(repo));
+	});
+});
+
+describe("baseRefWarning", () => {
+	let repo: string;
+	beforeEach(() => {
+		repo = fs.mkdtempSync(path.join(os.tmpdir(), "base-warn-"));
+		const git = (...a: string[]) =>
+			spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", ...a], { cwd: repo });
+		git("init", "-q", "-b", "main");
+		fs.writeFileSync(path.join(repo, "a.ts"), "x\n");
+		git("add", "-A");
+		git("commit", "-qm", "base");
+	});
+	afterEach(() => fs.rmSync(repo, { recursive: true, force: true }));
+
+	test("no baseRef -> no warning", () => {
+		expect(baseRefWarning(repo, undefined)).toBeNull();
+	});
+	test("a baseRef that resolves -> no warning", () => {
+		expect(baseRefWarning(repo, "main")).toBeNull();
+	});
+	test("a baseRef that does not resolve -> a warning naming the ref and the fallback", () => {
+		const w = baseRefWarning(repo, "origin/main");
+		expect(w).toContain("origin/main");
+		expect(w).toMatch(/working tree/i);
 	});
 });

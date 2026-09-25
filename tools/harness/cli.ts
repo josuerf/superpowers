@@ -17,6 +17,7 @@ import {
 	saveCarrascoReview,
 	evaluateGateStatus,
 	resolveMergeBase,
+	baseRefWarning,
 	featureReviewDir,
 	buildReviewExclude,
 	resolveInlineChunking,
@@ -148,6 +149,8 @@ async function runReview(): Promise<void> {
 	// degrades to the working tree (HEAD), same as passing no base at all.
 	const baseRef = getFlag("--base") || config.verifyOnStop.baseRef;
 	const dir = featureReviewDir(cwd, feature);
+	const baseWarning = baseRefWarning(cwd, baseRef);
+	if (baseWarning) console.error(baseWarning);
 
 	if (sub === "gate-status") {
 		if (!ra.enabled) {

@@ -429,6 +429,7 @@ export {
 	saveCarrascoReview,
 	computeDiffFingerprint,
 	resolveMergeBase,
+	baseRefWarning,
 	getHeadSha,
 	evaluateGateStatus,
 	reviewsDir,
