@@ -360,6 +360,7 @@ behalf — and the findings you chose not to act on — reach them.
 When the final review is clean and its fixes are committed, delete this
 plan's workspace directory — the git history is the record now. Sibling
 directories belong to other plans; leave them alone.
+<!-- [fork] --> If `.superpowers/sdd/.gitignore` is tracked in git, the repo versions SDD artifacts: commit the workspace's ledger and review findings (`SDD-Plan:` trailer) before deleting it.
 
 Use superpowers-prepared:finishing-a-development-branch.
 
