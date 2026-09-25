@@ -33,6 +33,7 @@ const DEFAULT_CONFIG: HarnessConfig = {
 			"node-elysia": 10,
 			"node-std": 10,
 			"java-springboot": 10,
+			"java8-spring": 10,
 			"csharp-dotnet": 15,
 			"csharp-aspnet": 15,
 			"python-fastapi": 10,

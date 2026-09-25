@@ -21,6 +21,7 @@ export async function validateCoverage(
 		"python-fastapi": "pytest --cov=. --cov-report=term-missing 2>&1 || true",
 		"java-springboot":
 			"mvn jacoco:report 2>&1 || ./gradlew jacocoTestReport 2>&1 || true",
+		"java8-spring": "mvn jacoco:report 2>&1 || true",
 		"go-std":
 			"go test -coverprofile=coverage.out && go tool cover -func=coverage.out 2>&1 || true",
 		terraform: 'echo "N/A"',

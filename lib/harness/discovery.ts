@@ -7,9 +7,34 @@ import {
 	isWorkspaceMode,
 } from "./config";
 
+/**
+ * True when a pom.xml targets Java 8 (`<java.version>`, compiler `<source>` or
+ * `<maven.compiler.source>` set to 1.8). Such a project is reviewed and
+ * verified as `java8-spring`, whose rules accept javax.*, POJOs and
+ * RestTemplate — the java-springboot rules assume Java 21 / Jakarta EE and
+ * flood a legacy codebase with false positives.
+ */
+export function isJava8Pom(pom: string): boolean {
+	return [
+		/<java\.version>\s*1\.8\s*<\/java\.version>/,
+		/<source>\s*1\.8\s*<\/source>/,
+		/<maven\.compiler\.source>\s*1\.8\s*<\/maven\.compiler\.source>/,
+	].some((re) => re.test(pom));
+}
+
+function isJava8Project(projectRoot: string): boolean {
+	try {
+		return isJava8Pom(
+			fs.readFileSync(path.join(projectRoot, "pom.xml"), "utf-8"),
+		);
+	} catch {
+		return false;
+	}
+}
+
 // Evaluated in insertion order: the first detector that matches wins, so a
-// more specific detector must precede the general one it narrows. `match`,
-// when present, must also pass.
+// more specific detector must precede the general one it narrows (java8-spring
+// before java-springboot). `match`, when present, must also pass.
 const STACK_DETECTORS: Record<
 	string,
 	{ files: string[]; deps?: string[]; match?: (projectRoot: string) => boolean }
@@ -24,6 +49,7 @@ const STACK_DETECTORS: Record<
 		files: ["requirements.txt", "pyproject.toml"],
 		deps: ["fastapi"],
 	},
+	"java8-spring": { files: ["pom.xml"], match: isJava8Project },
 	"java-springboot": { files: ["pom.xml", "build.gradle", "build.gradle.kts"] },
 	"go-std": { files: ["go.mod"] },
 	terraform: { files: ["*.tf", "terraform.tf"] },

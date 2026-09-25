@@ -216,6 +216,7 @@ async function runReview(): Promise<void> {
 			gitDiff,
 			config: planConfig,
 			generatedAt: new Date().toISOString(),
+			projectRoot: cwd,
 		});
 
 		fs.mkdirSync(dir, { recursive: true });
@@ -305,6 +306,7 @@ async function runReview(): Promise<void> {
 				freshDiff,
 				note,
 				config: ra,
+				projectRoot: cwd,
 			});
 			fs.writeFileSync(path.join(dir, "prompts", `${chunkId}.md`), `${prompt}\n`);
 			const responsePath = path.join(dir, "responses", `${chunkId}.txt`);

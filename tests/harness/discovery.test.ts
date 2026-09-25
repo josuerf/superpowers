@@ -151,3 +151,46 @@ describe('declared project roots (M3/M4)', () => {
     expect(detectStack(path.join(TEST_DIR, 'projects', 'api-x'))).toBeNull();
   });
 });
+
+describe('java8-spring detection (M5)', () => {
+  beforeEach(setup);
+  afterEach(teardown);
+
+  const pom = (props: string) =>
+    `<project><properties>${props}</properties><dependencies><dependency><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>`;
+
+  test('pom.xml with <java.version>1.8</java.version> -> java8-spring', () => {
+    fs.writeFileSync(path.join(TEST_DIR, 'pom.xml'), pom('<java.version>1.8</java.version>'));
+    expect(detectStack(TEST_DIR)).toBe('java8-spring');
+  });
+
+  test('pom.xml with maven.compiler.source 1.8 -> java8-spring', () => {
+    fs.writeFileSync(path.join(TEST_DIR, 'pom.xml'), pom('<maven.compiler.source>1.8</maven.compiler.source>'));
+    expect(detectStack(TEST_DIR)).toBe('java8-spring');
+  });
+
+  test('compiler plugin <source>1.8</source> -> java8-spring', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, 'pom.xml'),
+      '<project><build><plugins><plugin><configuration><source>1.8</source></configuration></plugin></plugins></build></project>',
+    );
+    expect(detectStack(TEST_DIR)).toBe('java8-spring');
+  });
+
+  test('pom.xml with <java.version>21</java.version> -> java-springboot', () => {
+    fs.writeFileSync(path.join(TEST_DIR, 'pom.xml'), pom('<java.version>21</java.version>'));
+    expect(detectStack(TEST_DIR)).toBe('java-springboot');
+  });
+
+  test('pom.xml without a Java version -> java-springboot (unchanged)', () => {
+    fs.writeFileSync(path.join(TEST_DIR, 'pom.xml'), pom(''));
+    expect(detectStack(TEST_DIR)).toBe('java-springboot');
+  });
+
+  test('deep detection classifies a nested Java 8 module', () => {
+    const mod = path.join(TEST_DIR, 'projects', 'legacy', 'app');
+    fs.mkdirSync(mod, { recursive: true });
+    fs.writeFileSync(path.join(mod, 'pom.xml'), pom('<java.version>1.8</java.version>'));
+    expect(detectStackDeep(path.join(TEST_DIR, 'projects', 'legacy'))?.stack).toBe('java8-spring');
+  });
+});

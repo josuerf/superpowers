@@ -75,6 +75,8 @@ export interface BuildReviewPlanOptions {
 	config: ReviewAggressivenessConfig;
 	/** ISO timestamp; injected by the caller so the planner stays deterministic. */
 	generatedAt: string;
+	/** Project root; lets stack resolution read manifests (Java 8 vs 21). */
+	projectRoot?: string;
 }
 
 /**
@@ -83,7 +85,8 @@ export interface BuildReviewPlanOptions {
  * the full carrasco prompt (technology rules + aggressiveness directives).
  */
 export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
-	const { feature, changedFiles, gitDiff, config, generatedAt } = options;
+	const { feature, changedFiles, gitDiff, config, generatedAt, projectRoot } =
+		options;
 	const diffByFile = splitDiffByFile(gitDiff);
 
 	const fileInputs: ChunkFileInput[] = changedFiles.map((path) => ({
@@ -99,7 +102,10 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 			.filter((d): d is string => Boolean(d))
 			.join("\n");
 		const ormStacks = detectOrmFromDiff(chunkDiff);
-		const stacks = Array.from(new Set([...c.stacks, ...ormStacks]));
+		const fileStacks = projectRoot
+			? resolveStacksForFiles(c.files, projectRoot)
+			: c.stacks;
+		const stacks = Array.from(new Set([...fileStacks, ...ormStacks]));
 		const prompt = buildReviewerPrompt(c.files, chunkDiff, stacks, {
 			aggressiveness: config,
 		});
@@ -116,7 +122,7 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 
 	const allStacks = Array.from(
 		new Set([
-			...resolveStacksForFiles(changedFiles),
+			...resolveStacksForFiles(changedFiles, projectRoot),
 			...detectOrmFromDiff(gitDiff),
 		]),
 	);
@@ -141,6 +147,8 @@ export interface BuildRecheckPromptOptions {
 	/** Optional one-line context from the controller: what changed and why, or a new follow-up ask. */
 	note?: string;
 	config: ReviewAggressivenessConfig;
+	/** Project root; lets stack resolution read manifests (Java 8 vs 21). */
+	projectRoot?: string;
 }
 
 /**
@@ -153,7 +161,10 @@ export interface BuildRecheckPromptOptions {
 export function buildRecheckPrompt(options: BuildRecheckPromptOptions): string {
 	const { files, priorFindings, freshDiff, note, config } = options;
 	const stacks = Array.from(
-		new Set([...resolveStacksForFiles(files), ...detectOrmFromDiff(freshDiff)]),
+		new Set([
+			...resolveStacksForFiles(files, options.projectRoot),
+			...detectOrmFromDiff(freshDiff),
+		]),
 	);
 	const basePrompt = loadReviewerPrompt(stacks);
 
