@@ -33,8 +33,15 @@ After resolving a bug that is likely to recur:
 - Platform-specific issues (Windows vs. Unix path handling, line endings)
 - Errors that took significant investigation to diagnose
 
+**Also record a logic bug** once it has stopped being one-off: the same error
+pattern recurred — 2+ occurrences across distinct MRs, files, or repositories,
+or reported by 2+ authors — or the review classified it as `business-rule`.
+At that point it is not an isolated bug, it is a trap in the domain — and the
+commit message, which is where your explanation lives today, will never be
+read by whoever edits the neighboring file next month.
+
 **Do NOT record:**
-- One-off logic bugs (the fix is in the code; the commit message has the context)
+- A genuinely isolated logic bug: one occurrence, one file, one repository, low blast radius, no pattern — a one-off that does not recur
 - Errors already documented in the project's README or docs
 - Transient network/API failures
 
