@@ -87,6 +87,12 @@ Subagent (general-purpose):
     finding's verdict. Every line is a verdict, a finding with file:line,
     or a check you ran — no preamble, no process narration.
 
+    **What would prove you wrong:** before closing the report, name the
+    evidence that would overturn your main verdict — an ADDRESSED you
+    granted or a breakage you report — and say whether you looked for it.
+    A verdict whose refutation was not attempted goes into the report with
+    that caveat written. <!-- [fork] -->
+
     **Budget:** one line per finding verdict, and at most three lines of
     evidence for any single finding. This report is read whole by the
     controller and stays in its context for the rest of the session, so it
