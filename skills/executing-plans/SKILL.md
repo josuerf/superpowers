@@ -265,7 +265,7 @@ Run `verify-local` (completeness, lint, typecheck, test, coverage, patterns) and
 Running this first is what keeps a reviewer seat from being spent on what lint
 would have caught.
 
-In a workspace harness (repositories under `projects/<repo>`, session at the
+<!-- [fork] --> In a workspace harness (repositories under `projects/<repo>`, session at the
 workspace root), pass `--root projects/<repo>` for the repository you changed.
 Without it the gate measures the workspace root, which has no tests, and
 "Coverage 0.0%" is the harness saying it found nothing to measure.
