@@ -27,6 +27,13 @@ describe("loadBasePrompt", () => {
 		expect(prompt).toContain("Senior Code Reviewer");
 		expect(prompt).toContain("Universal Engineering Checklist");
 	});
+
+	test("a sibling divergence without the sibling citation is capped at a Low (minor) suspicion, not suppressed", () => {
+		const prompt = loadBasePrompt();
+		expect(prompt).not.toContain("must not be reported");
+		expect(prompt).toMatch(/without the sibling.s citation[^.]*at most[^.]*suspicion[^.]*`Low`/i);
+		expect(prompt).toMatch(/search command you ran/i);
+	});
 });
 
 describe("loadStackPrompt", () => {
