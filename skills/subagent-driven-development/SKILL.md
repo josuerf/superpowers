@@ -599,6 +599,28 @@ complete: you hold the plan and cross-task context the reviewer
 lacks. If you confirm an item is a real gap, treat it as a failed spec
 review — it enters the fix loop with the other findings.
 
+<!-- [fork] -->
+**Red team on flagged batches.** When any task in the batch carries `Risk
+flags` other than `none` (see writing-plans), dispatch
+`superpowers-prepared:red-team` IN PARALLEL with the batch reviewer, on the
+same review package, with the focus categories for the flag:
+
+| Flag | Red-team focus categories |
+|---|---|
+| `security` | adversarial-inputs, assumption-violations |
+| `concurrency` | concurrency-timing, state-corruption, error-cascading |
+| `data-migration` | state-corruption, production-context-assumptions |
+| `regulatory` | production-context-assumptions, assumption-violations |
+| `backward-compat` | production-context-assumptions, error-cascading |
+
+A Critical/High red-team finding enters the fix loop like any other. Category
+8 of the red team (Production Context Assumptions, `agents/red-team.md`) is the
+one that covers this fleet's dominant class — data-shape drift, contract drift,
+deploy ordering, accumulated production state — and no other reviewer in the
+fork has an equivalent. The harness path mirrors this table:
+`review plan --plan-file <plan>` (`lib/harness/reviewers/red-team.ts`).
+<!-- [/fork] -->
+
 Template: [task-reviewer-prompt.md](task-reviewer-prompt.md)
 
 ### 4. The fix loop
@@ -748,6 +770,11 @@ superpowers-prepared:requesting-code-review's
 [code-reviewer.md](../requesting-code-review/code-reviewer.md). Point it at
 the ledger's deferred-minor and parked lines so it can triage which must be
 fixed before merge.
+Also include the plan and spec paths, the plan's Review Focus section
+verbatim if it has one (the input classes and failure modes the plan's tests
+do not exercise — the reviewer checks each deliberately), and a pointer to the
+ledger's `Ruling:` lines so it can weigh the calls you made — the same inputs
+executing-plans gives its final reviewer. <!-- [fork] -->
 
 If the final whole-branch review returns findings, dispatch ONE fix subagent
 with the complete findings list — not one fixer per finding.

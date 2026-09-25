@@ -75,7 +75,9 @@ Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md
 - Critical/High security findings **block merge** until addressed or the user explicitly accepts the risk with documented rationale.
 - Medium security findings should be fixed before merge unless explicitly deferred.
 
-## Adversarial Red Team (Optional)
+## Adversarial Red Team <!-- [fork] -->
+
+Required when the plan marks any `Risk flags` value other than `none`; optional otherwise. <!-- [fork] -->
 
 For changes involving complex logic, concurrency, state management, or critical data paths, dispatch `superpowers-prepared:red-team` in parallel with the code reviewer.
 

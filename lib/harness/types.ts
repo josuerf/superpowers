@@ -166,6 +166,21 @@ export interface ReviewPlan {
 	totalChunks: number;
 	stacks: string[];
 	chunks: ReviewChunk[];
+	/**
+	 * Present only when the change's plan declares `Risk flags` other than
+	 * none and `carrasco.redTeamEnabled` is true.
+	 */
+	redTeam?: RedTeamDispatch;
+}
+
+/** One extra red-team dispatch, triggered by the plan's `Risk flags`. */
+export interface RedTeamDispatch {
+	agent: string;
+	flags: string[];
+	focusCategories: string[];
+	/** Dispatch together with the carrasco chunks (true) or after them. */
+	parallel: boolean;
+	prompt: string;
 }
 
 export interface ChunkVerdict {

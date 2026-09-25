@@ -12,6 +12,7 @@ import {
 } from "./loader";
 import { buildAggressivenessDirectives } from "./aggressiveness";
 import { chunkChangedFiles, type ChunkFileInput } from "./chunker";
+import { buildRedTeamDispatch, parseRiskFlags } from "./red-team";
 
 /**
  * Split a unified git diff into per-file sections keyed by the file's `b/`
@@ -75,6 +76,11 @@ export interface BuildReviewPlanOptions {
 	config: ReviewAggressivenessConfig;
 	/** ISO timestamp; injected by the caller so the planner stays deterministic. */
 	generatedAt: string;
+	/**
+	 * Text of the implementation plan behind the change, when known. Its
+	 * `Risk flags` decide whether the plan carries an extra red-team dispatch.
+	 */
+	planText?: string;
 }
 
 /**
@@ -83,7 +89,7 @@ export interface BuildReviewPlanOptions {
  * the full carrasco prompt (technology rules + aggressiveness directives).
  */
 export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
-	const { feature, changedFiles, gitDiff, config, generatedAt } = options;
+	const { feature, changedFiles, gitDiff, config, generatedAt, planText } = options;
 	const diffByFile = splitDiffByFile(gitDiff);
 
 	const fileInputs: ChunkFileInput[] = changedFiles.map((path) => ({
@@ -121,6 +127,10 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 		]),
 	);
 
+	const redTeam = planText
+		? buildRedTeamDispatch(parseRiskFlags(planText), gitDiff, config)
+		: null;
+
 	return {
 		feature,
 		level: config.level,
@@ -129,6 +139,7 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 		totalChunks: chunks.length,
 		stacks: allStacks,
 		chunks,
+		...(redTeam ? { redTeam } : {}),
 	};
 }
 

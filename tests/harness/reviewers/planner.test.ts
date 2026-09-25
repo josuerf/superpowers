@@ -4,6 +4,7 @@ import {
 	splitDiffByFile,
 	countChangedLines,
 } from "../../../lib/harness/reviewers/planner";
+import { parseRiskFlags } from "../../../lib/harness/reviewers/red-team";
 import type {
 	ReviewAggressivenessConfig,
 	ReviewerFinding,
@@ -133,6 +134,72 @@ describe("buildReviewPlan", () => {
 			generatedAt: "2026-06-10T00:00:00.000Z",
 		});
 		expect(plan.chunks[0].prompt).toContain("## Decision Policy");
+	});
+});
+
+describe("red-team dispatch from plan Risk flags", () => {
+	const PLAN = [
+		"### Task 1: Batch the ledger postings",
+		"",
+		"**Risk flags:** `concurrency` *(one or more of: `security` — touches auth; `concurrency` — shared state; `regulatory` — TCE export)*",
+		"",
+		"### Task 2: Rename a helper",
+		"",
+		"**Risk flags:** `none` *(one or more of: `security`, `data-migration`)*",
+	].join("\n");
+
+	const build = (planText: string | undefined, overrides = {}) =>
+		buildReviewPlan({
+			feature: "feat-x",
+			changedFiles: ["src/auth/login.ts", "src/billing/charge.ts"],
+			gitDiff: DIFF,
+			config: raConfig(overrides),
+			generatedAt: "2026-06-10T00:00:00.000Z",
+			planText,
+		});
+
+	test("a plan with Risk flags: concurrency adds a red-team dispatch with the table's focus", () => {
+		const plan = build(PLAN);
+		expect(plan.totalChunks).toBe(1);
+		expect(plan.redTeam).toBeDefined();
+		expect(plan.redTeam!.agent).toBe("superpowers-prepared:red-team");
+		expect(plan.redTeam!.flags).toEqual(["concurrency"]);
+		expect(plan.redTeam!.focusCategories).toEqual([
+			"concurrency-timing",
+			"state-corruption",
+			"error-cascading",
+		]);
+		expect(plan.redTeam!.parallel).toBe(true);
+		expect(plan.redTeam!.prompt).toContain("Concurrency & timing");
+		expect(plan.redTeam!.prompt).toContain("console.log");
+	});
+
+	test("redTeamEnabled: false switches the dispatch off", () => {
+		const plan = build(PLAN, {
+			carrasco: { ...raConfig().carrasco, redTeamEnabled: false },
+		});
+		expect(plan.redTeam).toBeUndefined();
+	});
+
+	test("redTeamParallel: false asks for a sequential dispatch", () => {
+		const plan = build(PLAN, {
+			carrasco: { ...raConfig().carrasco, redTeamParallel: false },
+		});
+		expect(plan.redTeam!.parallel).toBe(false);
+	});
+
+	test("no plan, or a plan whose flags are all none, adds nothing", () => {
+		expect(build(undefined).redTeam).toBeUndefined();
+		expect(build("**Risk flags:** `none`").redTeam).toBeUndefined();
+	});
+
+	test("parseRiskFlags ignores the explanation, unions tasks, reads legacy Security flag", () => {
+		expect(parseRiskFlags(PLAN)).toEqual(["concurrency"]);
+		expect(
+			parseRiskFlags(
+				"**Security flag:** `security`\n**Risk flags:** `data-migration, backward-compat`",
+			),
+		).toEqual(["security", "data-migration", "backward-compat"]);
 	});
 });
 

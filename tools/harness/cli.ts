@@ -204,12 +204,25 @@ async function runReview(): Promise<void> {
 		}
 
 		const gitDiff = gitOut(cwd, base ? ["diff", base] : ["diff", "HEAD"]) || "";
+		// --plan-file: the implementation plan behind the change. Its `Risk flags`
+		// add a red-team dispatch (gated by carrasco.redTeamEnabled).
+		const planFile = getFlag("--plan-file");
+		let planText: string | undefined;
+		if (planFile) {
+			const planPath = path.resolve(cwd, planFile);
+			if (!fs.existsSync(planPath)) {
+				console.error(`Plan file not found: ${planPath}`);
+				process.exit(1);
+			}
+			planText = fs.readFileSync(planPath, "utf8");
+		}
 		const plan = buildReviewPlan({
 			feature,
 			changedFiles,
 			gitDiff,
 			config: planConfig,
 			generatedAt: new Date().toISOString(),
+			planText,
 		});
 
 		fs.mkdirSync(dir, { recursive: true });
@@ -224,6 +237,12 @@ async function runReview(): Promise<void> {
 				path.join(dir, "prompts", `${chunk.id}.md`),
 				`${chunk.prompt}\n`,
 			);
+		}
+		const redTeamPromptPath = path.join(dir, "red-team-prompt.md");
+		if (plan.redTeam) {
+			fs.writeFileSync(redTeamPromptPath, `${plan.redTeam.prompt}\n`);
+		} else if (fs.existsSync(redTeamPromptPath)) {
+			fs.rmSync(redTeamPromptPath);
 		}
 
 		console.log(`Carrasco review plan — feature: ${feature} | level: ${plan.level}`);
@@ -240,6 +259,11 @@ async function runReview(): Promise<void> {
 		console.log(
 			`Dispatch one carrasco subagent per chunk, then write each response to ${path.join(dir, "responses")}/<chunk-id>.txt and run: review aggregate --feature ${feature}`,
 		);
+		if (plan.redTeam) {
+			console.log(
+				`Red team (Risk flags: ${plan.redTeam.flags.join(", ")}): dispatch ${plan.redTeam.agent} with ${redTeamPromptPath} ${plan.redTeam.parallel ? "in the same message as the chunks" : "after the chunks"} — focus: ${plan.redTeam.focusCategories.join(", ")}. Write its report to ${path.join(dir, "red-team.md")} (not responses/); its Critical/High findings enter the fix loop.`,
+			);
+		}
 		process.exit(0);
 	}
 
