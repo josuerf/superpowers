@@ -52,41 +52,89 @@ function canonicalSeverity(s: string): ReviewerSeverity {
 	return (lower.charAt(0).toUpperCase() + lower.slice(1)) as ReviewerSeverity;
 }
 
+// "**Severity:** Critical", "- Severity: High", "Severity: [Medium]"
+const SEVERITY_LINE =
+	/^\s*(?:[-*]\s*)?\**\s*Severity\s*\**\s*:\s*\**\s*\[?\s*(Critical|High|Medium|Low)\b/i;
+// Body lines that mark a heading as a scenario entry (agents/red-team.md format).
+const ENTRY_BODY = /^\s*\**\s*(Trigger|What breaks|Root cause)\s*:?\s*\**\s*:/i;
+
+interface PendingEntry {
+	title: string;
+	file?: string;
+	line?: number;
+	looksLikeEntry: boolean;
+}
+
 /**
- * Entries from the `### <Severity> — <title>` headings, each with the first
- * `file:line` of its body (the report's rules require one per scenario).
- * Severity counts come from the entries; a Summary line that counts MORE
- * wins, so a report whose entries were mangled still cannot under-report.
- * Returns null when nothing can be read: no entry heading, no summary counts
- * and no explicit "nothing found" — the caller must not treat that as clean.
+ * Entries from the report, each with the first `file:line` of its body (the
+ * report's rules require one per scenario). An entry's severity comes from its
+ * heading (`### High — title`) or from a `**Severity:** X` line under any
+ * heading (`### Scenario 3`). Severity counts come from the entries; a Summary
+ * line that counts MORE wins, so a report whose entries were mangled still
+ * cannot under-report.
+ *
+ * A "nothing found" phrase only counts when there is no entry and no count
+ * above zero: an explicit severity is never cancelled by a stray sentence
+ * like "no failure scenarios found here". Returns null when nothing can be
+ * read — no entry, no summary counts, no explicit clean verdict — or when a
+ * scenario (a heading with Trigger / What breaks / Root cause) carries no
+ * severity at all: the caller must not treat either as clean.
  */
 export function parseRedTeamReport(text: string): ParsedRedTeamReport | null {
 	if (typeof text !== "string" || text.trim().length === 0) return null;
 	const lines = text.split(/\r?\n/);
 	const entries: RedTeamEntry[] = [];
 	let current: RedTeamEntry | null = null;
+	let pending: PendingEntry | null = null;
+	let unratedScenario = false;
+	const closePending = () => {
+		if (pending && pending.looksLikeEntry) unratedScenario = true;
+		pending = null;
+	};
 	let inFence = false;
 	for (const line of lines) {
 		if (/^\s*```/.test(line)) inFence = !inFence;
 		if (inFence) continue;
 		const m = line.match(ENTRY_HEADING);
 		if (m) {
+			closePending();
 			current = { severity: canonicalSeverity(m[1]), title: m[2] };
 			entries.push(current);
 			continue;
 		}
-		if (/^#{1,4}\s/.test(line)) {
+		const heading = line.match(/^#{1,4}\s+(.*)$/);
+		if (heading) {
+			closePending();
 			current = null;
+			if (/^#{2,4}\s/.test(line) && !/^(summary|breakage report)\b/i.test(heading[1].trim())) {
+				pending = { title: heading[1].trim(), looksLikeEntry: false };
+			}
 			continue;
 		}
-		if (current && current.file === undefined) {
+		const sev = line.match(SEVERITY_LINE);
+		if (sev) {
+			if (pending) {
+				current = { severity: canonicalSeverity(sev[1]), title: pending.title, file: pending.file, line: pending.line };
+				entries.push(current);
+				pending = null;
+			} else if (!current) {
+				current = { severity: canonicalSeverity(sev[1]), title: "(untitled scenario)" };
+				entries.push(current);
+			}
+			continue;
+		}
+		if (pending && ENTRY_BODY.test(line)) pending.looksLikeEntry = true;
+		const target: { file?: string; line?: number } | null = current ?? pending;
+		if (target && target.file === undefined) {
 			const fl = line.match(FILE_LINE);
 			if (fl) {
-				current.file = fl[1].replace(/\\/g, "/");
-				current.line = Number(fl[2]);
+				target.file = fl[1].replace(/\\/g, "/");
+				target.line = Number(fl[2]);
 			}
 		}
 	}
+	closePending();
+	if (unratedScenario) return null;
 
 	const count = (sev: ReviewerSeverity) => entries.filter((e) => e.severity === sev).length;
 	let critical = count("Critical");
@@ -100,7 +148,8 @@ export function parseRedTeamReport(text: string): ParsedRedTeamReport | null {
 		if (summary[3] !== undefined) medium = Math.max(medium, Number(summary[3]));
 	}
 
-	if (entries.length === 0 && !summary && !EXPLICIT_CLEAN.test(text)) return null;
+	const anyFinding = entries.length > 0 || critical + high + medium > 0;
+	if (!anyFinding && !summary && !EXPLICIT_CLEAN.test(text)) return null;
 	return { critical, high, medium, entries };
 }
 

@@ -430,6 +430,7 @@ export {
 	computeDiffFingerprint,
 	resolveMergeBase,
 	baseRefWarning,
+	reviewDiff,
 	getHeadSha,
 	evaluateGateStatus,
 	reviewsDir,

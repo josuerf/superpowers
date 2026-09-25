@@ -280,6 +280,17 @@ export function resolveMergeBase(cwd: string, baseRef?: string): string | null {
 }
 
 /**
+ * The diff a review looks at: from merge-base(baseRef, HEAD) to the working
+ * tree when the baseRef resolves, else the working tree against HEAD. `review
+ * plan` and `review recheck` share it — a recheck that diffed against HEAD saw
+ * nothing once the fix was committed.
+ */
+export function reviewDiff(cwd: string, baseRef?: string): string {
+	const base = resolveMergeBase(cwd, baseRef);
+	return runGit(base ? ["diff", base] : ["diff", "HEAD"], cwd) ?? "";
+}
+
+/**
  * The stderr warning for a configured baseRef (--base or verifyOnStop.baseRef)
  * that does not resolve here, or null when there is nothing to say. Degrading
  * to the working tree is the right fallback, but doing it in silence let a
@@ -485,6 +496,21 @@ export function evaluateGateStatus(
 		}
 	} catch {
 		// stat race: fall through to the decision as saved
+	}
+
+	// A red team planned for this change (Risk flags) is mandatory by policy:
+	// "nobody ran it" or "nobody can read what it said" must not ride the
+	// general NEEDS_HUMAN_REVIEW pass below. Carrasco's own NEEDS_HUMAN_REVIEW
+	// is unchanged.
+	if (decision.redTeam && decision.redTeam.status !== "parsed") {
+		return {
+			gate: "block",
+			action: decision.harness_action,
+			reason:
+				decision.redTeam.status === "missing"
+					? "red team planned but report missing — dispatch the red team, write red-team.md, re-run review aggregate"
+					: "red team report is unreadable — rewrite red-team.md in the Breakage Report format, re-run review aggregate",
+		};
 	}
 
 	if (decision.harness_action === "BLOCK") {

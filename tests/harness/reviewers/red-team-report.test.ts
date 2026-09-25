@@ -7,6 +7,7 @@ import {
 	evaluateGateStatus,
 	saveCarrascoReview,
 	featureReviewDir,
+	reviewDiff,
 	type CarrascoResponse,
 } from "../../../lib/harness/reviewers/aggregator";
 import {
@@ -226,5 +227,110 @@ describe("prepareRedTeamRecheck", () => {
 	test("a red team that blocked nothing is left alone", () => {
 		expect(prepareRedTeamRecheck(dir, { status: "parsed", critical: 0, high: 0, medium: 1, blocking: 0 }, "d", raConfig())).toBeNull();
 		expect(fs.existsSync(path.join(dir, "red-team.md"))).toBe(true);
+	});
+});
+
+describe("round 2: red team never passes the gate silently", () => {
+	let repo: string;
+	beforeEach(() => {
+		repo = fs.mkdtempSync(path.join(os.tmpdir(), "rt-gate2-"));
+		spawnSync("git", ["init", "-q"], { cwd: repo });
+		fs.writeFileSync(path.join(repo, "a.ts"), "export const a = 1;\n");
+		fs.writeFileSync(path.join(repo, ".gitignore"), ".harness/\n");
+	});
+	afterEach(() => fs.rmSync(repo, { recursive: true, force: true }));
+
+	const saveWithRedTeam = (setup: (dir: string) => void) => {
+		const dir = featureReviewDir(repo, "feat");
+		fs.mkdirSync(dir, { recursive: true });
+		setup(dir);
+		const report = foldRedTeamReport(
+			aggregateCarrascoResponses("feat", [APPROVE], raConfig(), TS),
+			dir,
+			raConfig(),
+		);
+		saveCarrascoReview(repo, report, raConfig());
+		return evaluateGateStatus(repo, "feat");
+	};
+
+	test("planned red team with no report -> gate block, reason names it", () => {
+		const status = saveWithRedTeam((dir) => fs.writeFileSync(path.join(dir, "red-team-prompt.md"), "ctx\n"));
+		expect(status.gate).toBe("block");
+		expect(status.reason).toMatch(/red team planned but report (is )?missing/i);
+	});
+
+	test("unreadable red-team report -> gate block, reason names it", () => {
+		const status = saveWithRedTeam((dir) => {
+			fs.writeFileSync(path.join(dir, "red-team-prompt.md"), "ctx\n");
+			fs.writeFileSync(path.join(dir, "red-team.md"), "some prose without structure");
+		});
+		expect(status.gate).toBe("block");
+		expect(status.reason).toMatch(/red team .*unreadable/i);
+	});
+
+	test("a carrasco NEEDS_HUMAN_REVIEW without red team still passes (unchanged)", () => {
+		const nhr: CarrascoResponse = {
+			chunkId: "chunk-1",
+			text: '<!-- REVIEWER_DECISION -->\n```json\n{"harness_action":"NEEDS_HUMAN_REVIEW","metrics":{"total_findings":1,"critical_high_count":0},"asi_target":null,"findings":[{"severity":"Medium","file":"a.ts","line":1,"issue":"i","suggestion":"s"}]}\n```\n<!-- /REVIEWER_DECISION -->',
+		};
+		saveCarrascoReview(repo, aggregateCarrascoResponses("feat", [nhr], raConfig(), TS), raConfig());
+		expect(evaluateGateStatus(repo, "feat").gate).toBe("pass");
+	});
+});
+
+describe("round 2: explicit severities beat a stray clean phrase", () => {
+	const SCENARIO = `## Breakage Report
+
+### Scenario 1 — Double charge
+**Severity:** Critical
+**Trigger:** two POSTs
+**Root cause:** src/pay.ts:42
+
+No failure scenarios found here for the memo path.
+`;
+	test("a **Severity:** Critical under ### Scenario N is counted despite a clean phrase", () => {
+		const r = parseRedTeamReport(SCENARIO);
+		expect(r).not.toBeNull();
+		expect(r!.critical).toBe(1);
+		expect(r!.entries[0]).toMatchObject({ severity: "Critical", file: "src/pay.ts", line: 42 });
+	});
+	test("and it blocks", () => {
+		const out = applyRedTeamReport(aggregateCarrascoResponses("feat", [APPROVE], raConfig(), TS), SCENARIO, raConfig());
+		expect(out.harness_action).toBe("BLOCK");
+	});
+	test("a clean phrase with a summary claiming High > 0 is not clean", () => {
+		const r = parseRedTeamReport("I could not find ways to break the code.\n\n- Critical: 0 | High: 1 | Medium: 0\n");
+		expect(r!.high).toBe(1);
+	});
+});
+
+describe("round 2: recheck diff uses the review range", () => {
+	let repo: string;
+	const git = (...a: string[]) =>
+		spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", ...a], { cwd: repo, encoding: "utf8" });
+	beforeEach(() => {
+		repo = fs.mkdtempSync(path.join(os.tmpdir(), "rt-range-"));
+		git("init", "-q", "-b", "main");
+		fs.writeFileSync(path.join(repo, "a.ts"), "export const a = 1;\n");
+		git("add", "-A");
+		git("commit", "-qm", "base");
+		git("checkout", "-qb", "feature");
+		fs.writeFileSync(path.join(repo, "a.ts"), "export const a = 2; // FIXED\n");
+		git("commit", "-qam", "the fix, committed");
+	});
+	afterEach(() => fs.rmSync(repo, { recursive: true, force: true }));
+
+	test("with a baseRef, the committed fix is in the review diff", () => {
+		expect(reviewDiff(repo, "main")).toContain("FIXED");
+	});
+	test("without a baseRef it is the working tree vs HEAD (empty after the commit)", () => {
+		expect(reviewDiff(repo, undefined)).not.toContain("FIXED");
+	});
+});
+
+describe("round 2: a scenario without any severity is unreadable, not clean", () => {
+	test("### Scenario with Trigger but no severity + clean phrase -> null", () => {
+		const text = "## Breakage Report\n\n### Scenario 1 — Race\n**Trigger:** two requests\n**Root cause:** src/a.ts:3\n\nNo failure scenarios elsewhere.\n";
+		expect(parseRedTeamReport(text)).toBeNull();
 	});
 });

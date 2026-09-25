@@ -18,6 +18,7 @@ import {
 	evaluateGateStatus,
 	resolveMergeBase,
 	baseRefWarning,
+	reviewDiff,
 	featureReviewDir,
 	buildReviewExclude,
 	resolveInlineChunking,
@@ -216,7 +217,7 @@ async function runReview(): Promise<void> {
 			planConfig = { ...ra, chunking: resolved.chunking };
 		}
 
-		const gitDiff = gitOut(cwd, base ? ["diff", base] : ["diff", "HEAD"]) || "";
+		const gitDiff = reviewDiff(cwd, baseRef);
 		// --plan-file: the implementation plan behind the change. Its `Risk flags`
 		// add a red-team dispatch (gated by carrasco.redTeamEnabled).
 		const planFile = getFlag("--plan-file");
@@ -321,7 +322,7 @@ async function runReview(): Promise<void> {
 		const redTeamRecheck = prepareRedTeamRecheck(
 			dir,
 			decision.redTeam,
-			gitOut(cwd, ["diff", "HEAD"]) || "",
+			reviewDiff(cwd, baseRef),
 			ra,
 		);
 
