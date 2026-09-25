@@ -25,7 +25,7 @@ For every method, query, or branch the diff changes, locate its SIBLINGS — the
 
 To find siblings, use the forge MCP tools (`forge_siblings(symbol)`, `forge_locate(term)`) when they are available in the session; otherwise use grep, and state the command you ran and how many matches it returned.
 
-**Every divergence is a finding until the diff explains why it is correct.** Cite both with `file:line`: the changed one and the sibling. Without the sibling's citation, report it at most as a suspicion with severity `Low` (minor), stating the search command you ran and how many matches it returned — the citation is what separates verification from suspicion, so an uncited divergence neither disappears nor becomes a finding without proof.
+**Every divergence is a finding until the diff explains why it is correct.** Cite both with `file:line`: the changed one and the sibling. If you could not locate the sibling, report the divergence anyway with the severity its impact justifies, and state in the finding that the sibling was not located and the search command you ran (with its match count). The missing citation is information for the reader, not a severity ceiling.
 
 ## Removals Are Findings Until Proven Otherwise
 

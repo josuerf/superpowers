@@ -28,11 +28,14 @@ describe("loadBasePrompt", () => {
 		expect(prompt).toContain("Universal Engineering Checklist");
 	});
 
-	test("a sibling divergence without the sibling citation is capped at a Low (minor) suspicion, not suppressed", () => {
+	test("an uncited sibling divergence keeps the severity its impact justifies (no ceiling)", () => {
 		const prompt = loadBasePrompt();
 		expect(prompt).not.toContain("must not be reported");
-		expect(prompt).toMatch(/without the sibling.s citation[^.]*at most[^.]*suspicion[^.]*`Low`/i);
+		expect(prompt).not.toMatch(/at most as a suspicion/i);
+		expect(prompt).toMatch(/severity (that )?(the|its) impact justifies/i);
+		expect(prompt).toMatch(/sibling was not located/i);
 		expect(prompt).toMatch(/search command you ran/i);
+		expect(prompt).toMatch(/not a (severity )?ceiling/i);
 	});
 });
 
