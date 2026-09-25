@@ -522,6 +522,11 @@ and fix-round diffs need it.
   a pointer to that ledger entry in the dispatch.
 - Record the implementer's agent identity from the dispatch result —
   fix-loop rounds 1-2 resume this agent.
+- The implementer's first return is the contract readback, not a report.
+  Read it before you resume the implementer. If the rewritten invariants
+  diverge from the brief, or "What I do NOT know" lists a load-bearing
+  assumption, answer first. A readback you did not read never happened —
+  and reading it is cheap: twenty lines against a whole batch redone. <!-- [fork] -->
 - Never dispatch multiple implementation subagents in parallel unless they
   form a file-disjoint wave (see Parallel Waves) — overlapping batches conflict.
 

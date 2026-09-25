@@ -24,6 +24,18 @@ Subagent (general-purpose):
     and the files it expects you to touch. Do not ask the controller to
     repeat it — the brief is the contract.
 
+    The brief opens with a context envelope. Its **Global constraints** and
+    **Invariants** sections are NORMATIVE: they hold for every step of every
+    task, and a task that satisfies its own text and violates one of them
+    is wrong. If either says "MISSING FROM THE PLAN", treat that as context
+    you do not have — ask before removing any filter, guard, or
+    validation. <!-- [fork] -->
+
+    Your FIRST reply is the block "Before writing any code: confirm the
+    contract" from the end of the envelope. It comes before any Edit or
+    Write, nothing else comes with it, and you end your turn there — the
+    controller reads it and resumes you. <!-- [fork] -->
+
     Suggested skills: [SUGGESTED_SKILLS — optional. Name the project or
     implementation-support skills that match this task's work, or write
     "none". A named suggestion saves the subagent a discovery step.]
@@ -42,7 +54,9 @@ Subagent (general-purpose):
     ## Required behavior
     The spec-compliance and code-quality review gates depend on the accuracy of your implementation and self-review. A task that passes review the first time keeps the whole pipeline moving — a task that fails review cycles back to you and blocks everything downstream. Take your time, do it right the first time.
 
-    1. Ask questions immediately if requirements are unclear.
+    1. Emit the contract readback and wait. Then ask immediately about
+       anything unclear — in particular every load-bearing assumption you
+       listed under "What I do NOT know". <!-- [fork] -->
     2. Implement only requested scope.
     3. Run task verification commands.
     4. Commit changes.

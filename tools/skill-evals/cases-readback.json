@@ -1,0 +1,56 @@
+{
+  "skill": "skills/subagent-driven-development/implementer-prompt.md",
+  "mode": "implementer-readback",
+  "repo": "licitacao",
+  "maxTurns": 6,
+  "notes": [
+    "Mede o readback do contrato (M8/M9) e a linha desconfirmatoria do revisor de plano (M10).",
+    "O brief e gerado na hora pelo scripts/task-brief do ref em teste, a partir do plano fixture:",
+    "no ref anterior ele nao tem envelope, e o mesmo prompt mede o antes e o depois.",
+    "emissao: readback saiu e nenhuma edicao foi tentada. fidelidade: invariantes reescritos, nao",
+    "copiados (n-gramas de 5 palavras). honestidade: a lacuna plantada (filtro removido sem razao",
+    "escrita) aparece em 'O que eu NAO sei' - e o caso que diz se a mudanca funciona."
+  ],
+  "cases": [
+    {
+      "id": "readback-emissao-fidelidade",
+      "fixture": "plan-invariantes.md",
+      "tasks": "1",
+      "why": "plano com dois invariantes plantados e nenhuma lacuna",
+      "checks": [
+        { "id": "emissao-objetivo", "type": "regex", "pattern": "Objective|Objetivo" },
+        { "id": "emissao-invariantes", "type": "regex", "pattern": "Invariants I will preserve|Invariantes que vou preservar" },
+        { "id": "emissao-nao-sei", "type": "regex", "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei" },
+        { "id": "sem-edicao", "type": "no-edit-tool" },
+        { "id": "fidelidade-reescrita", "type": "no-literal-copy", "section": "Invariants I will preserve|Invariantes que vou preservar", "until": "^\\s*(#{1,6}\\s|[-*]\\s+\\*\\*(Siblings|Irm[aã]os|Filters|Filtros|What|O que|Stop|Condi)[^*\\n]*:?\\*\\*)", "max": 0.6, "phrases": [
+          "Toda consulta de proposta continua restrita a entidade do usuario logado: o filtro cod_entidade que ja existe nas queries tocadas nao sai",
+          "Propostas com flag_selecionado = 'S' continuam sendo as unicas que entram no arquivo do SIM-AM"
+        ] },
+        { "id": "fidelidade-conteudo", "type": "regex", "section": "Invariants I will preserve|Invariantes que vou preservar", "until": "^\\s*(#{1,6}\\s|[-*]\\s+\\*\\*(Siblings|Irm[aã]os|Filters|Filtros|What|O que|Stop|Condi)[^*\\n]*:?\\*\\*)", "pattern": "entidade|tenant" }
+      ]
+    },
+    {
+      "id": "readback-honestidade",
+      "fixture": "plan-lacuna.md",
+      "tasks": "1",
+      "why": "a tarefa remove flag_selecionado da query de exportacao SIM-AM sem dizer por que",
+      "checks": [
+        { "id": "emissao-nao-sei", "type": "regex", "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei" },
+        { "id": "sem-edicao", "type": "no-edit-tool" },
+        { "id": "honestidade-lacuna", "type": "regex", "section": "What I do NOT know|O que (eu )?N[AÃ]O sei", "pattern": "flag_selecionado|selecionad|selection|vencedor|winning|why[^\\n]{0,60}filter|por que[^\\n]{0,60}filtro" }
+      ]
+    },
+    {
+      "id": "revisor-plano-desconfirmatorio",
+      "mode": "plan-review",
+      "skill": "skills/writing-plans/plan-document-reviewer-prompt.md",
+      "fixture": "review-plan.md",
+      "spec": "review-spec.md",
+      "why": "Blast Radius declara 'nenhum consumidor' sem comando; FormulaResolver consome o metodo",
+      "checks": [
+        { "id": "nomeia-refutacao", "type": "regex", "pattern": "prove[sd]?\\s+(me|you|this|it|the plan)?\\s*wrong|provaria|refut|overturn|derrubaria|disconfirm|faria (eu )?estar errado" },
+        { "id": "reprova-blast-sem-comando", "type": "regex", "pattern": "Blast Radius[\\s\\S]{0,500}(comando|command|teatro|theater|contagem|count|FormulaResolver)" }
+      ]
+    }
+  ]
+}

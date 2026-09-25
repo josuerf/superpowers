@@ -15,6 +15,16 @@ Extract the minimal context a subagent needs to work on specific files, includin
 
 Announce: `I'm using extract-boundary to build a ContextEnvelope for the subagent.`
 
+## Relation to the batch brief's context envelope
+
+In subagent-driven development, `scripts/task-brief` already opens every
+batch brief with the plan's context envelope — Global Constraints,
+Invariants, Blast Radius, Review Focus, and the contract readback — written
+by `scripts/task-brief-context`. Do not rebuild those here. This skill stays
+the extractor of what the envelope does not carry: the batch's acceptance
+criteria, flow context, the signatures and types of the files it touches,
+and learned patterns. <!-- [fork] -->
+
 ## ContextEnvelope Structure
 
 The subagent prompt must include a structured preamble with:

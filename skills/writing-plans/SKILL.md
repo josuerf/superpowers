@@ -118,12 +118,69 @@ independently testable deliverable.
 **Spec:** [path to the spec/design doc this plan implements — the plan
 argues from the spec, so the spec travels with it; executors read both]
 
+**Laudo:** [path to incidents/<KEY>-laudo.md when this plan was born from an
+incident, or "n/a". The laudo carries the root cause with evidence (§3), the
+impact and radius matrix (§5), and the proposal this plan implements (§6). A
+fix plan without its laudo is a plan rediscovering the cause.] <!-- [fork] -->
+
+**Harness:** [the workspace documents this plan must respect, one per line:
+architecture/ownership-map.md, decisions/ADR-NNN.md, catalog/<service>.md,
+engineering/<area>/conventions.md, known-issues.md §1. Paths, never contents.
+"none" is acceptable only when you checked and there are none.] <!-- [fork] -->
+
 ## Global Constraints
 
 [The spec's project-wide requirements — version floors, dependency limits,
 naming and copy rules, platform requirements — one line each, with exact
 values copied verbatim from the spec. Every task's requirements implicitly
 include this section.]
+
+<!-- [fork] -->
+## Blast Radius
+
+[One row per symbol, table, column, endpoint, event, queue, or file this
+plan changes or removes:]
+
+| What changes | Who consumes it today | How it was verified (command) | Result | What happens to the consumer |
+|---|---|---|---|---|
+
+[Required method — record the command AND the result count. Use the best
+search the session has, in this order: the forge MCP tools
+(`forge_siblings(symbol)`, `forge_locate(term)`) when that server is
+available; else the workspace's `node scripts/search.js [-i] --json --repos
+<list> "<term>"` when the workspace has it (multi-repo, count per repo);
+else grep:
+- `grep -rn "<symbol>"` across ALL repositories of the workspace, not only
+  the one you are changing.
+- `grep -rn "<table>\|<column>"` in native `@Query`s, mappers, and
+  migration scripts.
+- `grep -rn "<endpoint path>"` in Feign clients and contract files.
+- For **every changed method**: find its SIBLING methods in the same
+  service/repository — the ones that solve the same kind of problem — and
+  record each divergence in filter, null guard, `try/catch`, pagination, or
+  validation, with why the divergence is correct. **An unjustified
+  divergence is a defect of this plan, not of the code.**
+
+"No consumer" is acceptable only with the command and its empty result next
+to it. A row without a command is not a verification, it is an opinion.]
+
+## Invariants
+
+[Conditions that hold BEFORE and AFTER the change and that **no task may
+break**. One line each, with its source in parentheses (spec §, ADR,
+laudo §5, or `file:line` of the current code):
+- Tenant / entity / fiscal-year filters that already exist in the queries
+  touched.
+- Selection and status flags that already filter the result set.
+- Regulatory export rules (SIM-AM, TCE, eSocial): what may and may not go
+  into the file.
+- Signature compatibility with data already registered in production —
+  formulas, parameters, configurations that reference the old signature.
+- Idempotency and commit order in accounting routines.
+
+This is the only section of the plan the implementer receives as a **norm
+over every step**: a task that satisfies its own text and breaks a line
+here is wrong.]
 
 ## Review Focus
 
@@ -156,7 +213,9 @@ other may be executed concurrently)*
 - Modify: `<path>`
 - Test: `<path>`
 
-**Security flag:** `none` *(set to `security` if this task handles auth, credentials, input validation, permissions, crypto, or data access boundaries — triggers pre-implementation security review before the implementer is dispatched)*
+**Risk flags:** `none` *(one or more of: `security` — touches auth, credentials, input validation, permissions, crypto, or a data access boundary, and triggers pre-implementation security review before the implementer is dispatched; `concurrency` — touches shared state, a transaction, or a routine that runs in parallel; `data-migration` — changes schema, `@Entity`, `@Column`, or a native query; `regulatory` — touches a SIM-AM, TCE, or eSocial export; `backward-compat` — changes a public signature, an endpoint contract, or a format consumed by configuration already registered. Any flag other than `none` triggers the red team for the batch.)* <!-- [fork] -->
+
+*(A task that loosens an existing filter or validation, touches a regulatory export or a payroll/tax calculation, or changes a signature that production data already references gets its flag AND an `**Open question:**` line — the question for your human partner or the controller that must be answered BEFORE it is implemented. When the demand cites legislation, the Spec or the Laudo must carry the calculation worksheet: the legal basis and one worked example. Older plans say `**Security flag:**`; read it as `**Risk flags:**` with the same value.)* <!-- [fork] -->
 
 **Interfaces:**
 - Consumes: [what this task uses from earlier tasks — exact signatures]
@@ -166,7 +225,7 @@ other may be executed concurrently)*
 
 - [ ] **Step 1: Write the failing test**
 
-**Does NOT cover:** *(required when this task adds a condition, gate, trigger, or any "when X do Y" logic — state the scenarios the condition excludes. If an excluded scenario should be covered, revise this task before implementing.)*
+**Does NOT cover:** *(required when this task ADDS a condition, gate, trigger, or any "when X do Y" logic — state the scenarios the condition excludes — AND ALSO when this task REMOVES OR RELAXES an existing condition, filter, guard, validation, or `try/catch` — then state who is no longer protected and why that is correct. "It wasn't being used" is not a justification: show who stopped needing it. If an excluded scenario should be covered, revise this task before implementing.)* <!-- [fork] -->
 
 - [ ] **Step 1: Write failing test**
 
@@ -233,6 +292,8 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 **4. Scope-reduction scan:** Search the plan for: "v1", "basic", "simple", "for now", "placeholder", "initial version", "minimal". For each hit, verify it was explicitly sanctioned by the user — not a quiet scope downgrade from what was requested. Fix any that weren't.
 
 **5. Review Focus:** For each input class or failure mode the spec implies, is there a task whose tests exercise it? The five uncovered ones most likely to bite a person go in the Review Focus section, and each line there gets its test added to the owning task. An empty section means you checked and found none, not that you skipped the check.
+
+**6. Blast radius and invariants:** Does every Blast Radius row have a command and a count? Does every sibling-method divergence have a written justification? Does every filter, guard, or `try/catch` some task removes appear in some `Does NOT cover`? Does every Invariants line cite its source? If any answer is no, the plan is not ready — and the task that failed is the one that will hurt most. <!-- [fork] -->
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 

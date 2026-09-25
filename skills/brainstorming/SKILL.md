@@ -139,6 +139,11 @@ your path and complete them in order.
    message. See the Visual Companion section below.
 3. **Ask clarifying questions** — one at a time, the ones that matter
 4. **Present short design in chat** — approach, files touched, testing
+   <!-- [fork] --> When the change touches a query filter, a native query, or a
+   regulatory export, the design also carries a mini-envelope of at most five
+   lines: the invariants it preserves (with source) and its blast radius (who
+   consumes what changes, with the search command and its count). Still in
+   chat — no file.
 5. **Get approval** — STOP and wait for an explicit yes; presenting the design and starting in the same breath is skipping the gate
 6. **Implement** — proceed with the normal development workflow (TDD applies); no plan document
 7. **Run the quality gates** — see Quality Gates below. Bounded drops the spec

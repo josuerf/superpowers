@@ -15,6 +15,9 @@ custo muito menor.
 |---|---|---|
 | `visual-companion` | O companion é oferecido quando a demanda tem superfície visual? | sensibilidade (ofereceu quando devia) e falso positivo (ofereceu quando não devia) |
 | `execution-choice` | O handoff escolhe inline ou subagentes, e justifica? | aderência ao default em casos limpos; desvio correto em casos com razão plantada |
+| `blast-radius` | O plano enumera consumidores e irmãos com comando e contagem, e declara remoções no `Does NOT cover`? | casos aprovados (todos os checks); `teatro-negativo` confere no stream se a busca foi feita |
+| `readback` | O implementador emite o readback antes de editar, reescreve os invariantes e declara a lacuna plantada? O revisor de plano nomeia o que o refutaria? | emissão, fidelidade (n-gramas copiados), honestidade, desconfirmação |
+| `risk-flags` | O planejador atribui a `Risk flag` certa — e nenhuma onde não há risco? | casos aprovados; `trivial-none` mede falso positivo |
 
 ## Como funciona
 
@@ -36,8 +39,17 @@ node tools/skill-evals/score.js results/<arquivo>.json
 node tools/skill-evals/score.js results/<antes>.json results/<depois>.json   # comparação
 ```
 
-Opções de `run.js`: `--suite visual|execution|both`, `--reps N`, `--case ID`,
-`--model NOME`, `--label TEXTO`.
+Opções de `run.js`: `--suite visual|execution|both|blast|readback|risk|all`,
+`--reps N`, `--case ID`, `--model NOME`, `--label TEXTO`.
+
+As três suítes por caso (`blast`, `readback`, `risk`) declaram `checks` no
+JSON de cada caso, pontuados por `checks.js` (regex, eventos de ferramenta do
+stream e sobreposição de n-gramas). Cada caso roda num diretório temporário
+fora do repositório, com ferramentas de leitura liberadas e sem MCP
+(`--strict-mcp-config`); `blast` copia para lá `fixtures/repos/licitacao`, e
+`readback` gera o brief com o `scripts/task-brief` do ref em teste — é isso que
+muda entre antes e depois. `SKILL_EVALS_BASH` troca o `bash` usado (no Windows,
+o `bash` do PATH pode ser o do WSL).
 
 ## Como comparar antes/depois honestamente
 

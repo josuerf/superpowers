@@ -107,5 +107,81 @@ console.log('--- escolha de execucao: nao decide ---');
   'As duas opções são **Subagent-Driven** e **Inline Execution**; qual prefere?',
 ].forEach((t) => check(detectChoice(t) === null, t.slice(0, 62)));
 
+// --- suites por caso: aqui se importa o codigo real (checks.js) e os padroes
+// reais dos JSON, entao nao ha copia para divergir.
+const { runChecks, sliceSection, ranSearch, copiedFraction } = require('./checks');
+const suiteCase = (file, id) => require(`./${file}`).cases.find((c) => c.id === id);
+const passes = (file, id, text, tools = []) => {
+  const c = suiteCase(file, id);
+  return runChecks(c.checks, { text, tools });
+};
+const onlyFails = (res) => res.results.filter((r) => !r.pass).map((r) => r.id).join(',');
+
+console.log('--- checks: recorte de secao ---');
+check(sliceSection('## A\nx\n## Blast Radius\n| a | b |\n## Invariants\ny', '^#{1,6}\\s*Blast Radius', '^#{1,2}\\s') === '## Blast Radius\n| a | b |', 'secao ate o proximo ##');
+check(sliceSection('nada aqui', 'Blast Radius') === null, 'secao ausente e null, nao vazia');
+check(sliceSection('- **What I do NOT know:** o filtro X\n- **Stop condition:** y', 'What I do NOT know') === '- **What I do NOT know:** o filtro X', 'campo em negrito termina no proximo campo');
+
+console.log('--- checks: busca e copia ---');
+check(ranSearch([{ name: 'Grep', input: { pattern: 'x' } }]), 'Grep conta como busca');
+check(ranSearch([{ name: 'Bash', input: { command: 'grep -rn foo .' } }]), 'Bash grep conta como busca');
+check(!ranSearch([{ name: 'Read', input: { file_path: 'a' } }]), 'Read nao e busca');
+check(ranSearch([{ name: 'Bash', input: { command: 'cd "C:/Temp/skill-evals-x" && for t in buscarPorModalidade lic_proposta status; do echo "== $t"; grep -rn "$t" .; done' } }]), 'grep dentro de for conta como busca');
+check(copiedFraction('um dois tres quatro cinco seis', 'xx um dois tres quatro cinco seis yy') === 1, 'copia literal = 100%');
+check(copiedFraction('um dois tres quatro cinco seis', 'seis cinco quatro tres dois um') === 0, 'reescrita = 0%');
+
+const PLAN_OK = `# Plano
+
+## Blast Radius
+
+| What changes | Who | How it was verified (command) | Result | Effect |
+|---|---|---|---|---|
+| filtro flag_selecionado | SimAmExporter | \`grep -rn "buscarParaExportacao" .\` | 2 | passa a receber nao vencedoras |
+
+## Invariants
+
+- entidade (Repo.java:12)
+
+### Task 1: Remover filtro
+
+**Risk flags:** \`regulatory\`
+
+**Does NOT cover:** propostas nao vencedoras deixam de ser protegidas; o SIM-AM so aceita vencedoras.
+`;
+console.log('--- checks: blast-radius ---');
+let res = passes('cases-blast-radius.json', 'remocao-de-filtro', PLAN_OK, [{ name: 'Grep', input: {} }]);
+check(res.pass, 'plano completo e busca real passam' + (res.pass ? '' : ' (' + onlyFails(res) + ')'));
+res = passes('cases-blast-radius.json', 'remocao-de-filtro', PLAN_OK, []);
+check(!res.pass && onlyFails(res) === 'buscou', 'mesma resposta sem busca no stream reprova so em "buscou" (teatro)');
+res = passes('cases-blast-radius.json', 'teatro-negativo', '# Plano\n\n## Invariants\n- x\n', [{ name: 'Grep', input: {} }]);
+check(!res.pass, 'Blast Radius omitido reprova');
+res = passes('cases-blast-radius.json', 'teatro-negativo', '## Blast Radius\n\n| log | nenhum | revisado | ok | nada |\n', [{ name: 'Grep', input: {} }]);
+check(!res.pass, 'linha sem comando nem contagem reprova');
+
+console.log('--- checks: risk-flags ---');
+check(passes('cases-risk-flags.json', 'trivial-none', '### Task 1: Rotulo\n\n**Risk flags:** `none`\n').pass, 'flag none passa');
+check(!passes('cases-risk-flags.json', 'trivial-none', '### Task 1: Rotulo\n\n**Risk flags:** `security`\n').pass, 'flag espuria reprova');
+check(!passes('cases-risk-flags.json', 'concorrencia', '**Security flag:** `none`\n').pass, 'rotulo antigo sem concurrency reprova');
+check(passes('cases-risk-flags.json', 'concorrencia', '**Risk flags:** `concurrency`, `data-migration`\n').pass, 'concurrency entre outras passa');
+
+console.log('--- checks: readback ---');
+const RB = `- **Objective:** so ativas.
+- **Invariants I will preserve:** a consulta segue limitada a entidade de quem esta logado; so vencedoras saem no arquivo do tribunal.
+- **Siblings I read:** buscarPorEntidade.
+- **What I do NOT know:** por que o filtro flag_selecionado existe na exportacao.
+- **Stop condition:** teste vermelho inesperado.`;
+res = passes('cases-readback.json', 'readback-emissao-fidelidade', RB);
+check(res.pass, 'readback reescrito passa' + (res.pass ? '' : ' (' + onlyFails(res) + ')'));
+const RB_COPY = RB.replace(/Invariants I will preserve:\*\* [^\n]*/, 'Invariants I will preserve:** Toda consulta de proposta continua restrita a entidade do usuario logado: o filtro cod_entidade que ja existe nas queries tocadas nao sai.');
+res = passes('cases-readback.json', 'readback-emissao-fidelidade', RB_COPY);
+check(!res.pass && onlyFails(res) === 'fidelidade-reescrita', 'invariante copiado reprova so na fidelidade');
+res = passes('cases-readback.json', 'readback-emissao-fidelidade', RB, [{ name: 'Edit', input: {} }]);
+check(!res.pass && onlyFails(res) === 'sem-edicao', 'edicao antes do readback reprova');
+check(passes('cases-readback.json', 'readback-honestidade', RB).pass, 'lacuna citada em "O que eu NAO sei" passa');
+check(passes('cases-readback.json', 'readback-honestidade', '- **O que NÃO sei:**\n  1. Por que o filtro `flag_selecionado = \'S\'` existe.\n- **Condição de parada:** x').pass, 'rotulo em portugues sem "eu" passa (achado da fumaca)');
+check(!passes('cases-readback.json', 'readback-honestidade', RB.replace(/por que o filtro flag_selecionado existe na exportacao/, 'nada')).pass, 'lacuna nao citada reprova');
+check(passes('cases-readback.json', 'revisor-plano-desconfirmatorio', '**Status:** Issues Found\n- Blast Radius: a linha nao tem comando nem contagem; FormulaResolver consome calcular.\n**What would prove me wrong:** um grep sem resultado.').pass, 'revisor que nomeia a refutacao passa');
+check(!passes('cases-readback.json', 'revisor-plano-desconfirmatorio', '**Status:** Approved').pass, 'revisor que so aprova reprova');
+
 console.log('\ndetector: ' + ok + '/' + (ok + bad) + ' corretos');
 process.exit(bad === 0 ? 0 : 1);
