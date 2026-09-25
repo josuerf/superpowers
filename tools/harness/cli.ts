@@ -254,6 +254,9 @@ async function runReview(): Promise<void> {
 				`  ${chunk.id} [${chunk.topic}] — ${chunk.files.length} file(s), ~${chunk.estimatedLines} changed lines, stacks: ${chunk.stacks.join(", ") || "universal"}`,
 			);
 		}
+		for (const f of plan.deterministicFindings ?? []) {
+			console.log(`  WARNING ${f.file}:${f.line} [${f.category}] ${f.issue}`);
+		}
 		console.log(`\nPlan saved to: ${path.join(dir, "plan.json")}`);
 		console.log(`Per-chunk prompts: ${path.join(dir, "prompts")}/`);
 		console.log(

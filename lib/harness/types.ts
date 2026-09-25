@@ -171,6 +171,11 @@ export interface ReviewPlan {
 	 * none and `carrasco.redTeamEnabled` is true.
 	 */
 	redTeam?: RedTeamDispatch;
+	/**
+	 * Warnings from deterministic diff checks (today: logic commented out
+	 * instead of removed). Never blocking on their own.
+	 */
+	deterministicFindings?: ReviewerFinding[];
 }
 
 /** One extra red-team dispatch, triggered by the plan's `Risk flags`. */

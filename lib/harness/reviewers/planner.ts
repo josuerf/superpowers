@@ -13,6 +13,7 @@ import {
 import { buildAggressivenessDirectives } from "./aggressiveness";
 import { chunkChangedFiles, type ChunkFileInput } from "./chunker";
 import { buildRedTeamDispatch, parseRiskFlags } from "./red-team";
+import { detectCommentedOutLogic } from "../validators/commented-out";
 
 /**
  * Split a unified git diff into per-file sections keyed by the file's `b/`
@@ -98,6 +99,10 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 	}));
 
 	const chunkResults = chunkChangedFiles(fileInputs, config.chunking);
+	// Deterministic pre-check: lines commented out instead of decided. Warning
+	// only - each one is handed to the chunk's carrasco to judge, never
+	// counted by the aggregator on its own.
+	const commentedOut = detectCommentedOutLogic(gitDiff);
 
 	const chunks: ReviewChunk[] = chunkResults.map((c) => {
 		const chunkDiff = c.files
@@ -106,9 +111,13 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 			.join("\n");
 		const ormStacks = detectOrmFromDiff(chunkDiff);
 		const stacks = Array.from(new Set([...c.stacks, ...ormStacks]));
-		const prompt = buildReviewerPrompt(c.files, chunkDiff, stacks, {
+		const basePrompt = buildReviewerPrompt(c.files, chunkDiff, stacks, {
 			aggressiveness: config,
 		});
+		const prompt = withPreCheck(
+			basePrompt,
+			commentedOut.filter((f) => c.files.includes(f.file)),
+		);
 		return {
 			id: c.id,
 			topic: c.topic,
@@ -140,6 +149,7 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 		stacks: allStacks,
 		chunks,
 		...(redTeam ? { redTeam } : {}),
+		...(commentedOut.length > 0 ? { deterministicFindings: commentedOut } : {}),
 	};
 }
 
@@ -212,4 +222,28 @@ export function buildRecheckPrompt(options: BuildRecheckPromptOptions): string {
 		return `${prompt}\n\n---\n\n${directives}`;
 	}
 	return prompt;
+}
+
+/**
+ * Append the deterministic pre-check findings for one chunk to its prompt.
+ * They are leads, not verdicts: the carrasco reports each one it confirms,
+ * with its own severity, in the normal REVIEWER_DECISION block.
+ */
+function withPreCheck(prompt: string, findings: ReviewerFinding[]): string {
+	if (findings.length === 0) return prompt;
+	return [
+		prompt,
+		"",
+		"---",
+		"",
+		"## Deterministic Pre-check: commented out instead of decided",
+		"",
+		"These added lines comment out live logic. Treat each as a removal (see",
+		"\"Removals Are Findings Until Proven Otherwise\"): report it unless the diff,",
+		"brief, or commit message justifies it.",
+		"",
+		...findings.map(
+			(f) => `- \`${f.file}:${f.line}\` [${f.category}] ${f.issue}`,
+		),
+	].join("\n");
 }
