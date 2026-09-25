@@ -4,6 +4,8 @@ import {
 	formatReviewerDecisionMarkdown,
 } from "../../../lib/harness/reviewers/parser";
 import type { ReviewerDecision } from "../../../lib/harness/types";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 describe("parseReviewerResponse", () => {
 	test("parses response with decision markers", () => {
@@ -288,6 +290,71 @@ describe("parseReviewerResponse", () => {
 		expect(result!.findings).toHaveLength(1);
 		expect(result!.findings[0].severity).toBe("High");
 		expect(result!.findings[0].category).toBeUndefined();
+	});
+
+	describe("code fence inside a JSON string", () => {
+		const decision = (suggestion: string) =>
+			JSON.stringify(
+				{
+					harness_action: "BLOCK",
+					metrics: { total_findings: 1, critical_high_count: 1 },
+					asi_target: null,
+					findings: [
+						{
+							severity: "High",
+							category: "business-rule",
+							file: "src/Repo.java",
+							line: 44,
+							issue: "filter removed",
+							suggestion,
+						},
+					],
+				},
+				null,
+				2,
+			);
+		const javaSuggestion =
+			"Restore:\n```java\n\"and lr.flag_selecionado = 'S' \" +\n```\nthen add a test.";
+
+		test("keeps the BLOCK of a real reviewer response (presta-contas-api-2404)", () => {
+			const response = readFileSync(
+				join(__dirname, "fixtures", "presta-contas-api-2404-response.md"),
+				"utf8",
+			);
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.harness_action).toBe("BLOCK");
+			expect(result!.findings).toHaveLength(2);
+			expect(result!.findings.map((f) => f.line)).toEqual([45, 47]);
+			expect(result!.findings[0].suggestion).toContain("```diff");
+		});
+
+		test("parses a ```java block inside suggestion between markers", () => {
+			const response = `Summary.\n\n<!-- REVIEWER_DECISION -->\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n<!-- /REVIEWER_DECISION -->\n\n## Report\n\n\`\`\`java\nint x = 1;\n\`\`\``;
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.harness_action).toBe("BLOCK");
+			expect(result!.findings[0].suggestion).toBe(javaSuggestion);
+		});
+
+		test("parses it without markers, even with more fences after the block", () => {
+			const response = `Summary.\n\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n\n## Report\n\n\`\`\`java\nint x = 1;\n\`\`\``;
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.findings[0].suggestion).toBe(javaSuggestion);
+		});
+
+		test("still rejects a truncated decision", () => {
+			const full = decision(javaSuggestion);
+			const truncated = full.slice(0, full.indexOf('"issue"'));
+			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n${truncated}\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			expect(parseReviewerResponse(response)).toBeNull();
+		});
+
+		test("does not stitch JSON across prose between two fences", () => {
+			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n{ "harness_action": "BLOCK",\n\`\`\`\nsome prose\n\`\`\`json\n"metrics": {} }\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			expect(parseReviewerResponse(response)).toBeNull();
+		});
 	});
 });
 

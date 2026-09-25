@@ -29,7 +29,7 @@
       "cited": "business-rule@45/High",
       "tokens": 84756,
       "ms": 82963,
-      "note": "o bloco REVIEWER_DECISION trazia ```java dentro da string suggestion: parseReviewerResponse do harness devolve null para esta resposta"
+      "note": "o bloco REVIEWER_DECISION trazia ```java dentro da string suggestion: parseReviewerResponse do harness devolvia null para esta resposta (o bloco real era ```diff; corrigido em parser.ts com parseJsonFence, teste em tests/harness/reviewers/parser.test.ts)"
     },
     {
       "at": "2026-09-25",

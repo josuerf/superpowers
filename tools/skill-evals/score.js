@@ -293,7 +293,7 @@ function printOne(r) {
     console.log(`  REENCONTRO (arquivo + linha + business-rule): ${b.reencontro.pct}  [${b.reencontro.num}/${b.reencontro.den}]`);
     console.log(`  severidade >= minima entre os acertos: ${b.severidadeOk.pct}`);
     console.log(`  sem bloco REVIEWER_DECISION: ${b.semBloco.pct}`);
-    console.log(`  bloco que o parser do harness rejeitaria (cerca dentro da string): ${b.harnessNaoLeria.pct}  [${b.harnessNaoLeria.num}/${b.harnessNaoLeria.den}]`);
+    console.log(`  bloco que o parser do harness rejeitaria: ${b.harnessNaoLeria.pct}  [${b.harnessNaoLeria.num}/${b.harnessNaoLeria.den}]`);
   }
 }
 

@@ -26,28 +26,46 @@ export function parseReviewerResponse(
 	const startIdx = response.indexOf(REVIEWER_DECISION_START);
 	const endIdx = response.indexOf(REVIEWER_DECISION_END);
 	if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-		const jsonMatch = response.match(/```json\s*\n([\s\S]*?)\n\s*```/);
-		if (jsonMatch) {
-			try {
-				const parsed = JSON.parse(jsonMatch[1]);
-				return validateReviewerDecision(parsed);
-			} catch {
-				return null;
-			}
-		}
-		return null;
+		const parsed = parseJsonFence(response, /```json\s*\n/);
+		return parsed === undefined ? null : validateReviewerDecision(parsed);
 	}
 	const jsonBlock = response
 		.substring(startIdx + REVIEWER_DECISION_START.length, endIdx)
 		.trim();
-	const codeMatch = jsonBlock.match(/```json\s*\n?([\s\S]*?)\n?\s*```/);
-	const jsonStr = codeMatch ? codeMatch[1] : jsonBlock;
+	if (jsonBlock.includes("```json")) {
+		const parsed = parseJsonFence(jsonBlock, /```json\s*\n?/);
+		return parsed === undefined ? null : validateReviewerDecision(parsed);
+	}
 	try {
-		const parsed = JSON.parse(jsonStr);
-		return validateReviewerDecision(parsed);
+		return validateReviewerDecision(JSON.parse(jsonBlock));
 	} catch {
 		return null;
 	}
+}
+/**
+ * Parses the first ```json fence. The closing fence is the first ``` after
+ * the opening one whose body is valid JSON, not simply the first ```: a
+ * reviewer often puts a ```java/```diff block inside a "suggestion" string,
+ * and stopping there would drop the whole decision (and a BLOCK with it).
+ * Only a body that JSON.parse accepts is returned, so prose between two
+ * fences is never stitched into a decision.
+ */
+function parseJsonFence(text: string, open: RegExp): unknown | undefined {
+	const match = open.exec(text);
+	if (!match) return undefined;
+	const bodyStart = match.index + match[0].length;
+	for (
+		let close = text.indexOf("```", bodyStart);
+		close !== -1;
+		close = text.indexOf("```", close + 3)
+	) {
+		try {
+			return JSON.parse(text.slice(bodyStart, close));
+		} catch {
+			// not the closing fence yet
+		}
+	}
+	return undefined;
 }
 function validateReviewerDecision(obj: unknown): ReviewerDecision | null {
 	if (typeof obj !== "object" || obj === null) return null;

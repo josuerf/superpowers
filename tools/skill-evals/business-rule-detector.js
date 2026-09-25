@@ -22,18 +22,32 @@ function tryFindings(raw) {
 
 /**
  * Devolve { findings, harnessParses }. Primeiro tenta como o parser do
- * harness (lib/harness/reviewers/parser.ts: cerca ```json nao-gulosa); se
- * falhar, tenta da primeira cerca ate a ULTIMA dentro dos marcadores — o
- * revisor as vezes poe um bloco ``` dentro da string "suggestion", e a cerca
- * nao-gulosa corta o JSON ali. `harnessParses: false` separa "o revisor achou,
- * mas o harness perderia a decisao" de "o revisor nao achou".
+ * harness (lib/harness/reviewers/parser.ts, parseJsonFence: a cerca de
+ * fechamento e o primeiro ``` cujo corpo e JSON valido, entao um bloco ```java
+ * dentro da string "suggestion" nao corta mais a decisao). Se falhar, tenta da
+ * primeira cerca ate a ULTIMA dentro dos marcadores, aceitando cerca sem
+ * "json". `harnessParses: false` separa "o revisor achou, mas o harness
+ * perderia a decisao" de "o revisor nao achou". Espelha so a extracao do
+ * bloco, nao a validacao campo a campo do harness.
  */
+function harnessFence(text, open) {
+  const m = open.exec(text);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  for (let close = text.indexOf('```', start); close !== -1; close = text.indexOf('```', close + 3)) {
+    const f = tryFindings(text.slice(start, close));
+    if (f) return f;
+  }
+  return null;
+}
+
 function extractDecision(text) {
   if (!text) return { findings: null, harnessParses: false };
   const marked = text.match(/<!--\s*REVIEWER_DECISION\s*-->([\s\S]*?)<!--\s*\/REVIEWER_DECISION\s*-->/);
   const region = marked ? marked[1] : text;
-  const lazy = region.match(/```json\s*\n?([\s\S]*?)\n?\s*```/);
-  const strict = tryFindings(lazy ? lazy[1] : region);
+  const strict = !marked ? harnessFence(region, /```json\s*\n/)
+    : region.includes('```json') ? harnessFence(region, /```json\s*\n?/)
+      : tryFindings(region);
   if (strict) return { findings: strict, harnessParses: true };
   const open = region.indexOf('```');
   const close = region.lastIndexOf('```');
