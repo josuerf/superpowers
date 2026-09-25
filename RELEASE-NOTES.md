@@ -1,5 +1,90 @@
 # Superpowers Optimized Release Notes
 
+## v6.23.0 (2026-09-25)
+
+Implements plan M of the September 2026 code-review study (308 findings over
+130 MRs): the SDD was starving its subagents of context, its gates were inert
+in four independent layers, and nothing it learned was ever written down. This
+release instruments the process first, then turns the gates on in warn mode,
+fills the context package, gives the reviewer the vocabulary it lacked, and
+closes the learning loop. Card IAF-533 (and IAF-525 for the workspace fix).
+
+### Gates
+
+**Workspace harness support in the Stop gate** — sessions at a workspace root
+(repositories under `projects/<repo>`) used to verify the root, find no tests,
+report `Coverage 0.0%` and block every session. The gate now verifies the
+projects the session touched (`verifyOnStop.projectRoots`, declared or
+inferred; globs such as `projects/*` accepted). Single-repo and monorepo
+projects behave exactly as before.
+
+**`verifyOnStop.mode: "warn"`** — the gate logs what it would have blocked to
+`.superpowers/gate-log.jsonl` and lets the session end. The default stays
+`block`. Promotion from warn to block is meant to be decided on the log.
+
+**`verifyOnStop.baseRef`** — the gate and the carrasco look at the branch range
+(`merge-base..HEAD` plus the working tree), so committing no longer bypasses
+them; the block message no longer advertises that bypass.
+
+**Fail-closed stack detection** when `projectRoots` is declared, with detection
+up to three levels deep. **New `java8-spring` stack** so the legacy fleet is no
+longer reviewed against Java 21/Jakarta rules. **Infrastructure data files**
+(Helm/k8s YAML, migrations, `src/main/resources/*.yml|properties`) now count as
+source for the gate.
+
+### Context package
+
+`writing-plans` gains `Laudo:`/`Harness:` fields, `## Blast Radius` (command and
+count per consumer, siblings read, removals justified) and `## Invariants`,
+`Risk flags` (security, concurrency, data-migration, regulatory,
+backward-compat) in place of `Security flag`, and `Does NOT cover` now covers
+removals. The blast radius uses the forge MCP (`forge_siblings`,
+`forge_locate`) when available, then `scripts/search.js`, then grep.
+`task-brief-context` emits a context envelope at the top of every brief —
+normative constraints and invariants, blast radius, review focus, a symmetry
+sweep, the revert-the-fix test, and a mandatory readback the implementer emits
+before any edit.
+
+### Reviewer
+
+New `business-rule` finding category (previously silently rewritten to
+`maintainability`), sibling-consistency check with `file:line` citations, and
+"removals are findings" including commented-out lines. A deterministic
+pre-check flags logic that was commented out instead of decided. Every review
+template names the evidence that would prove it wrong. The red team becomes
+mandatory when a plan carries a Risk flag, is dispatched by `review plan`, and
+its report is read by the gate. The final SDD review receives the plan's Review
+Focus verbatim. The reviewer parser no longer loses a decision when a
+suggestion contains a code fence.
+
+### Learning loop and measurement
+
+`patterns record` turns Critical/High findings (review decisions, SDD ledgers,
+or the GitLab review TSV via `import-gitlab-review`) into pending patterns,
+deduplicated by signature and promoted only by recurrence. `error-recovery` no
+longer forbids recording a recurring logic bug. The Stop hook reminds you to
+record ledger rulings when a branch finishes. `known-issues-by-domain/` is
+searched by keyword recall. `SDD-Plan`/`SDD-Task` commit trailers (with a
+reminder hook) and `tools/sdd-metrics` measure how much work goes through the
+SDD. `sdd-workspace` respects a committed `.superpowers/sdd/.gitignore`, so a
+repository can version briefs and reports.
+
+### Fork hygiene
+
+`FORK-DELTA.md` lists every upstream file the fork modifies, guarded by
+`tests/fork-delta/test-fork-delta.sh`. New lines in shared files carry a
+`[fork]` marker.
+
+### Known gaps
+
+- The before/after skill-eval battery was not run; only one smoke pass per
+  new suite. The `business` suite has 10 real-MR fixtures.
+- `inject-harness-context.js` (opt-in) can only hand paths to the controller:
+  the hook API does not rewrite a dispatch without approving it.
+- `dispatching-parallel-agents` still has no readback (upstream-owned file).
+- Pre-existing Windows test failures are unchanged (brainstorm-server,
+  patterns linter/integration, two validator suites, `test-sdd-workspace.sh`).
+
 ## v6.22.0 (2026-09-19)
 
 Sync with upstream `obra/superpowers` v6.4.1 — native plan execution, the
