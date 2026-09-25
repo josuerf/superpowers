@@ -78,5 +78,5 @@ if ! owns "$dir"; then
   fi
 fi
 
-printf '*\n' > "$base/.gitignore"
+[ -e "$base/.gitignore" ] || printf '*\n' > "$base/.gitignore"  # [fork] a committed .gitignore (e.g. "*.diff") opts the repo into versioning briefs/reports
 CDPATH= cd -- "$dir" && pwd

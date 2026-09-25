@@ -352,6 +352,15 @@ PLAN
         echo "    marker: $(cat "$dir_out/plan-path" 2>/dev/null)"
     fi
 
+    # --- [fork] A committed .gitignore is respected, not overwritten ---
+    printf '*.diff\n' > "$repo/.superpowers/sdd/.gitignore"
+    (cd "$repo" && "$SDD_SCRIPTS/sdd-workspace" "$TEST_ROOT/outside/remote-plan.md" >/dev/null)
+    if [[ "$(cat "$repo/.superpowers/sdd/.gitignore")" == "*.diff" ]]; then
+        pass "existing .superpowers/sdd/.gitignore is kept (repo opts into versioning)"
+    else
+        fail "existing .superpowers/sdd/.gitignore is kept (repo opts into versioning)"
+    fi
+
     echo ""
     if [[ "$FAILURES" -ne 0 ]]; then
         echo "FAILED: $FAILURES assertion(s)."
