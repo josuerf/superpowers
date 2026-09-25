@@ -202,8 +202,17 @@ export interface AggregatedReviewReport {
 
 export interface HarnessConfig {
 	coverageMin: number;
-	/** Min source files edited this session to trigger the verify-on-stop gate. Default 3. */
-	verifyOnStop: { minFiles: number };
+	verifyOnStop: {
+		/** Min source files edited this session to trigger the verify-on-stop gate. Default 3. */
+		minFiles: number;
+		/**
+		 * Projects the Stop gate verifies, as paths relative to the project root.
+		 * Only needed for a workspace whose repositories the gate cannot infer from
+		 * the files a session edited (generated output, say). When omitted, the gate
+		 * infers one root per touched project and falls back to the root itself.
+		 */
+		projectRoots?: string[];
+	};
 	securityScan: {
 		enabled: boolean;
 		tools: Record<string, boolean>;

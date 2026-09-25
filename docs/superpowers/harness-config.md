@@ -202,6 +202,44 @@ session, instead of on every individual edit.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `minFiles` | `number` | `3` | Minimum number of session-edited source files with uncommitted changes required to trigger the gate. Set to `1` to gate every edit; raise it to make the gate fire less often. |
+| `projectRoots` | `string[]` | inferred | Which projects the gate verifies, as paths relative to the project root. Only needed when inference is not enough — see below. |
+
+#### Where the gate runs (workspace harnesses)
+
+The gate verifies the project a session actually touched, not necessarily the
+directory the session started in. For a single-repo project the two are the
+same and nothing changes. For a **workspace harness** — a root that holds the
+real repositories under `projects/<repo>` — they are not, and verifying the
+workspace root measures nothing: no test suite lives at that level, so the
+harness reports `Coverage 0.0%` in a tenth of a second and blocks every
+session. (Stack detection does not fail there either: its `node-std` fallback
+finds stray `.js` under `scripts/`, so the "could not detect stack" escape
+hatch never opens.)
+
+Resolution order:
+
+1. **`projectRoots`**, when declared. Entries are relative to the project root;
+   an entry that is not an existing directory inside it is ignored.
+2. **Inferred** from the files this session edited: each file resolves to its
+   nearest ancestor holding a stack manifest (`package.json`, `pyproject.toml`,
+   `go.mod`, `pom.xml`, `Cargo.toml`, a `.csproj`, ...) or a
+   `.harness.config.json`, bounded by the project root.
+3. **The project root itself**, when nothing else resolves.
+
+Each resolved project is read through its own git repository, so a repository
+the workspace ignores (its own `.git`, or an ignored `projects/` entry) is
+still gated. Every touched project is verified in turn, sharing one 3-minute
+budget, and a root with no stack manifest — a workspace or orchestration
+directory — is skipped rather than reported as 0% covered.
+
+```json
+{
+  "verifyOnStop": {
+    "minFiles": 3,
+    "projectRoots": ["projects/api", "projects/web"]
+  }
+}
+```
 
 ---
 

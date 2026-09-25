@@ -117,24 +117,83 @@ function setGuard() {
   }
 }
 
-function getUncommittedSourceFiles(cwd) {
+// Windows filesystems are case-insensitive, so every path comparison and Set
+// key in this file routes through here first.
+function normalizeCase(p) {
+  return process.platform === 'win32' ? p.toLowerCase() : p;
+}
+
+// The same directory reaches this hook spelled several ways: the harness may
+// hand over a Windows 8.3 short path (C:\Users\JOSUE~1.FRE\...), git always
+// answers with the long one, and a symlinked checkout differs from both. Two
+// spellings compare unequal, which silently emptied the changed-file list, so
+// every path is resolved to its real on-disk form before being compared. A path
+// that does not exist (deleted file, declared-but-missing root) falls back to a
+// plain resolve rather than throwing.
+function realPath(p) {
+  const abs = path.resolve(p);
+  try {
+    return fs.realpathSync.native(abs);
+  } catch {
+    return abs;
+  }
+}
+
+function isInside(child, parent) {
+  const c = normalizeCase(realPath(child));
+  const p = normalizeCase(realPath(parent));
+  return c === p || c.startsWith(p.endsWith(path.sep) ? p : p + path.sep);
+}
+
+// `git status --porcelain` prints paths relative to the REPOSITORY root, not to
+// the directory it ran in. In a workspace harness those differ by a whole level
+// (workspace root vs projects/<repo>), so resolving the output needs the repo
+// root, not the directory we asked about.
+function gitTopLevel(dir) {
+  try {
+    const res = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    if (res.status !== 0 || res.error) return null;
+    const top = (res.stdout || '').trim();
+    return top ? path.resolve(top) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Absolute paths of uncommitted, non-excluded source files under `dir`, read
+// from whichever git repository owns `dir` and then scoped back to `dir`.
+// Asking per directory (instead of once at the session cwd) is what lets a
+// workspace root and each of its projects be counted separately, and what makes
+// edits inside a project the workspace's git cannot see — its own .git, or an
+// ignored projects/ entry — visible to the gate at all.
+function getUncommittedSourceFiles(dir) {
+  const root = realPath(dir || process.cwd());
   try {
     const result = spawnSync('git', ['status', '--porcelain'], {
-      cwd: cwd || process.cwd(),
+      cwd: root,
       encoding: 'utf8',
       timeout: 5000,
     });
     if (result.status !== 0 || result.error) return [];
 
+    const top = realPath(gitTopLevel(root) || root);
     const lines = (result.stdout || '').split('\n').filter(l => l.trim().length > 0);
     const sourceFiles = [];
 
     for (const line of lines) {
-      // Format: "XY filepath" where X=index status, Y=worktree status
-      const filepath = line.slice(3).trim();
-      if (filepath && !shouldExclude(filepath)) {
-        sourceFiles.push(filepath);
-      }
+      // Format: "XY filepath" where X=index status, Y=worktree status — or
+      // "XY old -> new" for a rename/copy, where the new path is the one that
+      // exists on disk and is worth verifying.
+      const raw = line.slice(3).trim();
+      const arrow = raw.lastIndexOf(' -> ');
+      const filepath = arrow === -1 ? raw : raw.slice(arrow + 4).trim();
+      if (!filepath || shouldExclude(filepath)) continue;
+      const abs = path.resolve(top, filepath);
+      if (isInside(abs, root)) sourceFiles.push(abs);
     }
 
     return sourceFiles;
@@ -151,9 +210,7 @@ const SESSION_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'
 // route through path.resolve(cwd, ...); on Windows we lowercase since the FS is
 // case-insensitive.
 function normalizePath(cwd, p) {
-  let abs = path.resolve(cwd || process.cwd(), p);
-  if (process.platform === 'win32') abs = abs.toLowerCase();
-  return abs;
+  return normalizeCase(realPath(path.resolve(cwd || process.cwd(), p)));
 }
 
 // Returns a Set of normalized absolute paths edited via Write/Edit/MultiEdit/
@@ -203,12 +260,123 @@ function getSessionEditedFiles(transcriptPath, cwd) {
   return edited;
 }
 
-function runVerifyAll(cwd) {
+// ── Which project to verify ──────────────────────────────────────────────────
+// A workspace harness keeps the real repositories one level down (projects/<repo>)
+// while the session's cwd is the workspace root. Verifying the workspace root
+// measures nothing — no test suite lives at that level — so the harness reports
+// "Coverage 0.0%" in 0.1s and blocks every session. The isUndetectedStackFailure
+// escape hatch does not open either, because detectStack does NOT fail there: its
+// node-std fallback finds stray .js under scripts/. So resolve the project roots
+// the session actually touched and verify each of those instead.
+
+// Manifests a stack can be detected from and tests can be run in. `.harness.config.json`
+// is deliberately NOT here: a workspace root has one too, so it marks a boundary
+// but never, on its own, a verifiable project.
+const STACK_MANIFESTS = [
+  'package.json',
+  'deno.json',
+  'pyproject.toml',
+  'requirements.txt',
+  'setup.py',
+  'go.mod',
+  'pom.xml',
+  'build.gradle',
+  'build.gradle.kts',
+  'Cargo.toml',
+  'composer.json',
+  'Gemfile',
+];
+
+const ROOT_MARKERS = [...STACK_MANIFESTS, '.harness.config.json'];
+
+function hasStackManifest(dir) {
+  if (STACK_MANIFESTS.some(f => fs.existsSync(path.join(dir, f)))) return true;
   try {
-    const result = spawnSync('npx', ['tsx', CLI_PATH, 'all'].map(shellQuote), {
-      cwd: cwd || process.cwd(),
+    return fs.readdirSync(dir).some(f => /\.(csproj|sln)$/i.test(f));
+  } catch {
+    return false;
+  }
+}
+
+// Nearest ancestor of `file` that looks like a project root, bounded by `cwdAbs`
+// so the walk never escapes the session directory. Returns null when the file
+// sits outside cwd, or when no marker is found on the way up — the caller then
+// falls back rather than guessing.
+function findProjectRoot(file, cwdAbs) {
+  let dir = realPath(path.dirname(path.resolve(file)));
+  if (!isInside(dir, cwdAbs)) return null;
+  for (;;) {
+    if (ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) return dir;
+    if (normalizeCase(dir) === normalizeCase(cwdAbs)) return null;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+// Explicit override from .harness.config.json (verifyOnStop.projectRoots), for
+// workspaces where inference is not enough — a project the session edits through
+// generated files, say. Entries are relative to cwd (absolute paths are accepted
+// too) and anything that is not an existing directory inside cwd is dropped, so a
+// stale or malformed entry degrades to inference instead of breaking the gate.
+function getDeclaredProjectRoots(cwdAbs) {
+  try {
+    const configPath = path.join(cwdAbs, '.harness.config.json');
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const declared = raw && raw.verifyOnStop && raw.verifyOnStop.projectRoots;
+    if (!Array.isArray(declared)) return [];
+    const roots = [];
+    for (const entry of declared) {
+      if (typeof entry !== 'string' || entry.trim().length === 0) continue;
+      const abs = realPath(path.resolve(cwdAbs, entry));
+      if (!isInside(abs, cwdAbs)) continue;
+      try {
+        if (!fs.statSync(abs).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      if (!roots.some(r => normalizeCase(r) === normalizeCase(abs))) roots.push(abs);
+    }
+    return roots;
+  } catch {
+    return [];
+  }
+}
+
+// Resolution order: declared roots > roots inferred from the touched files >
+// cwd. In a single-repo project every path lands on cwd, so behavior there is
+// unchanged.
+function resolveVerifyRoots(cwd, touchedFiles) {
+  const cwdAbs = realPath(cwd || process.cwd());
+  const declared = getDeclaredProjectRoots(cwdAbs);
+  if (declared.length > 0) return declared;
+
+  const roots = [];
+  for (const file of touchedFiles || []) {
+    const root = findProjectRoot(file, cwdAbs);
+    if (!root) continue;
+    if (!roots.some(r => normalizeCase(r) === normalizeCase(root))) roots.push(root);
+  }
+  return roots.length > 0 ? roots : [cwdAbs];
+}
+
+// Full verify-all runs share one budget (3 minutes) across every project, so a
+// workspace with five touched repositories cannot hold the session hostage for
+// fifteen. A project that gets less than MIN_VERIFY_SLICE_MS is skipped rather
+// than started and killed halfway.
+const VERIFY_TOTAL_BUDGET_MS = 180000;
+const MIN_VERIFY_SLICE_MS = 15000;
+
+function runVerifyAll(cwd, timeoutMs = VERIFY_TOTAL_BUDGET_MS) {
+  const root = path.resolve(cwd || process.cwd());
+  try {
+    // --root is passed explicitly, not just as the spawn cwd: the CLI resolves
+    // config, stack and report paths from it, and being explicit is what makes
+    // the command in the block message reproducible by hand.
+    const result = spawnSync('npx', ['tsx', CLI_PATH, 'all', '--root', root].map(shellQuote), {
+      cwd: root,
       encoding: 'utf8',
-      timeout: 180000, // 3 minutes for full verify-all
+      timeout: timeoutMs,
       maxBuffer: 1024 * 1024 * 10, // 10MB buffer
       shell: true,
     });
@@ -287,28 +455,51 @@ function buildCarrascoBlockReason(status, fileCount) {
   ].join('\n');
 }
 
-function buildBlockReason(result, fileCount) {
-  // The real failure reason usually lands on stderr (thrown errors, stack
-  // traces); stdout is often just progress banners ("Running verify-all...").
-  // Show both, stderr first, so a thin stdout banner never hides the actual
-  // error like it did before this fix.
+const BLOCK_OUTPUT_BUDGET = 3000;
+
+// The real failure reason usually lands on stderr (thrown errors, stack traces);
+// stdout is often just progress banners ("Running verify-all..."). Show both,
+// stderr first, so a thin stdout banner never hides the actual error.
+function formatVerifyOutput(result, budget) {
   const output =
     [result.stderr, result.stdout].filter(Boolean).join('\n\n') ||
     'Verification failed with no output';
-  const truncated = output.length > 3000 ? output.slice(0, 3000) + '\n... (truncated)' : output;
+  return output.length > budget ? output.slice(0, budget) + '\n... (truncated)' : output;
+}
 
-  return [
+// Accepts the list of per-project failures ({ root, result }), or a bare verify
+// result when there is only one project and no root to name.
+function buildBlockReason(failures, fileCount, cwd) {
+  const list = Array.isArray(failures) ? failures : [{ root: null, result: failures }];
+  const budget = Math.max(800, Math.floor(BLOCK_OUTPUT_BUDGET / list.length));
+  const base = path.resolve(cwd || process.cwd());
+
+  const lines = [
     '<verify-on-stop>',
-    `Quality gate failed: ${fileCount} source file(s) with uncommitted changes`,
+    `Quality gate failed in ${list.length} project(s): ${fileCount} source file(s) with uncommitted changes`,
     '',
-    `Run "npx tsx \\"${CLI_PATH}\\" all" to see full output and fix issues.`,
-    '',
-    'Output:',
-    truncated,
-    '',
-    'Fix all issues before continuing, or commit/push to bypass this gate.',
-    '</verify-on-stop>',
-  ].join('\n');
+  ];
+
+  for (const { root, result } of list) {
+    // Naming the project (and passing --root) is the whole point: without it the
+    // suggested command re-runs at the session cwd, which in a workspace is the
+    // directory that produced the wrong result in the first place.
+    if (root) {
+      const rel = path.relative(base, root);
+      lines.push(`Project: ${rel && !rel.startsWith('..') ? rel : root}`);
+    }
+    lines.push(
+      `Run "npx tsx \\"${CLI_PATH}\\" all${root ? ` --root \\"${root}\\"` : ''}" to see full output and fix issues.`,
+    );
+    lines.push('');
+    lines.push('Output:');
+    lines.push(formatVerifyOutput(result, budget));
+    lines.push('');
+  }
+
+  lines.push('Fix all issues before continuing, or commit/push to bypass this gate.');
+  lines.push('</verify-on-stop>');
+  return lines.join('\n');
 }
 
 async function main() {
@@ -317,10 +508,7 @@ async function main() {
 
   try {
     const data = JSON.parse(input);
-    const cwd = data.cwd || process.cwd();
-
-    // Check for significant uncommitted source changes
-    const uncommitted = getUncommittedSourceFiles(cwd);
+    const cwd = realPath(data.cwd || process.cwd());
 
     // Scope the gate to files THIS session actually edited. When the transcript
     // is readable we intersect with it: an empty intersection (the session made
@@ -329,12 +517,31 @@ async function main() {
     // trap the user. If the transcript is unavailable we fall back to the whole
     // working tree so the gate still works on harnesses that omit transcript_path.
     const sessionEdited = getSessionEditedFiles(data.transcript_path, cwd);
-    const sourceFiles =
-      sessionEdited === null
-        ? uncommitted
-        : uncommitted.filter((f) => sessionEdited.has(normalizePath(cwd, f)));
+    if (sessionEdited !== null && sessionEdited.size === 0) {
+      process.stdout.write('{}');
+      return;
+    }
 
-    if (sourceFiles.length < getMinFilesForVerify(cwd)) {
+    // Which project(s) this session touched. The transcript is the better signal
+    // because it records edits the workspace's own git never sees; git status at
+    // cwd is the fallback for harnesses that omit transcript_path.
+    const touched =
+      sessionEdited !== null ? [...sessionEdited] : getUncommittedSourceFiles(cwd);
+    const roots = resolveVerifyRoots(cwd, touched);
+
+    // Count uncommitted source changes per root, each read from its own git
+    // repository, then verify only the projects that actually have changes.
+    const targets = [];
+    let sourceFileCount = 0;
+    for (const root of roots) {
+      const changed = getUncommittedSourceFiles(root).filter(
+        (f) => sessionEdited === null || sessionEdited.has(normalizePath(cwd, f)),
+      );
+      sourceFileCount += changed.length;
+      if (changed.length > 0) targets.push({ root, changed });
+    }
+
+    if (sourceFileCount < getMinFilesForVerify(cwd)) {
       process.stdout.write('{}');
       return;
     }
@@ -346,7 +553,7 @@ async function main() {
       console.error(`[verify-on-stop] Carrasco gate ${carrasco.gate}: ${carrasco.reason}`);
       process.stdout.write(JSON.stringify({
         decision: 'block',
-        reason: buildCarrascoBlockReason(carrasco, sourceFiles.length),
+        reason: buildCarrascoBlockReason(carrasco, sourceFileCount),
       }));
       return;
     }
@@ -357,33 +564,63 @@ async function main() {
       return;
     }
 
-    // Run verify-all
-    console.error(`[verify-on-stop] Running verify-all on ${sourceFiles.length} files...`);
-    const result = runVerifyAll(cwd);
+    // Run verify-all, once per touched project
+    console.error(
+      `[verify-on-stop] Running verify-all on ${sourceFileCount} file(s) in ${targets.length} project(s): ${targets
+        .map((t) => `${t.root} (${t.changed.length})`)
+        .join(', ')}`,
+    );
 
-    if (result.success) {
-      console.error('[verify-on-stop] All quality gates passed');
-      setGuard();
-      process.stdout.write('{}');
-      return;
+    const failures = [];
+    let remainingMs = VERIFY_TOTAL_BUDGET_MS;
+
+    for (const target of targets) {
+      // A root with no stack manifest is a workspace/orchestration directory,
+      // not a project. The harness would "detect" node-std from stray scripts,
+      // run no tests and report 0% coverage — a measurement gap, not a code
+      // problem, so fail open here like the other setup-error cases.
+      if (!hasStackManifest(target.root)) {
+        console.error(
+          `[verify-on-stop] ${target.root} has no stack manifest — nothing for the harness to verify, skipping.`,
+        );
+        continue;
+      }
+      if (remainingMs < MIN_VERIFY_SLICE_MS) {
+        console.error(
+          `[verify-on-stop] verification budget exhausted — ${target.root} not verified.`,
+        );
+        break;
+      }
+
+      const startedAt = Date.now();
+      const result = runVerifyAll(target.root, remainingMs);
+      remainingMs -= Date.now() - startedAt;
+
+      if (result.success) continue;
+      if (isUndetectedStackFailure(result)) {
+        console.error(
+          `[verify-on-stop] Harness could not detect a known stack for ${target.root} — nothing to verify, failing open.`,
+        );
+        continue;
+      }
+      failures.push({ root: target.root, result });
     }
 
-    if (isUndetectedStackFailure(result)) {
-      console.error(
-        '[verify-on-stop] Harness could not detect a known stack for this project — nothing to verify, failing open.',
-      );
-      setGuard();
-      process.stdout.write('{}');
-      return;
-    }
-
-    // Verification failed - block
-    console.error('[verify-on-stop] Quality gates FAILED');
     setGuard();
+
+    if (failures.length === 0) {
+      console.error('[verify-on-stop] All quality gates passed');
+      process.stdout.write('{}');
+      return;
+    }
+
+    console.error(
+      `[verify-on-stop] Quality gates FAILED in: ${failures.map((f) => f.root).join(', ')}`,
+    );
 
     process.stdout.write(JSON.stringify({
       decision: 'block',
-      reason: buildBlockReason(result, sourceFiles.length),
+      reason: buildBlockReason(failures, sourceFileCount, cwd),
     }));
   } catch {
     process.stdout.write('{}');
@@ -399,6 +636,18 @@ if (require.main === module) {
     getUncommittedSourceFiles,
     getSessionEditedFiles,
     normalizePath,
+    normalizeCase,
+    realPath,
+    isInside,
+    gitTopLevel,
+    findProjectRoot,
+    getDeclaredProjectRoots,
+    resolveVerifyRoots,
+    hasStackManifest,
+    STACK_MANIFESTS,
+    ROOT_MARKERS,
+    VERIFY_TOTAL_BUDGET_MS,
+    MIN_VERIFY_SLICE_MS,
     SESSION_EDIT_TOOLS,
     runVerifyAll,
     buildBlockReason,

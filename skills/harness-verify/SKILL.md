@@ -53,6 +53,7 @@ Full semantic diff between spec and implementation — identifies missing, parti
    - **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" <command> [--spec path/to/spec.md] [--root /path/to/project] [--stack <name>]`
    If no plugin root env var is set, resolve from the superpowers-prepared plugin directory (the parent of the hooks/ directory).
    - `--stack` overrides automatic stack detection. Pass it when the project has no recognizable manifest for its stack (e.g. a plain Node project with no `package.json`, tests run via `node --test`) and the CLI reports "Could not detect stack".
+   - `--root` is **mandatory in a workspace harness** — a root that holds the real repositories under `projects/<repo>` while your session sits at the workspace level. Without it the harness verifies the workspace root, where no test suite lives, and reports `Coverage 0.0%` in a tenth of a second. It does not report "could not detect stack" there, so the wrong result looks like a real one. Pass the repository you actually changed: `... all --root projects/<repo>`. Outside a workspace, omit it.
 2. Inspect exit code and output.
 3. If failed, read the report at `.harness/reports/<feature>/<timestamp>-verify-report.md`
 4. Return structured errors to the agent for fixing.
