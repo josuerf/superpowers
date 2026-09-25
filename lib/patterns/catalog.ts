@@ -242,6 +242,10 @@ export class PatternCatalog {
       relatedList || "  []",
       e.supersededBy ? `supersededBy: ${e.supersededBy}` : null,
       e.supersededAt ? `supersededAt: ${e.supersededAt}` : null,
+      e.signature ? `signature: ${e.signature}` : null,
+      e.findingCategory ? `findingCategory: ${e.findingCategory}` : null,
+      e.confidence !== undefined ? `confidence: ${e.confidence}` : null,
+      e.sources ? `sources:\n${e.sources.map((s) => `  - ${s}`).join("\n") || "  []"}` : null,
       "---",
     ]
       .filter((l) => l !== null)
@@ -314,6 +318,10 @@ export class PatternCatalog {
       related,
       supersededBy: fm.supersededBy || undefined,
       supersededAt: fm.supersededAt || undefined,
+      signature: fm.signature || undefined,
+      findingCategory: fm.findingCategory || undefined,
+      confidence: fm.confidence !== undefined ? Number(fm.confidence) : undefined,
+      sources: Array.isArray(fm.sources) ? fm.sources : undefined,
     };
   }
 
