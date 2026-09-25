@@ -1,0 +1,14 @@
+diff --git a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/licitacaodb/cancelamentolicitacaoresultado/CancelamentoLicitacaoResultadoRepository.java b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/licitacaodb/cancelamentolicitacaoresultado/CancelamentoLicitacaoResultadoRepository.java
+index 237e1b806..3e529b597 100644
+--- a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/licitacaodb/cancelamentolicitacaoresultado/CancelamentoLicitacaoResultadoRepository.java
++++ b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/licitacaodb/cancelamentolicitacaoresultado/CancelamentoLicitacaoResultadoRepository.java
+@@ -42,9 +42,7 @@ public interface CancelamentoLicitacaoResultadoRepository extends CrudRepository
+             "LEFT JOIN licitacao_fornecedor lf ON l.id = lf.licitacao_id and lf.fornecedor_uuid = lr.fornecedor_uuid\n" +
+             "join licitacao_cancelamento lc on lc.licitacao_resultado_id = lr.id\n" +
+             "where lc.data_cancelamento between :dataInicio and :dataFim \n" +
+-            "and lr.flag_selecionado = 'S' \n" +
+             "and ent.uuid = :entidadeUuid\n" +
+-            "and lf.tipo_operacao_novos_executores_licitacao_tce_id is null \n" +
+             "AND tmlt.codigo != 999 and l.data_emissao <= '2026-04-30 23:59:59' " +
+             "ORDER BY dtCancelamento, nrLicitacao, nrAnoLicitacao, idModalidadeLicitacao, nrLote, nrItem", nativeQuery = true)
+     List<CancelamentoVencedorLicitacao> buscarDadosArquivoSimamCancelamentoVencedorLicitacao(LocalDate dataInicio, LocalDate dataFim, String entidadeUuid);

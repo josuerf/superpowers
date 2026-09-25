@@ -1,0 +1,136 @@
+diff --git a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaacaoano/PpaAcaoAnoRepository.java b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaacaoano/PpaAcaoAnoRepository.java
+index 315f30890..b64c886d3 100644
+--- a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaacaoano/PpaAcaoAnoRepository.java
++++ b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaacaoano/PpaAcaoAnoRepository.java
+@@ -13,28 +13,44 @@ import java.util.List;
+ @Repository
+ public interface PpaAcaoAnoRepository extends CrudRepository<PpaAcaoAno, Long> {
+ 
+-    @Query(value = """
+-            select distinct 
+-                ent.codigo_tce as idPessoa,
+-                pa.codigo as cdAcao,
+-                l.codigo as cdControleLeiAto,
+-                paa.ano as nrAno 
+-            from 
+-                ppa_acao_ano paa 
+-                join ppa_acao pa on paa.ppa_acao_id = pa.id 
+-                join ppa_acao_movimento pam on (pam.ppa_acao_id = pa.id and pam.tipo_movimento_id = 1)
+-                join ppa_versao pv on pa.ppa_versao_id = pv.id 
+-                join ppa_escopo_documento ped on pv.ppa_escopo_documento_id = ped.id 
+-                join lei l on pv.lei_uuid = l.uuid 
+-                join entidade ent on ent.uuid = :entidadeUuid 
+-            where 
+-                paa.ano = :anoExercicio 
+-                and ped.nome = 'Lei de Diretrizes Orçamentárias - LDO' 
+-                and pam.data_movimento between :dataInicial and :dataFinal
+-            order by pa.codigo
++    @Query(value = """    
++    		select 
++			  e.codigo_tce as idPessoa,
++			  a.codigo as cdAcao,
++			  lei.codigo as cdControleLeiAto,
++			  aa.ano as nrAno
++			from 
++			  ppa_acao_ano aa 
++			  join ppa_acao_ano_movimento aam on aam.ppa_acao_ano_id = aa.id
++			  join tipo_movimento tm on tm.id = aam.tipo_movimento_id 
++			  join tipo_movimento_tce tmt on tmt.id = tm.tipo_movimento_tce_id 
++			  join ppa_acao a on a.id = aa.ppa_acao_id
++			  join ppa_versao v on v.id = a.ppa_versao_id
++			  join situacao_versao sv on sv.id = v.situacao_versao_id 
++			  join ppa on ppa.id = v.ppa_id   
++			  join lei on lei.uuid = v.lei_uuid 
++			  join entidade e on e.uuid = lei.entidade_uuid 
++			where
++			  :anoExercicio between ppa.exercicio_inicial and ppa.exercicio_final  
++			  and aam.data_movimento between :dataInicial and :dataFinal
++			  and tmt.codigo = 1   
++			  and v.numero_versao = 
++			  (
++			    select 
++			      max(numero_versao) 
++			    from 
++			      ppa_versao 
++			      join situacao_versao sv on sv.id = situacao_versao_id
++			    where 
++			      ppa_id = ppa.id 
++			      and ppa_escopo_documento_id = v.ppa_escopo_documento_id 
++			      and exercicio = v.exercicio
++			      and sv.nome = 'Aprovado' 
++			  )
++			order by  
++			  idpessoa, cdAcao, aa.ano 
+             """, nativeQuery = true)
+-    List<AcaoAno> buscarDadosArquivoSimamAcaoAno(Integer anoExercicio, String entidadeUuid,
+-                                                 LocalDate dataInicial, LocalDate dataFinal);
++    List<AcaoAno> buscarDadosArquivoSimamAcaoAno(Integer anoExercicio, LocalDate dataInicial, LocalDate dataFinal);
+ 
+     @Query(value = """
+             select distinct 
+diff --git a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaprogramamovimento/PpaProgramaMovimentoRepository.java b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaprogramamovimento/PpaProgramaMovimentoRepository.java
+index fc82321aa..e113c5d79 100644
+--- a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaprogramamovimento/PpaProgramaMovimentoRepository.java
++++ b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/repository/planejamentodb/ppaprogramamovimento/PpaProgramaMovimentoRepository.java
+@@ -29,7 +29,6 @@ public interface PpaProgramaMovimentoRepository extends CrudRepository<PpaProgra
+ 			  join entidade e on e.uuid = lei.entidade_uuid 
+ 			where 
+ 			  :ano between ppa.exercicio_inicial and ppa.exercicio_final
+-			  and sv.nome = 'Aprovado'
+ 			  and ppm.data_movimento between :dataInicial and :dataFinal
+ 			  and tmt.codigo = 1   
+ 			  and pv.numero_versao = 
+@@ -37,11 +36,13 @@ public interface PpaProgramaMovimentoRepository extends CrudRepository<PpaProgra
+ 			    select 
+ 			      max(numero_versao) 
+ 			    from 
+-			      ppa_versao 
++			      ppa_versao v
++			      join situacao_versao sv on sv.id = situacao_versao_id
+ 			    where 
+ 			      ppa_id = ppa.id 
+-			      and ppa_escopo_documento_id = pv.ppa_escopo_documento_id 
+-			      and exercicio = pv.exercicio
++			      and ppa_escopo_documento_id = v.ppa_escopo_documento_id 
++			      and exercicio = v.exercicio
++			      and sv.nome = 'Aprovado' 
+ 			  )
+ 			order by 
+ 			  e.codigo_tce, p.codigo
+diff --git a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java
+index c4b7d9625..bc07609e3 100644
+--- a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java
++++ b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/AcaoAnoArquivo.java
+@@ -33,7 +33,7 @@ public class AcaoAnoArquivo extends BaseEstrategiaTCE implements FileExportTypeS
+                 List<Integer> anosExercicio = List.of(anoInicial, anoInicial + 1, anoInicial + 2, anoInicial + 3);
+                 dados = repository.buscarDadosArquivoSimamAcaoAnoDoPrimeiroAnoDoPpa(anosExercicio, anoInicial, filter.getEntityUuid(), filter.getFrom(), filter.getTo());
+             } else {
+-                dados = repository.buscarDadosArquivoSimamAcaoAno(filter.getFrom().getYear(), filter.getEntityUuid(), filter.getFrom(), filter.getTo());
++                dados = repository.buscarDadosArquivoSimamAcaoAno(filter.getFrom().getYear(), filter.getFrom(), filter.getTo());
+             }
+ 
+             if (!dados.isEmpty()) {
+diff --git a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/ProgramaArquivo.java b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/ProgramaArquivo.java
+index 935374f38..9ea92bf7a 100644
+--- a/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/ProgramaArquivo.java
++++ b/projects/presta-contas-api/src/main/java/br/com/equiplano/nova/asgard/contas/strategy/ProgramaArquivo.java
+@@ -41,16 +41,9 @@ public class ProgramaArquivo extends BaseEstrategiaTCE implements FileExportType
+                         if (nonNull(res.getLeiCodigo())) {
+ 
+                             Collection<String> columns = new ArrayList<>();
+-                            columns.add(isNull(res.getIdPessoa()) ? ""
+-                                    : TxtFiles.leftZeros(7,
+-                                    res.getIdPessoa().toString()));
+-                            columns.add(isNull(res.getCdPrograma()) ? ""
+-                                    : TxtFiles.leftZeros(4,
+-                                    res.getCdPrograma().toString()));
+-                            columns.add(nonNull(res.getLeiCodigo())
+-                                    ? TxtFiles.leftZeros(7,
+-                                    res.getLeiCodigo().toString())
+-                                    : "");
++                            columns.add(isNull(res.getIdPessoa()) ? "" : TxtFiles.leftZeros(7, res.getIdPessoa().toString()));
++                            columns.add(isNull(res.getCdPrograma()) ? "" : TxtFiles.leftZeros(4, res.getCdPrograma().toString()));
++                            columns.add(nonNull(res.getLeiCodigo()) ? TxtFiles.leftZeros(7, res.getLeiCodigo().toString()) : "");
+ 
+                             lines.add(columns);
+                         }

@@ -5,18 +5,23 @@
     "a checagem de irmaos e 'remocoes sao achados', reencontra estes achados com a categoria certa?",
     "Fonte: deep-research-code-review-2026-09/dados/08-achados-completo.json (47 business-rule; 25 HIGH/CRITICAL).",
     "Selecao: 10 dos 25, priorizando filtro removido, divergencia de irmao e linha comentada, sem duplicar MR fechado.",
-    "LACUNA: o corpus guarda titulo, arquivo, linha e rationale, mas NAO o diff. Os clones locais",
-    "(equiplano-workspace/projects, ultimo commit 2026-08-13) sao anteriores aos MRs (2026-09-15..18) e nao tem as branches.",
-    "Por isso 'fixture' e null e a suite NAO esta ligada ao run.js. Para rodar: extrair o diff de cada mrUrl",
-    "(git fetch da branch de origem ou API do GitLab), salvar em fixtures/business-rule/<id>.diff e pontuar:",
-    "acerto = achado em expected.file com |linha - expected.line| <= expected.lineTolerance e category == business-rule.",
+    "Fixture: diff real do MR (git fetch origin refs/merge-requests/<iid>/head; diff base..head, com base = head~n_commits,",
+    "exceto api-patrimonio-959, cuja branch tinha merges de master: base = merge-base(M^1, head), M = merge do MR em develop).",
+    "Conjunto de arquivos conferido contra changed_files de 09-mrs-completo.json. Caminhos prefixados com projects/<repo>/.",
+    "Recorte (fixtureTrim): testes fora, fonte de producao ate ~400 linhas, arquivos referenciados pelo alvo primeiro;",
+    "alvo acima de 350 linhas mantem so hunks pequenos e os proximos da linha esperada. Scan de segredos: 0 ocorrencias.",
+    "Um fixture por MR: os dois casos do MR 2404 compartilham o mesmo diff.",
+    "Pontuacao: acerto = achado em expected.file com |linha - expected.line| <= expected.lineTolerance e category == business-rule;",
+    "o score tambem reporta 'arquivo certo, outra categoria' e 'categoria certa, sem a linha'.",
+    "LIMITE: o revisor recebe so o diff (sem o repo), entao a checagem de irmaos fica sem os irmaos fora do diff;",
+    "casos 'sibling' medem se ele ACHA a divergencia pelo que o diff mostra, nao se consulta o repositorio.",
     "O campo 'mechanism' diz qual parte do M11 deveria achar: sibling (checagem de irmaos), removal (remocoes),",
     "commented-out (tambem coberto pelo validador deterministico lib/harness/validators/commented-out.ts), domain (so a categoria)."
   ],
   "cases": [
     {
       "id": "presta-contas-api-2404-44",
-      "fixture": null,
+      "fixture": "business-rule/presta-contas-api-2404.diff",
       "mechanism": "removal+sibling",
       "source": {
         "repo": "micro-servicos/presta-contas-api",
@@ -24,7 +29,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2404",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2404#note_147741",
-        "originalSeverity": "CRITICAL"
+        "originalSeverity": "CRITICAL",
+        "base": "2a7f5a128908554f4a8edd0236922d21a378e3d1",
+        "head": "78d8084992628285a79657448e6abd4ec29fb1c8"
       },
       "expected": {
         "category": "business-rule",
@@ -34,11 +41,17 @@
         "minSeverity": "High"
       },
       "title": "Remocao de 'lr.flag_selecionado = S' inclui resultados nao vencedores no arquivo SIM-AM de cancelamento de vencedor",
-      "why": "irmaos LicitacaoResultadoRepository.java:51/128 e LicitacaoRepository.java:397/1269 mantem o filtro; o arquivo vai ao TCE"
+      "why": "irmaos LicitacaoResultadoRepository.java:51/128 e LicitacaoRepository.java:397/1269 mantem o filtro; o arquivo vai ao TCE",
+      "fixtureTrim": {
+        "lines": 14,
+        "omitted": [],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "presta-contas-api-2404-45",
-      "fixture": null,
+      "fixture": "business-rule/presta-contas-api-2404.diff",
       "mechanism": "removal+sibling",
       "source": {
         "repo": "micro-servicos/presta-contas-api",
@@ -46,7 +59,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2404",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2404#note_147742",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "2a7f5a128908554f4a8edd0236922d21a378e3d1",
+        "head": "78d8084992628285a79657448e6abd4ec29fb1c8"
       },
       "expected": {
         "category": "business-rule",
@@ -56,11 +71,17 @@
         "minSeverity": "High"
       },
       "title": "Remocao do filtro 'tipo_operacao_novos_executores_licitacao_tce_id is null' pode duplicar reporte ao TCE",
-      "why": "o par de filtros se repete em LicitacaoRepository.java:397/1269/1321; novos executores tem arquivo SIM-AM proprio"
+      "why": "o par de filtros se repete em LicitacaoRepository.java:397/1269/1321; novos executores tem arquivo SIM-AM proprio",
+      "fixtureTrim": {
+        "lines": 14,
+        "omitted": [],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "presta-contas-api-2415-32",
-      "fixture": null,
+      "fixture": "business-rule/presta-contas-api-2415.diff",
       "mechanism": "sibling",
       "source": {
         "repo": "micro-servicos/presta-contas-api",
@@ -68,7 +89,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2415",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2415#note_148115",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "c3e4a8da30b00df2847fcf37dc579050784a5717",
+        "head": "ad375e5ac5db1d8e086081999ff8df3cdc1368e4"
       },
       "expected": {
         "category": "business-rule",
@@ -78,11 +101,17 @@
         "minSeverity": "High"
       },
       "title": "buscarDadosArquivoSimamAcaoAno deixou de filtrar por entidade explicitamente",
-      "why": "os outros tres metodos do mesmo repository continuam usando entidadeUuid; ressalva: buscarDadosArquivoSimamPrograma ja nao filtrava"
+      "why": "os outros tres metodos do mesmo repository continuam usando entidadeUuid; ressalva: buscarDadosArquivoSimamPrograma ja nao filtrava",
+      "fixtureTrim": {
+        "lines": 136,
+        "omitted": [],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "presta-contas-api-2417-30",
-      "fixture": null,
+      "fixture": "business-rule/presta-contas-api-2417.diff",
       "mechanism": "sibling",
       "source": {
         "repo": "micro-servicos/presta-contas-api",
@@ -90,7 +119,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2417",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/presta-contas-api/-/merge_requests/2417#note_148128",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "ad375e5ac5db1d8e086081999ff8df3cdc1368e4",
+        "head": "5b4c1063629b0bb3671f3fd874faddbf17a04dee"
       },
       "expected": {
         "category": "business-rule",
@@ -100,11 +131,17 @@
         "minSeverity": "High"
       },
       "title": "Remocao do tratamento de 'primeiro ano do PPA' quebra consistencia com classes irmas e pode gerar exportacao SIM-AM vazia",
-      "why": "MovimentoAcaoAnoArquivo.java e CorrelacaoAcaoAnoArquivo.java mantem o desvio ehPrimeiroAnoDoPpa"
+      "why": "MovimentoAcaoAnoArquivo.java e CorrelacaoAcaoAnoArquivo.java mantem o desvio ehPrimeiroAnoDoPpa",
+      "fixtureTrim": {
+        "lines": 20,
+        "omitted": [],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "api-licitacao-6287-592",
-      "fixture": null,
+      "fixture": "business-rule/api-licitacao-6287.diff",
       "mechanism": "commented-out+removal",
       "source": {
         "repo": "micro-servicos/api-licitacao",
@@ -112,7 +149,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-licitacao/-/merge_requests/6287",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-licitacao/-/merge_requests/6287#note_147827",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "22a99492247f87be58372d2d93b902564d89aa0b",
+        "head": "c1ec0c42eff8739daf7265da6040d6d7cffe6e00"
       },
       "expected": {
         "category": "business-rule",
@@ -122,11 +161,17 @@
         "minSeverity": "High"
       },
       "title": "Remocao do particionamento por fornecedorUuid no calculo de saldo do item de solicitacao",
-      "why": "condicao 'and ....fornecedorUuid = si.fornecedorUuid' comentada nos LEFT JOINs (592-594); CTEs deixam de agrupar por fornecedor"
+      "why": "condicao 'and ....fornecedorUuid = si.fornecedorUuid' comentada nos LEFT JOINs (592-594); CTEs deixam de agrupar por fornecedor",
+      "fixtureTrim": {
+        "lines": 131,
+        "omitted": [],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "api-leis-886-343",
-      "fixture": null,
+      "fixture": "business-rule/api-leis-886.diff",
       "mechanism": "domain",
       "source": {
         "repo": "micro-servicos/api-leis",
@@ -134,7 +179,9 @@
         "mrState": "closed",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-leis/-/merge_requests/886",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-leis/-/merge_requests/886#note_148043",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "9c0212446454da8e24d52deb90695c3e05d91fa2",
+        "head": "64847b69d497148891475554889e44681b95f23a"
       },
       "expected": {
         "category": "business-rule",
@@ -144,11 +191,24 @@
         "minSeverity": "High"
       },
       "title": "Vinculo contabil antigo e zerado e commitado antes de confirmar a nova contabilizacao",
-      "why": "REQUIRES_NEW commita a desvinculacao antes do contabilAPI; sem compensacao. Aceita-se tambem correctness (ordem de commit)"
+      "why": "REQUIRES_NEW commita a desvinculacao antes do contabilAPI; sem compensacao. Aceita-se tambem correctness (ordem de commit)",
+      "fixtureTrim": {
+        "lines": 387,
+        "omitted": [
+          "projects/api-leis/src/test/java/br/com/equiplano/nova/asgard/leis/service/impl/common/ExecutorTransacionalImediato.java",
+          "projects/api-leis/src/test/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImplTest.java",
+          "projects/api-leis/src/test/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImplTransacaoTest.java",
+          "projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/response/integration/planning/ParliamentaryAmendmentTypeTceResponse.java"
+        ],
+        "trimmedHunks": [
+          "projects/api-leis/src/main/java/br/com/equiplano/nova/asgard/leis/service/impl/programacaofinanceira/ProgramacaoFinanceiraServiceImpl.java"
+        ],
+        "redacted": []
+      }
     },
     {
       "id": "api-planejamento-2330-208",
-      "fixture": null,
+      "fixture": "business-rule/api-planejamento-2330.diff",
       "mechanism": "sibling",
       "source": {
         "repo": "micro-servicos/api-planejamento",
@@ -156,7 +216,9 @@
         "mrState": "closed",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-planejamento/-/merge_requests/2330",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-planejamento/-/merge_requests/2330#note_147295",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "fcb8d74cbac2398193ec083bdbcb16b9ff21869c",
+        "head": "635c08a189d5b5c30bdb4cf8a757a84970225dc6"
       },
       "expected": {
         "category": "business-rule",
@@ -166,11 +228,23 @@
         "minSeverity": "High"
       },
       "title": "Revive vinculo acao-programa excluido no destino sem distinguir exclusao de migracao legado vs. exclusao deliberada (RN04)",
-      "why": "o mesmo arquivo aplica RN04 em completarObjetivoDoVinculo e copiarAcaoAno, mas nao aqui"
+      "why": "o mesmo arquivo aplica RN04 em completarObjetivoDoVinculo e copiarAcaoAno, mas nao aqui",
+      "fixtureTrim": {
+        "lines": 341,
+        "omitted": [
+          "projects/api-planejamento/src/test/java/br/com/equiplano/nova/asgard/teste/ppaindicator/PpaIndicatorMapperTest.java",
+          "projects/api-planejamento/src/test/java/br/com/equiplano/nova/asgard/teste/ppaversion/CopiarAcaoObjetivoTest.java",
+          "projects/api-planejamento/src/test/java/br/com/equiplano/nova/asgard/teste/ppaversion/CopiarAcaoSatelitesGuardTest.java",
+          "projects/api-planejamento/src/test/java/br/com/equiplano/nova/asgard/teste/ppaversion/CopiarIndicadorAvaliacaoTest.java",
+          "projects/api-planejamento/src/test/java/br/com/equiplano/nova/asgard/teste/ppaversion/CopiarProgramaOrdemObjetivoTest.java"
+        ],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "api-patrimonio-959-25",
-      "fixture": null,
+      "fixture": "business-rule/api-patrimonio-959.diff",
       "mechanism": "commented-out",
       "source": {
         "repo": "micro-servicos/api-patrimonio",
@@ -178,7 +252,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-patrimonio/-/merge_requests/959",
         "noteUrl": "https://gitlab.equiplano.com.br/micro-servicos/api-patrimonio/-/merge_requests/959#note_147200",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "935d6bd472861a79cf74dc6dda82915e77699e09",
+        "head": "2b0de801d9cc22cc7eb7e4ccbee7319c46b57460"
       },
       "expected": {
         "category": "business-rule",
@@ -188,11 +264,33 @@
         "minSeverity": "High"
       },
       "title": "Validacao do limite de 5 anos virou codigo morto",
-      "why": "throw comentado, if vazio; o Javadoc diz que o limite evita OOM no api-relatorios. Aceita-se tambem correctness"
+      "why": "throw comentado, if vazio; o Javadoc diz que o limite evita OOM no api-relatorios. Aceita-se tambem correctness",
+      "fixtureTrim": {
+        "lines": 389,
+        "omitted": [
+          "projects/api-patrimonio/src/test/java/br/com/equiplano/nova/asgard/teste/mapper/BatchPropertyMapperTest.java",
+          "projects/api-patrimonio/src/test/java/br/com/equiplano/nova/asgard/teste/repository/CarregamentoBemEmLoteTest.java",
+          "projects/api-patrimonio/src/test/java/br/com/equiplano/nova/asgard/teste/service/BatchPropertyServiceImplTest.java",
+          "projects/api-patrimonio/src/test/java/br/com/equiplano/nova/asgard/teste/service/DepreciacaoBemReportServiceImplTest.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/report/depreciacaobemreport/DepreciacaoBemReportServiceImpl.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/contabildb/lancamentocontabil/LancamentoContabilRepository.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/view/planejamento/planoreceita/PlanoReceita.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/controller/report/saldocontabilbemreport/SaldoContabilBemReportController.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/propertybatch/BatchPropertyServiceImpl.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/revenuealienationproperty/RevenueAlienationPropertyServiceImpl.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/controller/report/DepreciacaoBemReportController.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/revenuealienation/impl/RevenueAlienationFilterRepositoryImpl.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/property/impl/PropertyFilterRepositoryImpl.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/revenuealienationproperty/impl/RevenueAlienationPropertyFilterRepositoryImpl.java",
+          "projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/revenuealienation/RevenueAlienationServiceImpl.java"
+        ],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "AtualizadorWeb-64-51",
-      "fixture": null,
+      "fixture": "business-rule/AtualizadorWeb-64.diff",
       "mechanism": "removal",
       "source": {
         "repo": "sistemas-web-java-8/AtualizadorWeb",
@@ -200,7 +298,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/sistemas-web-java-8/AtualizadorWeb/-/merge_requests/64",
         "noteUrl": "https://gitlab.equiplano.com.br/sistemas-web-java-8/AtualizadorWeb/-/merge_requests/64#note_147753",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "f0b1def94d22f48be291c462fb8953cab9172617",
+        "head": "b7b43b0a2a03c33b16481f072987baaa5eaca8cd"
       },
       "expected": {
         "category": "business-rule",
@@ -210,11 +310,17 @@
         "minSeverity": "High"
       },
       "title": "Remocao do filtro 'ativo' permite selecionar convenio/participante inativo ao cadastrar novo vinculo de previdencia complementar",
-      "why": "buscarConveniosAtivos virou buscarConvenios; o combo do novo vinculo passa a listar inativos"
+      "why": "buscarConveniosAtivos virou buscarConvenios; o combo do novo vinculo passa a listar inativos",
+      "fixtureTrim": {
+        "lines": 60,
+        "omitted": [],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     },
     {
       "id": "AtualizadorWeb-61-32",
-      "fixture": null,
+      "fixture": "business-rule/AtualizadorWeb-61.diff",
       "mechanism": "domain",
       "source": {
         "repo": "sistemas-web-java-8/AtualizadorWeb",
@@ -222,7 +328,9 @@
         "mrState": "merged",
         "mrUrl": "https://gitlab.equiplano.com.br/sistemas-web-java-8/AtualizadorWeb/-/merge_requests/61",
         "noteUrl": "https://gitlab.equiplano.com.br/sistemas-web-java-8/AtualizadorWeb/-/merge_requests/61#note_147699",
-        "originalSeverity": "HIGH"
+        "originalSeverity": "HIGH",
+        "base": "a2cf901bd2c86fd0751896566b311c73f83425ff",
+        "head": "f0b1def94d22f48be291c462fb8953cab9172617"
       },
       "expected": {
         "category": "business-rule",
@@ -232,7 +340,15 @@
         "minSeverity": "High"
       },
       "title": "Novo parametro obrigatorio CodAgrupador quebra formulas de verba ja cadastradas com a assinatura antiga",
-      "why": "formulas de folha ja cadastradas sem CodAgrupador passam a lancar ExceptionBusiness; sem script de migracao"
+      "why": "formulas de folha ja cadastradas sem CodAgrupador passam a lancar ExceptionBusiness; sem script de migracao",
+      "fixtureTrim": {
+        "lines": 355,
+        "omitted": [
+          "projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/test/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoTetoUtilTest.java"
+        ],
+        "trimmedHunks": [],
+        "redacted": []
+      }
     }
   ]
 }

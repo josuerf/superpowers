@@ -1,0 +1,355 @@
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpc/SrhValorBasePrevidenciaComplementarFunction.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpc/SrhValorBasePrevidenciaComplementarFunction.java
+index d8cfe9c635..b402ecf51f 100644
+--- a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpc/SrhValorBasePrevidenciaComplementarFunction.java
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpc/SrhValorBasePrevidenciaComplementarFunction.java
+@@ -1,41 +1,27 @@
+ package es.srh.business.calculo.function.previdencia.rpc;
+ 
+ import java.math.BigDecimal;
+-import java.util.ArrayList;
+ import java.util.List;
+ 
+ import es.brucutu.business.ExceptionBusiness;
+ import es.brucutu.utils.TreatDate;
+ import es.brucutu.utils.sort.Ordenador;
+-import es.srh.business.calculo.bean.VerbasIncidentes;
+ import es.srh.business.calculo.function.SrhAbstractFunctionBigDecimal;
+ import es.srh.business.calculo.function.bean.Contexto;
+ import es.srh.business.calculo.function.bean.MatriculaCalc;
+-import es.srh.business.calculo.function.bean.MatriculasCalc;
+-import es.srh.business.calculo.function.diaria.codigosretirarbase.SrhCodigosDiariaRetirarBaseFunction;
+-import es.srh.business.calculo.function.diaria.codigosretirarbase.SrhCodigosDiariaRetirarBaseFunctionFactory;
+-import es.srh.business.calculo.function.previdencia.SrhTratarVerbasLicencaMesUtil;
+ import es.srh.business.calculo.function.previdencia.SrhValorTetoPrevidenciaGeralFunction;
++import es.srh.business.calculo.function.previdencia.rpcgenerico.RpcGenericoApuracaoBaseUtil;
+ import es.srh.business.calculo.function.previdencia.rpcgenerico.RpcGenericoParticipanteResolver;
+ import es.srh.business.calculo.function.previdencia.rpcgenerico.RpcGenericoTetoUtil;
+-import es.srh.business.calculo.function.util.Parametro;
+ import es.srh.business.calculo.function.util.Parametros;
+ import es.srh.business.calculo.function.util.TpParamFuncaoCalculoType;
+-import es.srh.business.calculo.function.verba.codigosincidentescomvalor.SrhCodigosIncidentesComValorFunction;
+-import es.srh.business.calculo.function.verba.codigosincidentescomvalor.SrhCodigosIncidentesComValorFunctionFactory;
+-import es.srh.business.calculo.util.CalculaVerbasIncidentes;
+-import es.srh.business.calculo.util.SomaCodigosCalculados;
+-import es.srh.business.calculo.util.VerbaCalculada;
+ import es.srh.model.SrhCompetenciaModel;
+ import es.srh.model.SrhParametroModel;
+-import es.srh.model.SrhPrevidenciaModel;
+ import es.srh.model.SrhSolicitacaoRPCModel;
+-import es.srh.model.SrhVerbaModel;
+ import es.srh.model.pessoa.publica.SrhPessoaPublicaModel;
+ import es.srh.model.rpc.SrhRegimePrevidenciaComplementarModel;
+ import es.srh.model.rpcgenerico.SrhRegimePrevidenciaComplementarGenericoModel;
+ import es.srh.model.rpcgenerico.SrhRegimePrevidenciaComplementarGenericoParticipanteModel;
+-import es.srh.types.TpPrevidenciaType;
+ import es.srh.types.TpRpcLayoutConvenioType;
+ import es.srh.types.TpSimNaoType;
+ import es.srh.types.rpc.TpPrevidenciaComplementarType;
+@@ -88,43 +74,7 @@ public class SrhValorBasePrevidenciaComplementarFunction extends SrhAbstractFunc
+ 					return bigDecimal;
+ 			}
+ 
+-			List<MatriculaCalc> listMatricula = new MatriculasCalc(matricula).getAsListMatriculasCalc();
+-
+-			List<SrhVerbaModel> codigosIncidentes = new VerbasIncidentes(matricula.getVerbasPessoaPublica(), getContexto().getIncidencias()).getVerbasIncidencias(codAgrupador);
+-
+-			SrhCodigosDiariaRetirarBaseFunction codigosDiariaRetirarBaseFunction = new SrhCodigosDiariaRetirarBaseFunctionFactory(getContexto()).comParametro(new Parametro(TpParamFuncaoCalculoType.LISTACODIGOS.name(), codigosIncidentes)).instanciar(listMatricula);
+-			codigosDiariaRetirarBaseFunction.setRecuoBase(rc.getRecuoBase());
+-			List<SrhVerbaModel> codigosDiariaRetirarBase = codigosDiariaRetirarBaseFunction.calcular();
+-			rc.append(codigosDiariaRetirarBaseFunction);
+-
+-			List<SrhVerbaModel> codigosIncidentesBase = new ArrayList<>(codigosIncidentes);
+-			codigosIncidentesBase.removeAll(codigosDiariaRetirarBase);
+-
+-			SrhPrevidenciaModel previdencia = pessoaPublica.getPrevidencia();
+-			SrhTratarVerbasLicencaMesUtil util = new SrhTratarVerbasLicencaMesUtil(getContexto(), rc);
+-			List<SrhVerbaModel> listaVerbasParaRecalcular = new ArrayList<>();
+-			if (TpPrevidenciaType.RGPS.equals(previdencia.getTpPrevidencia())) {
+-				listaVerbasParaRecalcular = util.recuperarVerbasLicencaMesParaRecalcular(codigosIncidentesBase);
+-				codigosIncidentesBase.removeAll(listaVerbasParaRecalcular);
+-			}
+-
+-			codigosIncidentesBase.removeAll(util.recuperarVerbasLicencaAno(codigosIncidentesBase));
+-
+-			CalculaVerbasIncidentes acumula = new CalculaVerbasIncidentes(rc.getRecuoBase());
+-			List<VerbaCalculada> codigosCalculados = acumula.calcular(codigosIncidentesBase, getContexto(), listMatricula, listMatricula);
+-			rc.append(acumula);
+-
+-			if (TpPrevidenciaType.RGPS.equals(previdencia.getTpPrevidencia())) {
+-				codigosCalculados.addAll(util.recalculaVerbasLicencaMes(listaVerbasParaRecalcular, listMatricula));
+-			}
+-
+-			SrhCodigosIncidentesComValorFunction codigosIncidentesPrevComValorFunction = new SrhCodigosIncidentesComValorFunctionFactory(getContexto()).comParametro(new Parametro(TpParamFuncaoCalculoType.LISTACODIGOS.name(), codigosCalculados)).instanciar();
+-			codigosIncidentesPrevComValorFunction.setRecuoBase(rc.getRecuoBase());
+-			List<VerbaCalculada> codigosIncidentesPrevComValor = codigosIncidentesPrevComValorFunction.calcular();
+-			rc.append(codigosIncidentesPrevComValorFunction);
+-			copiarItensFunction(codigosIncidentesPrevComValorFunction);
+-
+-			bigDecimal = new SomaCodigosCalculados(codigosIncidentesPrevComValor).somarCodigos();
++			bigDecimal = RpcGenericoApuracaoBaseUtil.apurarBaseIncidencia(this, getContexto(), matricula, codAgrupador);
+ 
+ 			if (tpRPC == null || tpRPC.equals(TpPrevidenciaComplementarType.BB_PREV)) {
+ 				SrhValorTetoPrevidenciaComplementarFunction tetoFunction = new SrhValorTetoPrevidenciaComplementarFunction(getContexto());
+@@ -147,9 +97,9 @@ public class SrhValorBasePrevidenciaComplementarFunction extends SrhAbstractFunc
+ 				bigDecimal = bigDecimal.subtract(vlrTeto);
+ 			} else if (tpRPC.equals(TpPrevidenciaComplementarType.PREVCOM)) {
+ 
+-				BigDecimal vlrTetoParticipante = obterTetoParticipantePrevcom(participantePrevcomVinculado);
++				BigDecimal vlrTetoParticipante = RpcGenericoTetoUtil.obterTetoParticipantePrevcom(getContexto(), participantePrevcomVinculado);
+ 
+-				if (vlrTetoParticipante != null && bigDecimal.compareTo(vlrTetoParticipante) <= 0)
++				if (vlrTetoParticipante != null && !RpcGenericoTetoUtil.baseExcedeTetoParaLimitacao(bigDecimal, vlrTetoParticipante))
+ 					return BigDecimal.ZERO;
+ 			}
+ 
+@@ -223,15 +173,4 @@ public class SrhValorBasePrevidenciaComplementarFunction extends SrhAbstractFunc
+ 		return null;
+ 	}
+ 
+-	private BigDecimal obterTetoParticipantePrevcom(SrhRegimePrevidenciaComplementarGenericoParticipanteModel participanteVinculado) {
+-
+-		if (participanteVinculado == null || participanteVinculado.getValidarTetoInss() == null)
+-			return null;
+-
+-		if (TpSimNaoType.SIM.equals(participanteVinculado.getValidarTetoInss()))
+-			return RpcGenericoTetoUtil.obterMaiorFaixaPrevidenciaVigente(getContexto());
+-
+-		return participanteVinculado.getTeto();
+-	}
+-
+ }
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoApuracaoBaseUtil.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoApuracaoBaseUtil.java
+new file mode 100644
+index 0000000000..b6fefc1492
+--- /dev/null
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoApuracaoBaseUtil.java
+@@ -0,0 +1,87 @@
++package es.srh.business.calculo.function.previdencia.rpcgenerico;
++
++import java.math.BigDecimal;
++import java.util.ArrayList;
++import java.util.List;
++
++import es.srh.business.calculo.bean.VerbasIncidentes;
++import es.srh.business.calculo.function.SrhAbstractFunction;
++import es.srh.business.calculo.function.bean.Contexto;
++import es.srh.business.calculo.function.bean.MatriculaCalc;
++import es.srh.business.calculo.function.bean.MatriculasCalc;
++import es.srh.business.calculo.function.diaria.codigosretirarbase.SrhCodigosDiariaRetirarBaseFunction;
++import es.srh.business.calculo.function.diaria.codigosretirarbase.SrhCodigosDiariaRetirarBaseFunctionFactory;
++import es.srh.business.calculo.function.previdencia.SrhTratarVerbasLicencaMesUtil;
++import es.srh.business.calculo.function.util.Parametro;
++import es.srh.business.calculo.function.util.TpParamFuncaoCalculoType;
++import es.srh.business.calculo.function.verba.codigosincidentescomvalor.SrhCodigosIncidentesComValorFunction;
++import es.srh.business.calculo.function.verba.codigosincidentescomvalor.SrhCodigosIncidentesComValorFunctionFactory;
++import es.srh.business.calculo.util.CalculaVerbasIncidentes;
++import es.srh.business.calculo.util.SomaCodigosCalculados;
++import es.srh.business.calculo.util.VerbaCalculada;
++import es.srh.model.SrhPrevidenciaModel;
++import es.srh.model.SrhVerbaModel;
++import es.srh.model.pessoa.publica.SrhPessoaPublicaModel;
++import es.srh.types.TpPrevidenciaType;
++
++/**
++ * Pipeline compartilhado de apuração da base de incidência de previdência complementar
++ * (RPC Genérico/Prevcom) para 1 matrícula: recupera os códigos incidentes do agrupador,
++ * retira códigos de diária, trata verbas de licença (RGPS), acumula os códigos calculados
++ * e resolve o valor final via {@code SrhCodigosIncidentesComValorFunction}.
++ *
++ * Extraído de {@code SrhValorBasePrevidenciaComplementarFunction} e
++ * {@code SrhPercentualRpcParticipanteFunction}, que reproduziam o mesmo pipeline de forma
++ * praticamente idêntica. O chamador (subclasse de {@code SrhAbstractFunction}) é passado
++ * para que os itens de log/função calculados aqui sejam copiados para o resumo de cálculo
++ * do próprio chamador, preservando o comportamento original de rastreabilidade.
++ */
++public final class RpcGenericoApuracaoBaseUtil {
++
++	private RpcGenericoApuracaoBaseUtil() {
++	}
++
++	public static BigDecimal apurarBaseIncidencia(SrhAbstractFunction chamador, Contexto contexto, MatriculaCalc matricula, Integer codAgrupador) {
++
++		SrhPessoaPublicaModel pessoaPublica = matricula.getPessoaPublica();
++
++		List<MatriculaCalc> listMatricula = new MatriculasCalc(matricula).getAsListMatriculasCalc();
++
++		List<SrhVerbaModel> codigosIncidentes = new VerbasIncidentes(matricula.getVerbasPessoaPublica(), contexto.getIncidencias()).getVerbasIncidencias(codAgrupador);
++
++		SrhCodigosDiariaRetirarBaseFunction codigosDiariaRetirarBaseFunction = new SrhCodigosDiariaRetirarBaseFunctionFactory(contexto).comParametro(new Parametro(TpParamFuncaoCalculoType.LISTACODIGOS.name(), codigosIncidentes)).instanciar(listMatricula);
++		codigosDiariaRetirarBaseFunction.setRecuoBase(chamador.getRc().getRecuoBase());
++		List<SrhVerbaModel> codigosDiariaRetirarBase = codigosDiariaRetirarBaseFunction.calcular();
++		chamador.getRc().append(codigosDiariaRetirarBaseFunction);
++
++		List<SrhVerbaModel> codigosIncidentesBase = new ArrayList<>(codigosIncidentes);
++		codigosIncidentesBase.removeAll(codigosDiariaRetirarBase);
++
++		SrhPrevidenciaModel previdencia = pessoaPublica.getPrevidencia();
++		SrhTratarVerbasLicencaMesUtil util = new SrhTratarVerbasLicencaMesUtil(contexto, chamador.getRc());
++		List<SrhVerbaModel> listaVerbasParaRecalcular = new ArrayList<>();
++		if (TpPrevidenciaType.RGPS.equals(previdencia.getTpPrevidencia())) {
++			listaVerbasParaRecalcular = util.recuperarVerbasLicencaMesParaRecalcular(codigosIncidentesBase);
++			codigosIncidentesBase.removeAll(listaVerbasParaRecalcular);
++		}
++
++		codigosIncidentesBase.removeAll(util.recuperarVerbasLicencaAno(codigosIncidentesBase));
++
++		CalculaVerbasIncidentes acumula = new CalculaVerbasIncidentes(chamador.getRc().getRecuoBase());
++		List<VerbaCalculada> codigosCalculados = acumula.calcular(codigosIncidentesBase, contexto, listMatricula, listMatricula);
++		chamador.getRc().append(acumula);
++
++		if (TpPrevidenciaType.RGPS.equals(previdencia.getTpPrevidencia())) {
++			codigosCalculados.addAll(util.recalculaVerbasLicencaMes(listaVerbasParaRecalcular, listMatricula));
++		}
++
++		SrhCodigosIncidentesComValorFunction codigosIncidentesPrevComValorFunction = new SrhCodigosIncidentesComValorFunctionFactory(contexto).comParametro(new Parametro(TpParamFuncaoCalculoType.LISTACODIGOS.name(), codigosCalculados)).instanciar();
++		codigosIncidentesPrevComValorFunction.setRecuoBase(chamador.getRc().getRecuoBase());
++		List<VerbaCalculada> codigosIncidentesPrevComValor = codigosIncidentesPrevComValorFunction.calcular();
++		chamador.getRc().append(codigosIncidentesPrevComValorFunction);
++		chamador.copiarItensFunction(codigosIncidentesPrevComValorFunction);
++
++		return new SomaCodigosCalculados(codigosIncidentesPrevComValor).somarCodigos();
++	}
++
++}
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoTetoUtil.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoTetoUtil.java
+index e2659c0490..f561c9a90f 100644
+--- a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoTetoUtil.java
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/RpcGenericoTetoUtil.java
+@@ -5,6 +5,8 @@ import java.math.BigDecimal;
+ import es.srh.business.calculo.function.bean.Contexto;
+ import es.srh.model.SrhPrevidenciaFaixaModel;
+ import es.srh.model.SrhPrevidenciaVigenciaModel;
++import es.srh.model.rpcgenerico.SrhRegimePrevidenciaComplementarGenericoParticipanteModel;
++import es.srh.types.TpSimNaoType;
+ 
+ public final class RpcGenericoTetoUtil {
+ 
+@@ -23,4 +25,36 @@ public final class RpcGenericoTetoUtil {
+ 		return maiorFaixa == null || maiorFaixa.getVlFaixaPrevidencia() == null ? BigDecimal.ZERO : maiorFaixa.getVlFaixaPrevidencia();
+ 	}
+ 
++	/**
++	 * Resolve o valor de teto aplicável ao participante do convênio RPC Genérico (Prevcom): se o participante valida contra o teto do RGPS, usa a maior faixa vigente da previdência geral; caso contrário, usa o teto customizado cadastrado no próprio participante. Retorna
++	 * {@code null} quando não há teto configurado (não deve ser aplicado limite).
++	 */
++	public static BigDecimal obterTetoParticipantePrevcom(Contexto contexto, SrhRegimePrevidenciaComplementarGenericoParticipanteModel participanteVinculado) {
++
++		if (participanteVinculado == null || participanteVinculado.getValidarTetoInss() == null)
++			return null;
++
++		if (TpSimNaoType.SIM.equals(participanteVinculado.getValidarTetoInss()))
++			return obterMaiorFaixaPrevidenciaVigente(contexto);
++
++		return participanteVinculado.getTeto();
++	}
++
++	/**
++	 * Regra de CONTRIBUIÇÃO do participante (fronteira INCLUSIVA — {@code base >= teto}): o participante já deve contribuir quando a base atinge exatamente o teto, não apenas quando o ultrapassa. Usado por {@code SrhPercentualRpcParticipanteFunction} para decidir SE a
++	 * contribuição do participante deve ser somada. Teto {@code null} significa ausência de restrição de teto configurada (cadastro permite {@code validarTetoInss=NAO} com {@code teto} em branco — ver {@code RegimePrevidenciaComplementarGenericoValidador}) — sem teto para
++	 * comparar, o participante é sempre elegível para contribuir, mantendo paridade com {@link #baseExcedeTetoParaLimitacao} (que também trata {@code null} como ausência de limite).
++	 */
++	public static boolean baseAtingiuOuUltrapassouTetoParaContribuicao(BigDecimal base, BigDecimal teto) {
++		return teto == null || (base != null && base.compareTo(teto) >= 0);
++	}
++
++	/**
++	 * Regra de LIMITAÇÃO de valor (fronteira EXCLUSIVA — {@code base > teto}): o valor da base só é capado no teto quando o excede estritamente; no ponto exato {@code base == teto} o valor calculado permanece intacto. Usado por {@code SrhValorBasePrevidenciaComplementarFunction}
++	 * para decidir SE o valor deve ser limitado ao teto. Teto {@code null} significa ausência de limite — nunca capa.
++	 */
++	public static boolean baseExcedeTetoParaLimitacao(BigDecimal base, BigDecimal teto) {
++		return teto != null && base != null && base.compareTo(teto) > 0;
++	}
++
+ }
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/SrhPercentualRpcParticipanteFunction.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/SrhPercentualRpcParticipanteFunction.java
+index 68ddd06d43..77b34060ae 100644
+--- a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/SrhPercentualRpcParticipanteFunction.java
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/previdencia/rpcgenerico/SrhPercentualRpcParticipanteFunction.java
+@@ -4,6 +4,7 @@ import java.math.BigDecimal;
+ import java.util.List;
+ 
+ import es.brucutu.business.ExceptionBusiness;
++import es.srh.business.calculo.function.ParametroObrigatorioValidator;
+ import es.srh.business.calculo.function.SrhAbstractFunctionBigDecimal;
+ import es.srh.business.calculo.function.bean.Contexto;
+ import es.srh.business.calculo.function.bean.MatriculaCalc;
+@@ -22,11 +23,19 @@ public class SrhPercentualRpcParticipanteFunction extends SrhAbstractFunctionBig
+ 
+ 	private List<MatriculaCalc> matriculas;
+ 	private Integer codConvenio;
++	private Integer codAgrupador;
+ 
+ 	public SrhPercentualRpcParticipanteFunction(Contexto contexto, Parametros parametros, List<MatriculaCalc> matriculas) {
+ 		super(NOME_TAG, contexto);
+ 		this.matriculas = matriculas;
+-		codConvenio = parametros.getParametroPorNome(TpParamFuncaoCalculoType.CODCONVENIO.getNome()).getAsInteger();
++
++		new ParametroObrigatorioValidator(NOME_UPPER, parametros, TpParamFuncaoCalculoType.CODCONVENIO, TpParamFuncaoCalculoType.CODAGRUPADOR).validar();
++
++		if (parametros.isParametroInformado(TpParamFuncaoCalculoType.CODCONVENIO.name()))
++			codConvenio = parametros.getParametroPorNome(TpParamFuncaoCalculoType.CODCONVENIO.getNome()).getAsInteger();
++
++		if (parametros.isParametroInformado(TpParamFuncaoCalculoType.CODAGRUPADOR.name()))
++			codAgrupador = parametros.getParametroPorNome(TpParamFuncaoCalculoType.CODAGRUPADOR.name()).getAsInteger();
+ 	}
+ 
+ 	@Override
+@@ -39,24 +48,33 @@ public class SrhPercentualRpcParticipanteFunction extends SrhAbstractFunctionBig
+ 
+ 		List<SrhRegimePrevidenciaComplementarGenericoParticipanteModel> participantesVinculados = RpcGenericoParticipanteResolver.resolverTodosParticipantesVinculados(getContexto(), codConvenio, pessoaPublica);
+ 
+-		for (SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante : participantesVinculados)
+-			bigDecimal = bigDecimal.add(obterPercentual(pessoaPublica, participante));
++		if (participantesVinculados == null || participantesVinculados.isEmpty())
++			return bigDecimal;
+ 
+-		return bigDecimal;
+-	}
++		MatriculaCalc matricula = matriculas.get(0);
++
++		BigDecimal base = RpcGenericoApuracaoBaseUtil.apurarBaseIncidencia(this, getContexto(), matricula, codAgrupador);
+ 
+-	private BigDecimal obterPercentual(SrhPessoaPublicaModel pessoaPublica, SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante) {
++		for (SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante : participantesVinculados) {
+ 
+-		if (!TpSimNaoType.SIM.equals(participante.getAtivo()))
+-			return BigDecimal.ZERO;
++			if (!TpSimNaoType.SIM.equals(participante.getAtivo()))
++				continue;
+ 
+-		if (TpRpcContribuicaoParticipanteType.PERCENTUAL_FIXO.equals(participante.getTpContribuicao()))
+-			return participante.getContribuicao() == null ? BigDecimal.ZERO : participante.getContribuicao();
++			BigDecimal vlrTetoParticipante = RpcGenericoTetoUtil.obterTetoParticipantePrevcom(getContexto(), participante);
+ 
+-		if (TpRpcContribuicaoParticipanteType.PERCENTUAL_INDIVIDUAL.equals(participante.getTpContribuicao()))
+-			return obterValorDoVinculo(pessoaPublica, participante);
++			if (RpcGenericoTetoUtil.baseAtingiuOuUltrapassouTetoParaContribuicao(base, vlrTetoParticipante)) {
+ 
+-		return BigDecimal.ZERO;
++				if (TpRpcContribuicaoParticipanteType.PERCENTUAL_FIXO.equals(participante.getTpContribuicao()))
++					bigDecimal = bigDecimal.add(participante.getContribuicao() == null ? BigDecimal.ZERO : participante.getContribuicao());
++
++				if (TpRpcContribuicaoParticipanteType.PERCENTUAL_INDIVIDUAL.equals(participante.getTpContribuicao()))
++					bigDecimal = bigDecimal.add(obterValorDoVinculo(pessoaPublica, participante));
++
++			}
++
++		}
++
++		return bigDecimal;
+ 	}
+ 
+ 	private BigDecimal obterValorDoVinculo(SrhPessoaPublicaModel pessoaPublica, SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante) {
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/type/TpFunctionType.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/type/TpFunctionType.java
+index b23256e5a8..6c887738dd 100644
+--- a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/type/TpFunctionType.java
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/business/calculo/function/type/TpFunctionType.java
+@@ -115,7 +115,7 @@ public enum TpFunctionType {
+ 	VLDESCONTORPCVALORFIXO(319, "VlDescontoRpcValorFixo", "VlDescontoRpcValorFixo(CodConvenio=Codigo)"),
+ 	VLALIQUOTARPCPATRONAL(320, "VlAliquotaRpcPatronal", "VlAliquotaRpcPatronal(CodConvenio=Codigo)"),
+ 	VLTETORPCPATRONAL(321, "VlTetoRpcPatronal", "VlTetoRpcPatronal(CodConvenio=Codigo)"),
+-	VLPERCENTUALRPCPARTICIPANTE(322, "VlPercentualRpcParticipante", "VlPercentualRpcParticipante(CodConvenio=Codigo)"),
++	VLPERCENTUALRPCPARTICIPANTE(322, "VlPercentualRpcParticipante", "VlPercentualRpcParticipante(CodAgrupador=Codigo,CodConvenio=Codigo)"),
+ 	VLTETORPCPARTICIPANTE(323, "VlTetoRpcParticipante", "VlTetoRpcParticipante(CodConvenio=Codigo)"),
+ 	VLDESCONTOPREVIDENCIARPPSSERVIDORORIGINADOR(138, "VlDescontoPrevidenciaRppsServidorOriginador", "VlDescontoPrevidenciaRppsServidorOriginador(CodAgrupador=Codigo, TipoPrevidencia=PROPRIA, [CodAgrupadorFerias=Codigo])"),
+ 	VLBASEPREVIDENCIARPPSSERVIDORORIGINADOR(139, "VlBasePrevidenciaRppsServidorOriginador", "VlBasePrevidenciaRppsServidorOriginador(CodAgrupador=Codigo, TipoPrevidencia=PROPRIA, [CodAgrupadorFerias=Codigo])"),

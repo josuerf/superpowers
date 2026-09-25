@@ -1,0 +1,389 @@
+diff --git a/projects/api-patrimonio/.gitignore b/projects/api-patrimonio/.gitignore
+index 9f306c3d..09b72159 100644
+--- a/projects/api-patrimonio/.gitignore
++++ b/projects/api-patrimonio/.gitignore
+@@ -37,4 +37,7 @@ build/
+ 
+ ### Mac ###
+ .DS_Store
+-.env
+\ No newline at end of file
++.env
++
++# AI assistant artifacts
++context-snapshot.json
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/AccountingAPI.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/AccountingAPI.java
+index b469ef5b..f2b3bb6c 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/AccountingAPI.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/AccountingAPI.java
+@@ -208,11 +208,13 @@ public interface AccountingAPI {
+ 
+     @RequestLine("PUT /receita_lancamento/{uuid}")
+     @Headers({"Content-Type: application/json", "Authorization: Basic ZXF1aXBsYW5vOmVxdWlwbGFubw=="})
+-    void atualizarLancamentoReceitaBens(@Param("uuid") String uuid, LancamentoReceitaRequest request);
++    void atualizarLancamentoReceitaBens(@Param("uuid") String uuid, LancamentoReceitaRequest request,
++                                        @HeaderMap Map<String, Object> headerMap);
+ 
+     @RequestLine("PUT /lancamento_contabil/alterar/alienacao_bens")
+     @Headers({"Content-Type: application/json", "Authorization: Basic ZXF1aXBsYW5vOmVxdWlwbGFubw=="})
+-    void atualizarLancamentoContabilAlienacaoDosBens(LancamentoContabilAlienacaoBens request);
++    void atualizarLancamentoContabilAlienacaoDosBens(LancamentoContabilAlienacaoBens request,
++                                                     @HeaderMap Map<String, Object> headerMap);
+ 
+     @RequestLine("GET /caixa/paginado/simples?skip={skip}&take={take}&sort={sort}&filter={filter}")
+     @Headers({"Content-Type: application/json", "Authorization: Basic ZXF1aXBsYW5vOmVxdWlwbGFubw=="})
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/RelatorioAPI.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/RelatorioAPI.java
+index 13901d28..3cef8998 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/RelatorioAPI.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/api/RelatorioAPI.java
+@@ -40,4 +40,22 @@ public interface RelatorioAPI {
+             @Param("uuidRelatorio") String uuidRelatorio
+             );
+ 
++    @RequestLine("GET /relatorio/{uuidRelatorio}")
++    @Headers({
++        "Content-Type: application/json", 
++        "Authorization: Basic ZXF1aXBsYW5vOmVxdWlwbGFubw==", 
++        "Accept: */*",
++        "x-exercise-uuid: {exercicioUuid}",
++        "x-entity-uuid: {entidadeUuid}",
++        "x-user-uuid: {usuarioUuid}",
++        "x-county-client-uuid: {municipioClienteUuid}"
++    })
++    BaseReturn<RelatorioControleRedis> consulaStatusCustom(
++            @Param("exercicioUuid") String exercicioUuid,
++            @Param("entidadeUuid") String entidadeUuid,
++            @Param("usuarioUuid") String usuarioUuid,
++            @Param("municipioClienteUuid") String municipioClienteUuid,
++            @Param("uuidRelatorio") String uuidRelatorio
++            );
++
+ }
+\ No newline at end of file
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/propertybatch/BatchPropertyMapper.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/propertybatch/BatchPropertyMapper.java
+index f90462c9..4eec782a 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/propertybatch/BatchPropertyMapper.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/propertybatch/BatchPropertyMapper.java
+@@ -6,6 +6,7 @@ import java.math.BigDecimal;
+ import java.time.LocalDateTime;
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.Objects;
+ import java.util.stream.Collectors;
+ 
+ import br.com.equiplano.nova.asgard.patrimonio.mapper.log.LogMapper;
+@@ -110,6 +111,13 @@ public class BatchPropertyMapper {
+ 		response.generatedNumberProperty = model.generatedNumberProperty;
+ 		response.initialNumberPlatelet = model.initialNumberPlatelet;
+ 
++		if (nonNull(model.property)) {
++			response.valorTotal = model.property.stream()
++					.map(p -> p.value)
++					.filter(Objects::nonNull)
++					.reduce(BigDecimal.ZERO, BigDecimal::add);
++		}
++
+ 		if (nonNull(model.property) && !model.property.isEmpty()) {
+ 			response.property = propertyMapper.response(model.property.get(0), entityUuid, countyClientUuid, userUuid);
+ 
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/revenuealienationproperty/RevenueAlienationPropertyMapper.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/revenuealienationproperty/RevenueAlienationPropertyMapper.java
+index 48aa22aa..61f18139 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/revenuealienationproperty/RevenueAlienationPropertyMapper.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/mapper/revenuealienationproperty/RevenueAlienationPropertyMapper.java
+@@ -1,5 +1,7 @@
+ package br.com.equiplano.nova.asgard.patrimonio.mapper.revenuealienationproperty;
+ 
++import static br.com.equiplano.nova.asgard.patrimonio.util.PlansFormat.getFormatCodeAccountPlan;
++import static java.util.Objects.isNull;
+ import static java.util.Objects.nonNull;
+ 
+ import java.util.Comparator;
+@@ -90,11 +92,24 @@ public class RevenueAlienationPropertyMapper {
+ 	}
+ 
+ 	private AccountPlanResponse getPlanoContabil(RevenueAlienationProperty model) {
++		if (isNull(model.propertyPreviousBalance)) {
++			return null;
++		}
+ 		AccountPlanResponse resp = new AccountPlanResponse();
+ 		PlanoContabilProjection planoContabil;
+ 		planoContabil = this.planoContabilRepository.findByUuid(model.propertyPreviousBalance.accountPlan);
++		if (isNull(planoContabil)) {
++			return null;
++		}
+ 		resp.uuid = planoContabil.getUuid();
+-		resp.code = planoContabil.getCodigo();
++		// Formatado com pontos, como TODO o resto do serviço faz ao montar um AccountPlanResponse
++		// (PlanoContabilMapper#responseSimple, #mapearCredito, #mapearDebito). Este método é uma
++		// cópia do responseSimple que perdeu a formatação, e a divergência não é cosmética: a tela
++		// de edição do bem compara o código daqui com o código do combo — que vem do
++		// PropertyPreviousBalanceMapper, ou seja, do responseSimple, COM pontos — para achar a conta
++		// equivalente do exercício corrente. Com formatos diferentes a comparação nunca casava, e o
++		// bem de lote caía sempre no toast de "não está disponível no exercício corrente".
++		resp.code = getFormatCodeAccountPlan(planoContabil.getCodigo());
+ 		resp.reducedCode = planoContabil.getCodigoReduzido();
+ 		resp.name = planoContabil.getNome();
+ 		return resp;
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/property/Property.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/property/Property.java
+index 80607543..a4d1cda2 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/property/Property.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/property/Property.java
+@@ -14,6 +14,8 @@ import javax.persistence.OneToMany;
+ import javax.persistence.OneToOne;
+ import javax.persistence.Table;
+ 
++import org.hibernate.annotations.BatchSize;
++
+ import br.com.equiplano.nova.asgard.patrimonio.model.common.BaseLogModel;
+ import br.com.equiplano.nova.asgard.patrimonio.model.propertybatch.BatchProperty;
+ import br.com.equiplano.nova.asgard.patrimonio.model.propertyconservationstate.PropertyConservationState;
+@@ -31,6 +33,7 @@ import lombok.Setter;
+ @Setter
+ @Entity
+ @Table(name = "bem")
++@BatchSize(size = 128)
+ public class Property extends BaseLogModel<Property> {
+ 
+ 	@Column(nullable = false, name = "entidade_uuid")
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/propertybatch/BatchProperty.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/propertybatch/BatchProperty.java
+index 21acb15d..49b7ef7e 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/propertybatch/BatchProperty.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/propertybatch/BatchProperty.java
+@@ -11,6 +11,8 @@ import javax.persistence.FetchType;
+ import javax.persistence.OneToMany;
+ import javax.persistence.Table;
+ 
++import org.hibernate.annotations.BatchSize;
++
+ import br.com.equiplano.nova.asgard.patrimonio.model.common.BaseLogModel;
+ import br.com.equiplano.nova.asgard.patrimonio.model.property.Property;
+ import lombok.Getter;
+@@ -20,6 +22,7 @@ import lombok.Setter;
+ @Setter
+ @Entity
+ @Table(name = "lote_bem")
++@BatchSize(size = 128)
+ public class BatchProperty extends BaseLogModel<BatchProperty> {
+ 
+ 	@Column(nullable = false, name = "entidade_uuid")
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/revenuealienation/RevenueAlienation.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/revenuealienation/RevenueAlienation.java
+index 860b1744..3ddd1a71 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/revenuealienation/RevenueAlienation.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/model/revenuealienation/RevenueAlienation.java
+@@ -9,6 +9,7 @@ import br.com.equiplano.nova.asgard.patrimonio.model.common.BaseLogModel;
+ import br.com.equiplano.nova.asgard.patrimonio.model.enumeration.TypeBoolean;
+ import br.com.equiplano.nova.asgard.patrimonio.model.view.contabil.lancamentoreceita.LancamentoReceita;
+ import br.com.equiplano.nova.asgard.patrimonio.model.view.contabil.tipodiarioarrecadacaolctoreceita.TipoDiarioArrecadacaoLctoReceita;
++import br.com.equiplano.nova.asgard.patrimonio.model.view.planejamento.planoreceita.PlanoReceita;
+ import lombok.Getter;
+ import lombok.Setter;
+ 
+@@ -27,6 +28,23 @@ public class RevenueAlienation extends BaseLogModel<RevenueAlienation> {
+ 	@Column(nullable = false, name = "plano_receita_uuid")
+ 	public String revenuePlan;
+ 
++	/**
++	 * Mesma coluna de {@link #revenuePlan}, só para leitura, para a grid poder filtrar e ordenar por
++	 * código e nome do plano de receita.
++	 *
++	 * <p>{@code insertable = false, updatable = false} de propósito: quem grava continua sendo o
++	 * campo {@code revenuePlan}, que recebe o uuid do request. Sem isso, duas propriedades mapeadas
++	 * na mesma coluna fariam o Hibernate recusar o mapeamento.</p>
++	 *
++	 * <p>{@code LAZY}: nada é carregado enquanto ninguém navegar na associação, então a listagem que
++	 * não filtra por plano de receita não paga nada por este mapeamento. Mesmo padrão de
++	 * {@code ClasseDepreciacaoContabilSimples#planoContabilIncorporacao}.</p>
++	 */
++	@ManyToOne(fetch = FetchType.LAZY)
++	@JoinColumn(name = "plano_receita_uuid", referencedColumnName = "uuid",
++			insertable = false, updatable = false)
++	public PlanoReceita planoReceita;
++
+ 	@Column(nullable = false, name = "fonte_recurso_uuid")
+ 	public String resourceSource;
+ 
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/report/request/RelatorioBemFiltroValidator.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/report/request/RelatorioBemFiltroValidator.java
+index 65a30cc3..88970efa 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/report/request/RelatorioBemFiltroValidator.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/report/request/RelatorioBemFiltroValidator.java
+@@ -16,15 +16,15 @@ public final class RelatorioBemFiltroValidator {
+     public static void validar(BemReportRequest request) {
+         if (request.periodoInicial == null || request.periodoFinal == null || request.naturezaUuid == null) {
+             throw new BaseException(HttpStatus.BAD_REQUEST,
+-                    "Informe o Período de Aquisição (máximo de 5 anos) e a Natureza do bem para gerar o relatório.");
++                    "Informe o Período de Aquisição e a Natureza do bem para gerar o relatório.");
+         }
+         if (request.periodoFinal.isBefore(request.periodoInicial)) {
+             throw new BaseException(HttpStatus.BAD_REQUEST,
+                     "A data de aquisição final não pode ser menor do que a data de aquisição inicial.");
+         }
+         if (request.periodoFinal.isAfter(request.periodoInicial.plusYears(5))) {
+-            throw new BaseException(HttpStatus.BAD_REQUEST,
+-                    "O período de aquisição não pode ser maior do que 5 anos.");
++//            throw new BaseException(HttpStatus.BAD_REQUEST,
++//                    "O período de aquisição não pode ser maior do que 5 anos.");
+         }
+     }
+ }
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementEntryRepository.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementEntryRepository.java
+index ec3c1740..fa0ea497 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementEntryRepository.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementEntryRepository.java
+@@ -28,6 +28,38 @@ public interface PropertyMovementEntryRepository extends JpaRepository<PropertyM
+ 	@Query("SELECT pm FROM PropertyMovementEntry pm WHERE pm.accountingEntry = :uuid")
+ 	Optional<PropertyMovementEntry> getMovimentacaoBemLancamentoPorLancamentoContabilUuid(@Param("uuid") String uuid);
+ 
++	/**
++	 * Se o vínculo já existe. Checa o <b>par</b>, que é exatamente a unique key
++	 * {@code movimentacao_bem_lancamento_akey_02 (movimentacao_bem_id, lancamento_contabil_uuid)}, e
++	 * não só a movimentação: a tabela também é escrita pelo api-contabil, então uma movimentação pode
++	 * ter mais de um vínculo, e uma consulta que devolve {@code Optional} estouraria nesse caso.
++	 */
++	boolean existsByPropertyMovementAndAccountingEntry(PropertyMovement propertyMovement, String accountingEntry);
++
++	/**
++	 * Apaga no banco, imediatamente, os vínculos entre estas movimentações e estes lançamentos
++	 * contábeis.
++	 *
++	 * <p>Recorte estreito de propósito: só o par (movimentação desta operação, lançamento que vai ser
++	 * apagado do outro lado). Limpar todos os vínculos da movimentação levaria embora também os que
++	 * o <b>api-contabil</b> escreve por conta própria em
++	 * {@code ControlePorcentagemLiquidacaoServiceImpl}, que não têm nada a ver com esta operação.</p>
++	 *
++	 * <p>DELETE nativo, como o {@link #deleteAllByMovimentacaoBemId(Long)}: a coleção
++	 * {@code entryes} carregada pelo JPA não é fonte confiável do que existe no banco nesta tabela.</p>
++	 *
++	 * @return quantos vínculos foram removidos
++	 */
++	@Modifying
++	@Transactional
++	@Query(value = "DELETE FROM movimentacao_bem_lancamento"
++			+ " WHERE movimentacao_bem_id IN (:movimentacaoBemIds)"
++			+ " AND lancamento_contabil_uuid IN (:lancamentoContabilUuids)",
++			nativeQuery = true)
++	int deleteByMovimentacaoBemIdInAndLancamentoContabilUuidIn(
++			@Param("movimentacaoBemIds") List<Long> movimentacaoBemIds,
++			@Param("lancamentoContabilUuids") List<String> lancamentoContabilUuids);
++
+ 	/**
+ 	 * Apaga no banco, imediatamente, todos os vínculos do movimento.
+ 	 *
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementRepository.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementRepository.java
+index 1434c09c..bd603cd6 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementRepository.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/repository/propertymovement/PropertyMovementRepository.java
+@@ -39,4 +39,5 @@ public interface PropertyMovementRepository
+ 
+ 	boolean existsByPropertyAndReleaseSourceType(Property bem, OrigemLancamentoContabil origemLancamento);
+ 
++
+ }
+\ No newline at end of file
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/relatorio/RelatorioSolicitacao.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/relatorio/RelatorioSolicitacao.java
+index 2cafe9dc..bea9a9db 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/relatorio/RelatorioSolicitacao.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/relatorio/RelatorioSolicitacao.java
+@@ -27,6 +27,7 @@ public class RelatorioSolicitacao {
+         CONSOLIDADOS_RECEITA,
+         RELATORIO_DINAMICO_LICITACAO,
+         SALDO_CONSOLIDADO_BEM,
++        DEPRECIACAO_BEM,
+         RELATORIO_BEM,
+         TERMO_CARGA;
+     }
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/report/depreciacaobemreport/RelatorioDepreciacaoBemRequest.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/report/depreciacaobemreport/RelatorioDepreciacaoBemRequest.java
+new file mode 100644
+index 00000000..42907e67
+--- /dev/null
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/request/report/depreciacaobemreport/RelatorioDepreciacaoBemRequest.java
+@@ -0,0 +1,30 @@
++package br.com.equiplano.nova.asgard.patrimonio.request.report.depreciacaobemreport;
++
++import br.com.equiplano.nova.asgard.patrimonio.report.enumeration.ReportType;
++import br.com.equiplano.nova.asgard.patrimonio.model.enumeration.TypeBoolean;
++import com.fasterxml.jackson.databind.annotation.JsonSerialize;
++import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
++import lombok.Getter;
++import lombok.Setter;
++
++@Getter
++@Setter
++public class RelatorioDepreciacaoBemRequest {
++
++    @JsonSerialize(using = ToStringSerializer.class)
++    public ReportType tipo;
++
++    public Integer mesInicio;
++    public Integer mesFim;
++    public String bemUuid;
++    public String planoCodigoInicial;
++    public String planoCodigoFinal;
++    public String classeDepreciacaoUuid;
++    public TypeBoolean flagAtingiuValorResidual;
++    public TypeBoolean flagDetalhado;
++
++    // Header params
++    public String userUuid;
++    public String entityUuid;
++    public String exerciseUuid;
++}
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/response/propertybatch/BatchPropertyResponse.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/response/propertybatch/BatchPropertyResponse.java
+index 43f38bf4..16304218 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/response/propertybatch/BatchPropertyResponse.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/response/propertybatch/BatchPropertyResponse.java
+@@ -37,9 +37,12 @@ public class BatchPropertyResponse extends LogReturn implements Serializable {
+ 	
+ 	@JsonProperty("numeroInicialPlaqueta")
+ 	public BigDecimal initialNumberPlatelet;
+-	
++
++	@JsonProperty("valorTotal")
++	public BigDecimal valorTotal;
++
+ 	// BEM \\
+-	
++
+ 	@JsonProperty("bem")
+ 	public PropertyResponse property;
+ 	
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/report/saldocontabilbemreport/SaldoContabilBemReportServiceImpl.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/report/saldocontabilbemreport/SaldoContabilBemReportServiceImpl.java
+index 571892df..4a812b20 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/report/saldocontabilbemreport/SaldoContabilBemReportServiceImpl.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/impl/report/saldocontabilbemreport/SaldoContabilBemReportServiceImpl.java
+@@ -33,4 +33,9 @@ public class SaldoContabilBemReportServiceImpl implements SaldoContabilBemReport
+ 		return response;
+ 
+ 	}
++
++	@Override
++	public BaseReturn<RelatorioControleRedis> consulaStatus(String exerciseUuid, String entityUuid, String userUuid, String countyUuid, String uuidRelatorio) {
++		return relatorioAPI.consulaStatusCustom(exerciseUuid, entityUuid, userUuid, countyUuid, uuidRelatorio);
++	}
+ }
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/depreciacaobemreport/DepreciacaoBemReportService.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/depreciacaobemreport/DepreciacaoBemReportService.java
+new file mode 100644
+index 00000000..f4b3c655
+--- /dev/null
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/depreciacaobemreport/DepreciacaoBemReportService.java
+@@ -0,0 +1,10 @@
++package br.com.equiplano.nova.asgard.patrimonio.service.report.depreciacaobemreport;
++
++import br.com.equiplano.nova.asgard.patrimonio.request.report.depreciacaobemreport.RelatorioDepreciacaoBemRequest;
++import br.com.equiplano.nova.asgard.patrimonio.response.common.BaseReturn;
++import br.com.equiplano.nova.asgard.patrimonio.response.relatorio.RelatorioControleRedis;
++
++public interface DepreciacaoBemReportService {
++    BaseReturn<RelatorioControleRedis> gerarRelatorio(RelatorioDepreciacaoBemRequest request);
++    BaseReturn<RelatorioControleRedis> consulaStatus(String exerciseUuid, String entityUuid, String userUuid, String countyUuid, String uuidRelatorio);
++}
+diff --git a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/saldocontabilbemreport/SaldoContabilBemReportService.java b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/saldocontabilbemreport/SaldoContabilBemReportService.java
+index 4d496e79..138a683b 100644
+--- a/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/saldocontabilbemreport/SaldoContabilBemReportService.java
++++ b/projects/api-patrimonio/src/main/java/br/com/equiplano/nova/asgard/patrimonio/service/report/saldocontabilbemreport/SaldoContabilBemReportService.java
+@@ -8,4 +8,6 @@ public interface SaldoContabilBemReportService {
+ 
+ 	BaseReturn<RelatorioControleRedis> gerarRelatorio(SaldoContabilBemReportRequest request);
+ 
++	BaseReturn<RelatorioControleRedis> consulaStatus(String exerciseUuid, String entityUuid, String userUuid, String countyUuid, String uuidRelatorio);
++
+ }
