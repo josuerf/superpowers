@@ -56,6 +56,14 @@ const MAX_ENTRY_CHARS = 1500;   // Truncate oversized entries (~250 words / ~375
 const MAX_ARCHIVE_ENTRIES = 1;
 const MAX_ARCHIVE_ENTRY_CHARS = 600;
 
+// Per-domain lessons (known-issues-by-domain/<service>.md): recalled by
+// keyword, never injected at session start. The curation budget for these
+// files is bytes, not entry count — 8 KB per file — so a file over budget is
+// read only up to the budget, with a warning, rather than loaded whole.
+const KNOWN_ISSUES_DOMAIN_DIR = 'known-issues-by-domain';
+const MAX_DOMAIN_ENTRIES = 2;
+const MAX_DOMAIN_FILE_BYTES = 8 * 1024;
+
 // Common English words that produce noisy false-positive matches
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -454,6 +462,105 @@ function buildKnownIssuesArchiveContext(entries) {
   ].join('\n');
 }
 
+/**
+ * Search known-issues-by-domain/*.md for entries matching the given keywords.
+ * The directory holds the per-domain lessons partitioned out of
+ * known-issues.md (the HOT file keeps only the structural pitfalls that
+ * session-start injects). An entry starts at a `## `/`### ` header or at a
+ * top-level `- ` bullet; fixed entries (`~~...~~`) are skipped.
+ *
+ * A file larger than MAX_DOMAIN_FILE_BYTES is searched only up to that many
+ * bytes and the result carries `truncatedFiles`, so the context tells the
+ * agent the file needs curating instead of silently dropping its tail.
+ *
+ * Returns { entries: [{ file, entry }], truncatedFiles: [name] }.
+ */
+function searchKnownIssuesByDomain(cwd, keywords) {
+  const result = { entries: [], truncatedFiles: [] };
+  if (!keywords || keywords.length === 0) return result;
+
+  const dir = path.join(cwd, KNOWN_ISSUES_DOMAIN_DIR);
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter(f => f.endsWith('.md')).sort();
+  } catch {
+    return result; // Directory absent — silent no-op
+  }
+
+  const scored = [];
+  for (const file of files) {
+    let buf;
+    try {
+      buf = fs.readFileSync(path.join(dir, file));
+    } catch {
+      continue;
+    }
+    let content;
+    if (buf.length > MAX_DOMAIN_FILE_BYTES) {
+      result.truncatedFiles.push(file);
+      // Cut at the byte budget, then drop a split trailing UTF-8 sequence.
+      content = buf.subarray(0, MAX_DOMAIN_FILE_BYTES).toString('utf8').replace(/�+$/, '');
+    } else {
+      content = buf.toString('utf8');
+    }
+
+    const entries = [];
+    let current = null;
+    for (const line of content.split('\n')) {
+      if (/^#{2,3} /.test(line) || line.startsWith('- ')) {
+        if (current !== null) entries.push(current.trim());
+        current = /^(#{2,3} |- )~~/.test(line) ? null : line;
+      } else if (line.startsWith('# ')) {
+        if (current !== null) entries.push(current.trim());
+        current = null;
+      } else if (current !== null) {
+        current += '\n' + line;
+      }
+    }
+    if (current !== null) entries.push(current.trim());
+
+    for (let i = 0; i < entries.length; i++) {
+      const entryLower = entries[i].toLowerCase();
+      const hits = keywords.filter(kw => entryLower.includes(kw)).length;
+      if (hits === 0) continue;
+      const densityScore = hits / keywords.length;
+      const recencyScore = (i + 1) / entries.length;
+      scored.push({ file, entry: entries[i], score: (densityScore * 0.7) + (recencyScore * 0.3) });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  result.entries = scored.slice(0, MAX_DOMAIN_ENTRIES).map(s => ({
+    file: s.file,
+    entry: s.entry.length > MAX_ENTRY_CHARS
+      ? s.entry.slice(0, MAX_ENTRY_CHARS).trimEnd() + '\n*(entry truncated)*'
+      : s.entry,
+  }));
+  return result;
+}
+
+/**
+ * Format matched per-domain entries for injection as additional context.
+ */
+function buildKnownIssuesByDomainContext(found) {
+  if (!found || !found.entries || found.entries.length === 0) return null;
+
+  const lines = [
+    '<known-issues-domain-recall>',
+    `Relevant lessons matching this prompt (from ${KNOWN_ISSUES_DOMAIN_DIR}/):`,
+    '',
+    found.entries.map(e => `*(${e.file})*\n${e.entry}`).join('\n\n'),
+  ];
+  if (found.truncatedFiles.length > 0) {
+    lines.push(
+      '',
+      `*(Over the ${MAX_DOMAIN_FILE_BYTES / 1024} KB per-file budget, only the first ${MAX_DOMAIN_FILE_BYTES / 1024} KB was searched: ${found.truncatedFiles.join(', ')} — curate it)*`,
+    );
+  }
+  lines.push('</known-issues-domain-recall>');
+  return lines.join('\n');
+}
+
 // ── Context pressure gate ─────────────────────────────────────────────────────
 
 /**
@@ -616,27 +723,30 @@ async function main() {
     const keywords = extractKeywords(prompt);
     const memoryEntries = searchSessionLog(cwd, keywords);
     const knownIssueEntries = searchKnownIssues(cwd, keywords);
-    // Only probe the archive when the HOT file found nothing — avoids paying
-    // the extra read+scan on every prompt when the HOT hit already covers it.
-    const archiveEntries = knownIssueEntries.length === 0
+    const domainFound = searchKnownIssuesByDomain(cwd, keywords);
+    // Only probe the archive when neither the HOT file nor the per-domain
+    // lessons found anything — avoids paying the extra read+scan on every
+    // prompt when a live hit already covers it.
+    const archiveEntries = knownIssueEntries.length === 0 && domainFound.entries.length === 0
       ? searchKnownIssuesArchive(cwd, keywords)
       : [];
 
     const skillContext = buildContext(matches);
     const memoryContext = buildMemoryContext(memoryEntries);
     const knownIssuesContext = buildKnownIssuesContext(knownIssueEntries);
+    const domainContext = buildKnownIssuesByDomainContext(domainFound);
     const knownIssuesArchiveContext = buildKnownIssuesArchiveContext(archiveEntries);
 
     // Nothing to inject
-    if (!skillContext && !memoryContext && !knownIssuesContext && !knownIssuesArchiveContext) {
+    if (!skillContext && !memoryContext && !knownIssuesContext && !domainContext && !knownIssuesArchiveContext) {
       process.stdout.write('');
       return;
     }
 
     // Combine: skill hint first (routing), known issues second (avoid known errors),
-    // archived known issues third (secondary — only present when HOT had no hit),
-    // memory last (historical context)
-    const combined = [skillContext, knownIssuesContext, knownIssuesArchiveContext, memoryContext]
+    // per-domain lessons third, archived known issues fourth (secondary — only
+    // present when nothing live had a hit), memory last (historical context)
+    const combined = [skillContext, knownIssuesContext, domainContext, knownIssuesArchiveContext, memoryContext]
       .filter(Boolean).join('\n\n');
 
     process.stdout.write(JSON.stringify({
@@ -664,6 +774,9 @@ if (require.main === module) {
     buildKnownIssuesContext,
     searchKnownIssuesArchive,
     buildKnownIssuesArchiveContext,
+    searchKnownIssuesByDomain,
+    buildKnownIssuesByDomainContext,
+    MAX_DOMAIN_FILE_BYTES,
     isExecutionTrigger,
     cwdToProjectDir,
     getContextPressure,

@@ -13,6 +13,7 @@ export function defaultPatternsConfig(): PatternsConfig {
     bootstrapThreshold: 10,
     recurrenceThreshold: { minFrequency: 3, minProjects: 2 },
     staleness: { reviewDays: 30, archiveDays: 90 },
+    pendingDecayDays: 60,
   };
 }
 

@@ -144,9 +144,55 @@ async function main() {
       break;
     }
 
+    case "record": {
+      // record --from-review <decision.json|findings.md|ledger.md> [--project <name>] [--wiki <dir>] [--verify-cites <root>] [--no-promote]
+      const flag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+      const source = flag("--from-review");
+      if (!source) {
+        console.error("Usage: patterns record --from-review <decision.json|findings.md|ledger.md> [--project <name>] [--wiki <dir>] [--verify-cites <root>] [--no-promote]");
+        process.exit(1);
+      }
+      if (!fs.existsSync(source)) { console.error(`File not found: ${source}`); process.exit(1); }
+      const { readReviewSource } = await import("../../lib/patterns/review-sources");
+      const { recordFindings } = await import("../../lib/patterns/record");
+      const config = loadPatternsConfig(projectRoot);
+      if (!config.enabled) { console.error("Patterns feature is disabled in .harness.config.json"); process.exit(1); }
+      const project = flag("--project") ?? path.basename(projectRoot);
+      let parsed;
+      try {
+        parsed = readReviewSource(source, fs.readFileSync(source, "utf-8"), project);
+      } catch (e) {
+        console.error(`Could not read review source ${source}: ${e instanceof Error ? e.message : e}`);
+        process.exit(2);
+      }
+      const wiki = flag("--wiki") ?? resolveWikiPaths(config, projectRoot).global;
+      const catalog = new PatternCatalog(wiki, wiki);
+      const summary = recordFindings(parsed.findings, catalog, config, {
+        promote: !args.includes("--no-promote"),
+        verifyCitesRoot: flag("--verify-cites"),
+        logPath: path.join(wiki, "patterns.log"),
+        trigger: `record:${parsed.kind}`,
+      });
+      const d = summary.discarded;
+      console.log(
+        `Recorded ${source} (${parsed.kind}): ${summary.created} created, ${summary.incremented} folded, ${summary.alreadySeen} already recorded, ${summary.promoted.length} promoted; discarded ${d.belowSeverity} below severity, ${d.noCite} without citation, ${d.unresolvableCite} with unresolvable citation`,
+      );
+      break;
+    }
+
     case "archive": {
+      if (args[1] === "--stale-pending") {
+        const { archiveStalePending } = await import("../../lib/patterns/record");
+        const config = loadPatternsConfig(projectRoot);
+        const daysFlag = args.indexOf("--days");
+        if (daysFlag >= 0) config.pendingDecayDays = Number(args[daysFlag + 1]);
+        const archived = archiveStalePending(getCatalog(), config);
+        console.log(`Archived ${archived.length} pending pattern(s) with no occurrence in ${config.pendingDecayDays ?? 60} days`);
+        for (const id of archived) console.log(`  ${id}`);
+        break;
+      }
       const id = args[1];
-      if (!id) { console.error("Usage: patterns archive <pattern-id>"); process.exit(1); }
+      if (!id) { console.error("Usage: patterns archive <pattern-id> | archive --stale-pending [--days N]"); process.exit(1); }
       const catalog = getCatalog();
       catalog.archive(id);
       console.log(`Archived "${id}"`);
@@ -190,6 +236,10 @@ Commands:
   stats             Display summary statistics
   promote <id>      Promote pending pattern
   archive <id>      Archive stale pattern
+  archive --stale-pending [--days N]
+                    Archive recorded pending entries with no occurrence in N days (default: patterns.pendingDecayDays, 60)
+  record --from-review <decision.json|findings.md|ledger.md> [--project <name>] [--wiki <dir>] [--verify-cites <root>] [--no-promote]
+                    Record Critical/High review findings as pending error_pattern entries (dedup by signature; promotes on recurrence)
   export            Export all patterns as JSON
   import <file>     Import patterns from JSON
   help              Show this help

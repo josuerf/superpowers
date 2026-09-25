@@ -13,6 +13,7 @@ const {
   extractKeywords, searchSessionLog, buildMemoryContext,
   searchKnownIssues, buildKnownIssuesContext,
   searchKnownIssuesArchive, buildKnownIssuesArchiveContext,
+  searchKnownIssuesByDomain, buildKnownIssuesByDomainContext,
   isExecutionTrigger, getContextPressure, buildContextPressureBlock,
 } = require('../skill-activator');
 const { readJsonStdin } = require('./utils');
@@ -43,19 +44,21 @@ function evaluatePayload(data) {
   const keywords = extractKeywords(prompt);
   const memoryEntries = searchSessionLog(cwd, keywords);
   const knownIssueEntries = searchKnownIssues(cwd, keywords);
-  // Only probe the archive when the HOT file found nothing.
-  const archiveEntries = knownIssueEntries.length === 0
+  const domainFound = searchKnownIssuesByDomain(cwd, keywords);
+  // Only probe the archive when neither HOT nor per-domain lessons found anything.
+  const archiveEntries = knownIssueEntries.length === 0 && domainFound.entries.length === 0
     ? searchKnownIssuesArchive(cwd, keywords)
     : [];
 
   const skillContext = buildContext(matches);
   const memoryContext = buildMemoryContext(memoryEntries);
   const knownIssuesContext = buildKnownIssuesContext(knownIssueEntries);
+  const domainContext = buildKnownIssuesByDomainContext(domainFound);
   const knownIssuesArchiveContext = buildKnownIssuesArchiveContext(archiveEntries);
 
-  if (!skillContext && !memoryContext && !knownIssuesContext && !knownIssuesArchiveContext) return {};
+  if (!skillContext && !memoryContext && !knownIssuesContext && !domainContext && !knownIssuesArchiveContext) return {};
 
-  const combined = [skillContext, knownIssuesContext, knownIssuesArchiveContext, memoryContext]
+  const combined = [skillContext, knownIssuesContext, domainContext, knownIssuesArchiveContext, memoryContext]
     .filter(Boolean).join('\n\n');
 
   return {
