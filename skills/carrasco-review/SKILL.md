@@ -92,8 +92,10 @@ explicitly asked for a review, treat it as an **inline** run:
    recompute the whole plan:
    - It reads the last decision's per-chunk verdicts and, for each chunk that
      didn't approve, writes a new prompt containing only that chunk's prior
-     findings, the diff of just that chunk's files since the last review (the
-     fix — not the original diff again), and your note.
+     findings, the diff of just that chunk's files over the review range
+     (from merge-base of `--base`/`verifyOnStop.baseRef` when set, so a
+     committed fix stays visible; else the working tree against HEAD), and
+     your note.
    - Chunks that already approved are left untouched — their prompt and
      response files are not regenerated.
    - Dispatch one `superpowers-prepared:carrasco` subagent per chunk printed

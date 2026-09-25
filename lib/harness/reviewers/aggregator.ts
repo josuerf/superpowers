@@ -285,9 +285,14 @@ export function resolveMergeBase(cwd: string, baseRef?: string): string | null {
  * plan` and `review recheck` share it — a recheck that diffed against HEAD saw
  * nothing once the fix was committed.
  */
-export function reviewDiff(cwd: string, baseRef?: string): string {
+export function reviewDiff(cwd: string, baseRef?: string, files?: string[]): string {
+	// `files` restricts the diff to one chunk; an empty list means "nothing",
+	// never "the whole range".
+	if (files && files.length === 0) return "";
 	const base = resolveMergeBase(cwd, baseRef);
-	return runGit(base ? ["diff", base] : ["diff", "HEAD"], cwd) ?? "";
+	const args = base ? ["diff", base] : ["diff", "HEAD"];
+	if (files) args.push("--", ...files);
+	return runGit(args, cwd) ?? "";
 }
 
 /**

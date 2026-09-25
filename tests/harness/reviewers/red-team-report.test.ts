@@ -334,3 +334,31 @@ describe("round 2: a scenario without any severity is unreadable, not clean", ()
 		expect(parseRedTeamReport(text)).toBeNull();
 	});
 });
+
+describe("round 3: reviewDiff restricted to a chunk's files", () => {
+	let repo: string;
+	const git = (...a: string[]) =>
+		spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "-c", "commit.gpgsign=false", ...a], { cwd: repo, encoding: "utf8" });
+	beforeEach(() => {
+		repo = fs.mkdtempSync(path.join(os.tmpdir(), "rt-chunk-"));
+		git("init", "-q", "-b", "main");
+		fs.writeFileSync(path.join(repo, "a.ts"), "export const a = 1;\n");
+		fs.writeFileSync(path.join(repo, "b.ts"), "export const b = 1;\n");
+		git("add", "-A");
+		git("commit", "-qm", "base");
+		git("checkout", "-qb", "feature");
+		fs.writeFileSync(path.join(repo, "a.ts"), "export const a = 2; // FIX-A\n");
+		fs.writeFileSync(path.join(repo, "b.ts"), "export const b = 2; // FIX-B\n");
+		git("commit", "-qam", "fixes, committed");
+	});
+	afterEach(() => fs.rmSync(repo, { recursive: true, force: true }));
+
+	test("a committed fix in the chunk's file is in its recheck diff; other files are not", () => {
+		const d = reviewDiff(repo, "main", ["a.ts"]);
+		expect(d).toContain("FIX-A");
+		expect(d).not.toContain("FIX-B");
+	});
+	test("a chunk with no files gets an empty diff, not the whole range", () => {
+		expect(reviewDiff(repo, "main", [])).toBe("");
+	});
+});

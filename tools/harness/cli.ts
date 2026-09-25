@@ -343,10 +343,9 @@ async function runReview(): Promise<void> {
 				console.error(`  Unknown chunk id '${chunkId}' — skipping (not in the last review).`);
 				continue;
 			}
-			const freshDiff =
-				verdict.files.length > 0
-					? gitOut(cwd, ["diff", "HEAD", "--", ...verdict.files]) || ""
-					: "";
+			// Same range as the review (merge-base of baseRef), restricted to the
+			// chunk: diffing against HEAD showed nothing once the fix was committed.
+			const freshDiff = reviewDiff(cwd, baseRef, verdict.files);
 			const prompt = buildRecheckPrompt({
 				chunkId,
 				files: verdict.files,
