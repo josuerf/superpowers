@@ -203,5 +203,86 @@ assert "block reason keeps each failure output" "true" \
   "$([ "$(has "$REASON" 'coverage too low')" = true ] && [ "$(has "$REASON" 'lint failed')" = true ] && echo true || echo false)"
 
 echo ""
+echo "test-verify-on-stop: gate mode (block | warn) and gate log (M1)"
+
+# gatemode <dir> -> what getGateMode returns for that dir
+gatemode() {
+  node -e "const m=require(process.argv[1]);process.stdout.write(m.getGateMode(process.argv[2]))" "$HOOK" "$1" 2>/dev/null
+}
+
+# 23. No config -> block
+D=$(mk); assert "no config -> block" "block" "$(gatemode "$D")"; rm -rf "$D"
+# 24. mode:"warn" -> warn
+D=$(mk); cfg "$D" '{"verifyOnStop":{"mode":"warn"}}'; assert "mode:warn -> warn" "warn" "$(gatemode "$D")"; rm -rf "$D"
+# 25. mode:"lixo" -> block (conservative fallback)
+D=$(mk); cfg "$D" '{"verifyOnStop":{"mode":"lixo"}}'; assert "mode:lixo -> block" "block" "$(gatemode "$D")"; rm -rf "$D"
+# 26. malformed config -> block
+D=$(mk); cfg "$D" '{nope'; assert "malformed config -> block" "block" "$(gatemode "$D")"; rm -rf "$D"
+
+# 27. appendGateLog writes one JSON line with the documented fields
+D=$(mk)
+node -e "
+const m = require(process.argv[1]);
+m.appendGateLog(process.argv[2], { repo: 'projects/api', reason: 'verify-all failed', files: 7, stack: 'java-springboot' });
+m.appendGateLog(process.argv[2], { repo: '.', reason: 'carrasco absent', files: 2 });
+" "$HOOK" "$D" 2>/dev/null
+LOG="$D/.superpowers/gate-log.jsonl"
+assert "gate log has two lines" "2" "$(wc -l < "$LOG" 2>/dev/null | tr -d ' ')"
+assert "gate log line has the documented shape" "true" "$(node -e "
+const l = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8').split('\n')[0]);
+const keys = Object.keys(l).join(',');
+process.stdout.write(String(keys === 'ts,cwd,repo,wouldBlock,reason,files,stack' && l.wouldBlock === true && l.files === 7 && l.repo === 'projects/api' && /Z$/.test(l.ts)));
+" "$LOG" 2>/dev/null)"
+rm -rf "$D"
+
+# 28. Block messages no longer advertise the commit/push bypass
+assert "verify block reason has no bypass hint" "false" "$(has "$(node -e "
+const m = require(process.argv[1]);
+process.stdout.write(m.buildBlockReason({ stdout: '', stderr: 'x' }, 3));
+" "$HOOK" 2>/dev/null)" "bypass")"
+assert "carrasco block reason has no bypass hint" "false" "$(has "$(node -e "
+const m = require(process.argv[1]);
+process.stdout.write(m.buildCarrascoBlockReason({ reason: 'no review' }, 3));
+" "$HOOK" 2>/dev/null)" "bypass")"
+
+# End to end: a repo with an uncommitted source file and the carrasco gate on
+# but no review recorded, so gate-status reports "absent". No stack manifest,
+# so verify-all is skipped and only the carrasco gate decides. HOME points at
+# the temp dir so the TTL guard never touches the real ~/.claude.
+# runhook <dir> -> the hook's stdout
+runhook() {
+  printf '{"cwd":"%s"}' "$(node -e "process.stdout.write(JSON.stringify(require('fs').realpathSync.native(process.argv[1])).slice(1,-1))" "$1")" \
+    | HOME="$1" USERPROFILE="$1" node "$HOOK" 2>/dev/null
+}
+e2e_repo() {
+  local d; d=$(mk)
+  mkdir -p "$d/src"
+  printf 'export const a = 1\n' > "$d/src/a.ts"
+  printf '.superpowers/\n' > "$d/.gitignore"
+  gitinit "$d"
+  printf 'export const a = 2\n' >> "$d/src/a.ts"
+  echo "$d"
+}
+
+# 29. block mode (default) -> decision:block
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1},"reviewAggressiveness":{"enabled":true}}'
+OUT=$(runhook "$D")
+assert "block mode blocks on carrasco absent" "true" "$(has "$OUT" '"decision":"block"')"
+assert "block mode writes no gate log" "false" "$([ -f "$D/.superpowers/gate-log.jsonl" ] && echo true || echo false)"
+rm -rf "$D"
+
+# 30. warn mode -> {} and one gate-log line
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"warn"},"reviewAggressiveness":{"enabled":true}}'
+OUT=$(runhook "$D")
+assert "warn mode returns {}" "{}" "$OUT"
+assert "warn mode logs the would-be block" "1" "$(wc -l < "$D/.superpowers/gate-log.jsonl" 2>/dev/null | tr -d ' ')"
+rm -rf "$D"
+
+# 31. invalid mode -> behaves as block
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"lixo"},"reviewAggressiveness":{"enabled":true}}'
+assert "invalid mode blocks" "true" "$(has "$(runhook "$D")" '"decision":"block"')"
+rm -rf "$D"
+
+echo ""
 echo "test-verify-on-stop: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

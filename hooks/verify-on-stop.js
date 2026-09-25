@@ -69,6 +69,71 @@ function getMinFilesForVerify(cwd) {
   }
 }
 
+// ── Gate mode (block | warn) and gate log ─────────────────────────────────────
+// "block" (the default) returns decision:"block" when a check fails. "warn"
+// lets the session end and records what the gate WOULD have done in
+// .superpowers/gate-log.jsonl — turning a gate on in the dark is how a team
+// learns to route around it, so it is measured before it is allowed to hurt.
+
+function readVerifyOnStopConfig(cwd) {
+  try {
+    const configPath = path.join(cwd || process.cwd(), '.harness.config.json');
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    const v = raw && raw.verifyOnStop;
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+// Anything but an explicit "warn" is "block": a typo or a missing config must
+// never silently disarm the gate (same conservative fallback as minFiles).
+function getGateMode(cwd) {
+  return readVerifyOnStopConfig(cwd).mode === 'warn' ? 'warn' : 'block';
+}
+
+// verifyOnStop.baseRef (e.g. "origin/main"), or null when unset/blank.
+function getBaseRef(cwd) {
+  const v = readVerifyOnStopConfig(cwd).baseRef;
+  return typeof v === 'string' && v.trim().length > 0 ? v.trim() : null;
+}
+
+const GATE_LOG_DIR = '.superpowers';
+const GATE_LOG_FILE = 'gate-log.jsonl';
+
+// Append one line per would-be block to <cwd>/.superpowers/gate-log.jsonl.
+// Never throws: a log that cannot be written must not change what the hook
+// returns. Returns true when the line was written.
+function appendGateLog(cwd, entry) {
+  try {
+    const base = cwd || process.cwd();
+    const dir = path.join(base, GATE_LOG_DIR);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const line = {
+      ts: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      cwd: base,
+      repo: entry.repo || '.',
+      wouldBlock: entry.wouldBlock !== false,
+      reason: entry.reason || '',
+      files: typeof entry.files === 'number' ? entry.files : 0,
+      stack: entry.stack || null,
+    };
+    fs.appendFileSync(path.join(dir, GATE_LOG_FILE), JSON.stringify(line) + '\n');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Path of `p` relative to `cwd` with forward slashes, for log lines and
+// messages; "." for cwd itself, the absolute path when `p` is outside it.
+function relForLog(cwd, p) {
+  const rel = path.relative(cwd, p);
+  if (!rel) return '.';
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return p;
+  return rel.split(path.sep).join('/');
+}
+
 // File patterns that should NOT trigger verification (config, docs, etc.)
 const EXCLUDED_PATTERNS = [
   /\.md$/,
@@ -450,7 +515,7 @@ function buildCarrascoBlockReason(status, fileCount) {
     `Run the "carrasco-review" skill (or: npx tsx "${CLI_PATH}" review plan, dispatch the carrascos, then review aggregate).`,
     'This is the automatic Stop-hook gate, not an explicit request from your human partner — follow the skill\'s "Automatic Trigger (Stop-hook Gate)" section and run review plan --inline.',
     '',
-    'Fix any BLOCK findings and re-run the review, or commit/push to bypass this gate.',
+    'Fix any BLOCK findings and re-run the review.',
     '</carrasco-review>',
   ].join('\n');
 }
@@ -497,7 +562,7 @@ function buildBlockReason(failures, fileCount, cwd) {
     lines.push('');
   }
 
-  lines.push('Fix all issues before continuing, or commit/push to bypass this gate.');
+  lines.push('Fix all issues before continuing.');
   lines.push('</verify-on-stop>');
   return lines.join('\n');
 }
@@ -548,14 +613,24 @@ async function main() {
 
     // Carrasco code-review gate (fingerprint-based, runs on every stop with
     // significant changes; not subject to the verify-all TTL guard). Fails open.
+    const mode = getGateMode(cwd);
     const carrasco = runCarrascoGate(cwd);
     if (carrasco && carrasco.block) {
       console.error(`[verify-on-stop] Carrasco gate ${carrasco.gate}: ${carrasco.reason}`);
-      process.stdout.write(JSON.stringify({
-        decision: 'block',
-        reason: buildCarrascoBlockReason(carrasco, sourceFileCount),
-      }));
-      return;
+      if (mode === 'warn') {
+        // Record and keep going: warn mode measures every gate that would fire.
+        appendGateLog(cwd, {
+          repo: '.',
+          reason: `carrasco ${carrasco.gate}: ${carrasco.reason}`,
+          files: sourceFileCount,
+        });
+      } else {
+        process.stdout.write(JSON.stringify({
+          decision: 'block',
+          reason: buildCarrascoBlockReason(carrasco, sourceFileCount),
+        }));
+        return;
+      }
     }
 
     // Guard: prevent frequent re-verification of the heavy verify-all pipeline
@@ -618,6 +693,21 @@ async function main() {
       `[verify-on-stop] Quality gates FAILED in: ${failures.map((f) => f.root).join(', ')}`,
     );
 
+    if (mode === 'warn') {
+      for (const f of failures) {
+        const target = targets.find((t) => t.root === f.root);
+        appendGateLog(cwd, {
+          repo: relForLog(cwd, f.root),
+          reason: f.reason || 'verify-all failed',
+          files: target ? target.changed.length : sourceFileCount,
+          stack: f.stack || null,
+        });
+      }
+      console.error('[verify-on-stop] mode "warn": not blocking, logged to .superpowers/gate-log.jsonl');
+      process.stdout.write('{}');
+      return;
+    }
+
     process.stdout.write(JSON.stringify({
       decision: 'block',
       reason: buildBlockReason(failures, sourceFileCount, cwd),
@@ -657,5 +747,10 @@ if (require.main === module) {
     MIN_FILES_FOR_VERIFY,
     getMinFilesForVerify,
     EXCLUDED_PATTERNS,
+    getGateMode,
+    getBaseRef,
+    appendGateLog,
+    GATE_LOG_DIR,
+    GATE_LOG_FILE,
   };
 }

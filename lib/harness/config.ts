@@ -9,7 +9,7 @@ import type {
 
 const DEFAULT_CONFIG: HarnessConfig = {
 	coverageMin: 80,
-	verifyOnStop: { minFiles: 3 },
+	verifyOnStop: { minFiles: 3, mode: "block" },
 	securityScan: {
 		enabled: true,
 		tools: { semgrep: true, gitleaks: true, npmAudit: true, trivy: false },
@@ -174,7 +174,7 @@ function normalizeNoiseFloor(
 // partial config (e.g. just `{ "level": "strict" }`) does not wipe nested
 // defaults like focusCategories or chunking. A plain `{ ...default, ...raw }`
 // would replace the whole nested object.
-function mergeReviewAggressiveness(
+export function mergeReviewAggressiveness(
 	base: HarnessConfig["reviewAggressiveness"],
 	override: unknown,
 ): HarnessConfig["reviewAggressiveness"] {
@@ -202,12 +202,45 @@ function mergeReviewAggressiveness(
 	} as HarnessConfig["reviewAggressiveness"];
 }
 
+/**
+ * Merge a user-provided verifyOnStop block over the defaults. A plain spread
+ * at the top level would replace the whole block, so `{ "mode": "warn" }`
+ * alone used to drop minFiles. `mode` is validated the same way the Stop hook
+ * validates it: anything but "block"/"warn" falls back to "block" — a typo
+ * must never silently turn the gate off.
+ */
+export function mergeVerifyOnStop(
+	base: HarnessConfig["verifyOnStop"],
+	override: unknown,
+): HarnessConfig["verifyOnStop"] {
+	if (typeof override !== "object" || override === null) return base;
+	const o = override as Record<string, unknown>;
+	const merged: HarnessConfig["verifyOnStop"] = { ...base };
+	if (typeof o.minFiles === "number" && Number.isInteger(o.minFiles) && o.minFiles >= 1) {
+		merged.minFiles = o.minFiles;
+	}
+	merged.mode = o.mode === "warn" || o.mode === "block" ? o.mode : "block";
+	if (typeof o.baseRef === "string" && o.baseRef.trim().length > 0) {
+		merged.baseRef = o.baseRef.trim();
+	}
+	if (Array.isArray(o.projectRoots)) {
+		merged.projectRoots = o.projectRoots.filter(
+			(r): r is string => typeof r === "string" && r.trim().length > 0,
+		);
+	}
+	return merged;
+}
+
 export function loadProjectConfig(projectRoot: string): HarnessConfig {
 	const configPath = path.join(projectRoot, ".harness.config.json");
 	if (!fs.existsSync(configPath)) return DEFAULT_CONFIG;
 	try {
 		const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 		const merged = { ...DEFAULT_CONFIG, ...raw };
+		merged.verifyOnStop = mergeVerifyOnStop(
+			DEFAULT_CONFIG.verifyOnStop,
+			raw.verifyOnStop,
+		);
 		merged.reviewAggressiveness = mergeReviewAggressiveness(
 			DEFAULT_CONFIG.reviewAggressiveness,
 			raw.reviewAggressiveness,
