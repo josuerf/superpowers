@@ -537,13 +537,25 @@ function getDeclaredProjectRoots(cwdAbs) {
   }
 }
 
+// A workspace harness is either declared (verifyOnStop.projectRoots) or has the
+// canonical layout: no stack manifest at cwd and a projects/ directory. Only
+// there are sub-roots inferred and manifest-less roots skipped; anywhere else —
+// a monorepo with package.json at the root and in packages/a, a plain repo with
+// no manifest — the gate verifies cwd exactly as it did before workspace
+// support existed.
+function isWorkspaceHarness(cwd) {
+  const cwdAbs = realPath(cwd || process.cwd());
+  if (getDeclaredProjectRoots(cwdAbs).length > 0) return true;
+  return !hasStackManifest(cwdAbs) && isDirectory(path.join(cwdAbs, 'projects'));
+}
+
 // Resolution order: declared roots > roots inferred from the touched files >
-// cwd. In a single-repo project every path lands on cwd, so behavior there is
-// unchanged.
+// cwd. Outside a workspace harness the answer is always cwd.
 function resolveVerifyRoots(cwd, touchedFiles) {
   const cwdAbs = realPath(cwd || process.cwd());
   const declared = getDeclaredProjectRoots(cwdAbs);
   if (declared.length > 0) return declared;
+  if (!isWorkspaceHarness(cwdAbs)) return [cwdAbs];
 
   const roots = [];
   for (const file of touchedFiles || []) {
@@ -817,6 +829,7 @@ async function main() {
     const roots = resolveVerifyRoots(cwd, touched);
     // Fail closed on an undetectable stack only when the roots were declared.
     const failClosed = getDeclaredProjectRoots(cwd).length > 0;
+    const workspace = failClosed || isWorkspaceHarness(cwd);
 
     // Count changed source files per root (working tree, plus the branch range
     // when baseRef is set), each read from its own git repository, then verify
@@ -889,8 +902,9 @@ async function main() {
         // A root with no stack manifest is a workspace/orchestration directory,
         // not a project. The harness would "detect" node-std from stray scripts,
         // run no tests and report 0% coverage — a measurement gap, not a code
-        // problem, so fail open here like the other setup-error cases.
-        if (!hasStackManifest(target.root)) {
+        // problem, so fail open here like the other setup-error cases. Only in
+        // a workspace harness: a plain project keeps being verified at cwd.
+        if (workspace && !hasStackManifest(target.root)) {
           console.error(
             `[verify-on-stop] ${target.root} has no stack manifest — nothing for the harness to verify, skipping.`,
           );
@@ -986,6 +1000,7 @@ if (require.main === module) {
     findProjectRoot,
     getDeclaredProjectRoots,
     resolveVerifyRoots,
+    isWorkspaceHarness,
     hasStackManifest,
     STACK_MANIFESTS,
     ROOT_MARKERS,

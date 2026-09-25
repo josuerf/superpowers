@@ -264,7 +264,14 @@ session. (Stack detection does not fail there either: its `node-std` fallback
 finds stray `.js` under `scripts/`, so the "could not detect stack" escape
 hatch never opens.)
 
-Resolution order:
+A directory counts as a workspace harness when it **declares
+`projectRoots`**, or when it has **no stack manifest of its own and a
+`projects/` directory**. Everywhere else — including a monorepo with a
+`package.json` at the root and another in `packages/a`, or a plain repo with
+no manifest at all — the gate runs verify-all at the project root exactly as it
+always did: no sub-root inference, no skipping.
+
+Resolution order (workspace harness only):
 
 1. **`projectRoots`**, when declared. Entries are relative to the project root
    and may use `*` / `?` per segment (`"projects/*"` expands to every
@@ -314,6 +321,12 @@ under infrastructure and migration directories (`helm/`, `charts/`, `k8s/`,
 `flyway/`, `liquibase/`) and YAML/properties under `src/main/resources/` are
 counted as source — a wrong Helm chart takes a service down as surely as a
 code bug.
+
+This applies to every project, with or without a `.harness.config.json`: an
+edited `application.yml`, a chart template or a migration now **counts toward
+`minFiles`** and can trigger the gate (and the carrasco review) on its own. A
+session that only touches such files used to end without verification; raise
+`minFiles` if that is too eager for your project.
 
 ---
 

@@ -246,8 +246,7 @@ process.stdout.write(m.buildCarrascoBlockReason({ reason: 'no review' }, 3));
 " "$HOOK" 2>/dev/null)" "bypass")"
 
 # End to end: a repo with an uncommitted source file and the carrasco gate on
-# but no review recorded, so gate-status reports "absent". No stack manifest,
-# so verify-all is skipped and only the carrasco gate decides. HOME points at
+# but no review recorded, so gate-status reports "absent". HOME points at
 # the temp dir so the TTL guard never touches the real ~/.claude.
 # runhook <dir> -> the hook's stdout
 runhook() {
@@ -271,8 +270,11 @@ assert "block mode blocks on carrasco absent" "true" "$(has "$OUT" '"decision":"
 assert "block mode writes no gate log" "false" "$([ -f "$D/.superpowers/gate-log.jsonl" ] && echo true || echo false)"
 rm -rf "$D"
 
-# 30. warn mode -> {} and one gate-log line
+# 30. warn mode -> {} and one gate-log line. A plain repo (not a workspace
+# harness) runs verify-all at cwd after the carrasco gate, so a fresh TTL guard
+# keeps this case about the carrasco line alone.
 D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"warn"},"reviewAggressiveness":{"enabled":true}}'
+mkdir -p "$D/.claude/hooks-logs"; date > "$D/.claude/hooks-logs/verify-on-stop-fired.lock"
 OUT=$(runhook "$D")
 assert "warn mode returns {}" "{}" "$OUT"
 assert "warn mode logs the would-be block" "1" "$(wc -l < "$D/.superpowers/gate-log.jsonl" 2>/dev/null | tr -d ' ')"
@@ -395,6 +397,48 @@ assert "package.json is excluded" "true" "$(excl package.json)"
 assert "README.md is excluded" "true" "$(excl README.md)"
 assert "a root docker-compose.yml is still excluded" "true" "$(excl docker-compose.yml)"
 assert "a plain .github workflow yaml is still excluded" "true" "$(excl .github/workflows/ci.yml)"
+
+echo ""
+echo "test-verify-on-stop: outside a workspace harness nothing changes"
+
+# A monorepo with a root package.json and packages/a/package.json is a plain
+# project, not a workspace harness: no projectRoots, a stack manifest at cwd.
+D=$(mk)
+mkdir -p "$D/packages/a/src"
+printf '{"name":"root"}' > "$D/package.json"
+printf '{"name":"a"}'    > "$D/packages/a/package.json"
+printf 'export const a = 1\n' > "$D/packages/a/src/a.ts"
+WS="$D"
+assert "monorepo is not a workspace harness" "false" "$(hookcall isWorkspaceHarness '["{WS}"]')"
+assert "monorepo edit in packages/a still verifies the root" '["."]' \
+  "$(hookcall resolveVerifyRoots '["{WS}", ["{WS}/packages/a/src/a.ts"]]')"
+rm -rf "$D"
+
+# A root with no manifest and no projects/ is a plain project too: verify-all
+# must still run at cwd instead of being skipped in silence.
+D=$(mk)
+mkdir -p "$D/src"
+printf 'export const a = 1\n' > "$D/src/a.ts"
+printf '.superpowers/\n' > "$D/.gitignore"
+gitinit "$D"
+printf 'export const a = 2\n' >> "$D/src/a.ts"
+cfg "$D" '{"verifyOnStop":{"minFiles":1,"mode":"warn"}}'
+WS="$D"
+assert "manifest-less root without projects/ is not a workspace" "false" "$(hookcall isWorkspaceHarness '["{WS}"]')"
+ERR=$(printf '{"cwd":"%s"}' "$(node -e "process.stdout.write(JSON.stringify(require('fs').realpathSync.native(process.argv[1])).slice(1,-1))" "$D")" \
+  | HOME="$D" USERPROFILE="$D" node "$HOOK" 2>&1 >/dev/null)
+assert "manifest-less plain root is not skipped" "false" "$(has "$ERR" "no stack manifest")"
+assert "manifest-less plain root runs verify-all at cwd" "true" "$(has "$ERR" "Running verify-all")"
+rm -rf "$D"
+
+# Workspace harness detection: declared projectRoots, or no manifest + projects/.
+D=$(mk); mkdir -p "$D/projects/p"; WS="$D"
+assert "no manifest + projects/ is a workspace harness" "true" "$(hookcall isWorkspaceHarness '["{WS}"]')"
+printf '{"name":"root"}' > "$D/package.json"
+assert "manifest + projects/ is not a workspace harness" "false" "$(hookcall isWorkspaceHarness '["{WS}"]')"
+cfg "$D" '{"verifyOnStop":{"projectRoots":["projects/*"]}}'
+assert "declared projectRoots makes a workspace harness" "true" "$(hookcall isWorkspaceHarness '["{WS}"]')"
+rm -rf "$D"
 
 echo ""
 echo "test-verify-on-stop: $PASS passed, $FAIL failed"
