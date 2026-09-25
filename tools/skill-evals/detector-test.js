@@ -126,6 +126,7 @@ console.log('--- checks: busca e copia ---');
 check(ranSearch([{ name: 'Grep', input: { pattern: 'x' } }]), 'Grep conta como busca');
 check(ranSearch([{ name: 'Bash', input: { command: 'grep -rn foo .' } }]), 'Bash grep conta como busca');
 check(!ranSearch([{ name: 'Read', input: { file_path: 'a' } }]), 'Read nao e busca');
+check(ranSearch([{ name: 'Bash', input: { command: 'cd "C:/Temp/skill-evals-x" && for t in buscarPorModalidade lic_proposta status; do echo "== $t"; grep -rn "$t" .; done' } }]), 'grep dentro de for conta como busca');
 check(copiedFraction('um dois tres quatro cinco seis', 'xx um dois tres quatro cinco seis yy') === 1, 'copia literal = 100%');
 check(copiedFraction('um dois tres quatro cinco seis', 'seis cinco quatro tres dois um') === 0, 'reescrita = 0%');
 
@@ -177,6 +178,7 @@ check(!res.pass && onlyFails(res) === 'fidelidade-reescrita', 'invariante copiad
 res = passes('cases-readback.json', 'readback-emissao-fidelidade', RB, [{ name: 'Edit', input: {} }]);
 check(!res.pass && onlyFails(res) === 'sem-edicao', 'edicao antes do readback reprova');
 check(passes('cases-readback.json', 'readback-honestidade', RB).pass, 'lacuna citada em "O que eu NAO sei" passa');
+check(passes('cases-readback.json', 'readback-honestidade', '- **O que NÃO sei:**\n  1. Por que o filtro `flag_selecionado = \'S\'` existe.\n- **Condição de parada:** x').pass, 'rotulo em portugues sem "eu" passa (achado da fumaca)');
 check(!passes('cases-readback.json', 'readback-honestidade', RB.replace(/por que o filtro flag_selecionado existe na exportacao/, 'nada')).pass, 'lacuna nao citada reprova');
 check(passes('cases-readback.json', 'revisor-plano-desconfirmatorio', '**Status:** Issues Found\n- Blast Radius: a linha nao tem comando nem contagem; FormulaResolver consome calcular.\n**What would prove me wrong:** um grep sem resultado.').pass, 'revisor que nomeia a refutacao passa');
 check(!passes('cases-readback.json', 'revisor-plano-desconfirmatorio', '**Status:** Approved').pass, 'revisor que so aprova reprova');

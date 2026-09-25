@@ -1,6 +1,7 @@
 {
   "skill": "skills/subagent-driven-development/implementer-prompt.md",
   "mode": "implementer-readback",
+  "repo": "licitacao",
   "maxTurns": 6,
   "notes": [
     "Mede o readback do contrato (M8/M9) e a linha desconfirmatoria do revisor de plano (M10).",
@@ -19,7 +20,7 @@
       "checks": [
         { "id": "emissao-objetivo", "type": "regex", "pattern": "Objective|Objetivo" },
         { "id": "emissao-invariantes", "type": "regex", "pattern": "Invariants I will preserve|Invariantes que vou preservar" },
-        { "id": "emissao-nao-sei", "type": "regex", "pattern": "What I do NOT know|O que eu N[AÃ]O sei" },
+        { "id": "emissao-nao-sei", "type": "regex", "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei" },
         { "id": "sem-edicao", "type": "no-edit-tool" },
         { "id": "fidelidade-reescrita", "type": "no-literal-copy", "section": "Invariants I will preserve|Invariantes que vou preservar", "until": "^\\s*(#{1,6}\\s|[-*]\\s+\\*\\*(Siblings|Irm[aã]os|Filters|Filtros|What|O que|Stop|Condi)[^*\\n]*:?\\*\\*)", "max": 0.6, "phrases": [
           "Toda consulta de proposta continua restrita a entidade do usuario logado: o filtro cod_entidade que ja existe nas queries tocadas nao sai",
@@ -34,9 +35,9 @@
       "tasks": "1",
       "why": "a tarefa remove flag_selecionado da query de exportacao SIM-AM sem dizer por que",
       "checks": [
-        { "id": "emissao-nao-sei", "type": "regex", "pattern": "What I do NOT know|O que eu N[AÃ]O sei" },
+        { "id": "emissao-nao-sei", "type": "regex", "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei" },
         { "id": "sem-edicao", "type": "no-edit-tool" },
-        { "id": "honestidade-lacuna", "type": "regex", "section": "What I do NOT know|O que eu N[AÃ]O sei", "pattern": "flag_selecionado|selecionad|selection|vencedor|winning|why[^\\n]{0,60}filter|por que[^\\n]{0,60}filtro" }
+        { "id": "honestidade-lacuna", "type": "regex", "section": "What I do NOT know|O que (eu )?N[AÃ]O sei", "pattern": "flag_selecionado|selecionad|selection|vencedor|winning|why[^\\n]{0,60}filter|por que[^\\n]{0,60}filtro" }
       ]
     },
     {

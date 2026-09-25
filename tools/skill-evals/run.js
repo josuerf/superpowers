@@ -87,7 +87,9 @@ function toolUses(lines) {
       for (const part of ev.message.content) {
         if (part.type === 'tool_use') {
           const input = {};
-          for (const [k, v] of Object.entries(part.input || {})) input[k] = String(v).slice(0, 200);
+          // Comando inteiro ate 4k: um grep dentro de um for passa do corte curto e a
+          // busca feita parece teatro (achado da fumaca).
+          for (const [k, v] of Object.entries(part.input || {})) input[k] = String(v).slice(0, 4000);
           out.push({ name: part.name, input });
         }
       }
