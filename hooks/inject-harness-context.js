@@ -18,19 +18,20 @@
  * can be replaced with `injectHarnessContext.paths` (relative to the config's
  * directory). Paths the dispatch prompt already names are not repeated.
  *
- * Delivery: the block is appended to the dispatch prompt itself through
- * `hookSpecificOutput.updatedInput`, which replaces the tool's arguments
- * before it runs (Claude Code hooks reference, PreToolUse decision control).
- * `additionalContext` would not do: on PreToolUse it lands in the
- * CONTROLLER's context next to the tool result, after the subagent already
- * ran with the original prompt. updatedInput replaces the WHOLE input, so
- * every other tool_input field is copied through unchanged.
+ * Delivery — what actually happens: on PreToolUse, `additionalContext` is
+ * added to the CONTROLLER's context alongside the tool result (Claude Code
+ * hooks reference, PreToolUse decision control), i.e. after the subagent ran
+ * with its original prompt. The text says so, and asks the controller to
+ * carry the paths into its next dispatches. Rewriting the prompt through
+ * `updatedInput` was considered and rejected: the reference documents it only
+ * paired with permissionDecision "allow"/"ask" (a hook must never approve a
+ * permission), and matching hooks run in parallel with no documented merge
+ * rule for competing updatedInput values.
  *
- * Input:  stdin JSON with { tool_name, tool_input: { prompt, ... }, cwd, ... }
+ * Input:  stdin JSON with { tool_name, tool_input: { prompt }, cwd, ... }
  * Output: stdout JSON { hookSpecificOutput: { hookEventName: "PreToolUse",
- *         updatedInput: { ...tool_input, prompt } } } or {}. Never
- *         allows/denies — no permissionDecision, so the normal permission
- *         flow applies to the updated input. Fails open (prints {}) on error.
+ *         additionalContext } } or {}. Never allows/denies — no decision.
+ *         Fails open (prints {}) on any error.
  */
 
 const fs = require('fs');
@@ -102,15 +103,16 @@ function evaluatePayload(data) {
 
   const lines = [
     '<harness-context>',
-    'This workspace keeps harness knowledge you should consult before changing code.',
-    'Read what applies to the files you touch (paths only, open them yourself):',
+    'This workspace keeps harness knowledge files. These are paths for the controller to include in the dispatch',
+    '(paths only, never contents). This note reaches you with the tool result, so the subagent just dispatched',
+    'did not see it: put these paths in the next dispatch prompts, and follow up with this one if its work touched them.',
     ...paths.map(p => `- ${toSlash(p.abs)}${p.note ? ` — ${p.note}` : ''}`),
     '</harness-context>',
   ];
   return {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
-      updatedInput: { ...toolInput, prompt: `${prompt}\n\n${lines.join('\n')}` },
+      additionalContext: lines.join('\n'),
     },
   };
 }

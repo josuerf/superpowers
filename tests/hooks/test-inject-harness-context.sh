@@ -56,20 +56,16 @@ assert "enabled -> names ownership-map.md" "true" "$(has "$OUT" 'architecture/ow
 assert "missing file is not named" "false" "$(has "$OUT" 'integration-map.md')"
 assert "contents are not pasted" "false" "$(has "$OUT" '# Ownership')"
 assert "no permission decision" "false" "$(has "$OUT" 'permissionDecision')"
-# additionalContext of a PreToolUse hook reaches the CONTROLLER, not the
-# subagent: the block must travel inside the dispatch prompt (updatedInput).
-assert "block goes in updatedInput.prompt" "true" "$(printf '%s' "$OUT" | node -e "
+# The official hooks reference does not document updatedInput being applied
+# without a permissionDecision, and parallel hooks have no documented merge
+# rule for it; a hook must never approve a permission. So the block stays in
+# additionalContext — which reaches the CONTROLLER alongside the tool result —
+# and says so honestly instead of pretending to reach the subagent.
+assert "delivered as additionalContext, not updatedInput" "true" "$(printf '%s' "$OUT" | node -e "
 let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const o=JSON.parse(s).hookSpecificOutput||{};
-const p=(o.updatedInput||{}).prompt||'';
-process.stdout.write(String(p.startsWith('implement task 1') && p.includes('known-issues.md') && !('additionalContext' in o)));});")"
-rm -rf "$D"
-
-# 3b. updatedInput replaces the whole input: every other field is kept
-D=$(mkws); cfg "$D" '{"injectHarnessContext":{"enabled":true}}'
-OUT=$(node -e "process.stdout.write(JSON.stringify({tool_name:'Agent',tool_input:{prompt:'do it',description:'task 3',subagent_type:'general-purpose'},cwd:process.argv[1]}))" "$D" | node "$HOOK")
-assert "other tool_input fields preserved" "true" "$(printf '%s' "$OUT" | node -e "
-let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const u=JSON.parse(s).hookSpecificOutput.updatedInput;
-process.stdout.write(String(u.description==='task 3' && u.subagent_type==='general-purpose'));});")"
+process.stdout.write(String(typeof o.additionalContext==='string' && !('updatedInput' in o)));});")"
+assert "text is addressed to the controller" "true" "$(has "$OUT" 'for the controller to include in the dispatch')"
+assert "text does not claim to reach the subagent" "false" "$(has "$OUT" 'you should consult before changing code')"
 rm -rf "$D"
 
 # 4. Config found from a nested cwd (projects/app)
