@@ -12,6 +12,7 @@ import {
   INLINE_CHUNKING_DEFAULTS,
   INLINE_CONFIRM_ABOVE_FILES,
   mergeVerifyOnStop,
+  mergeReviewAggressiveness,
 } from '../../lib/harness/config';
 
 const TEST_DIR = path.join(__dirname, '..', '..', 'tmp-test-harness-config');
@@ -177,6 +178,19 @@ describe('loadProjectConfig', () => {
     expect(config.verifyOnStop.mode).toBe('block');
     expect(config.verifyOnStop.minFiles).toBe(3);
   });
+
+  test('reviewAggressiveness.enabled: true in the file survives the merge (M2)', () => {
+    fs.writeFileSync(
+      path.join(TEST_DIR, '.harness.config.json'),
+      JSON.stringify({ reviewAggressiveness: { enabled: true, level: 'strict' } })
+    );
+    const ra = loadProjectConfig(TEST_DIR).reviewAggressiveness;
+    expect(ra.enabled).toBe(true);
+    expect(ra.level).toBe('strict');
+    // nested defaults are not wiped by the partial block
+    expect(ra.carrasco.focusCategories.length).toBeGreaterThan(0);
+    expect(ra.chunking.maxFilesPerChunk).toBe(10);
+  });
 });
 
 describe('mergeVerifyOnStop', () => {
@@ -191,6 +205,19 @@ describe('mergeVerifyOnStop', () => {
     const merged = mergeVerifyOnStop(base, { baseRef: '  ', projectRoots: ['a', 7, '', 'b/*'] });
     expect(merged.baseRef).toBeUndefined();
     expect(merged.projectRoots).toEqual(['a', 'b/*']);
+  });
+});
+
+describe('mergeReviewAggressiveness', () => {
+  const defaults = loadProjectConfig(path.join(__dirname, 'does-not-exist')).reviewAggressiveness;
+
+  test('enabled: true overrides the default false', () => {
+    expect(defaults.enabled).toBe(false);
+    expect(mergeReviewAggressiveness(defaults, { enabled: true }).enabled).toBe(true);
+  });
+
+  test('omitting enabled keeps the default', () => {
+    expect(mergeReviewAggressiveness(defaults, { level: 'strict' }).enabled).toBe(false);
   });
 });
 
