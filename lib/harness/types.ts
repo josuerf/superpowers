@@ -166,6 +166,26 @@ export interface ReviewPlan {
 	totalChunks: number;
 	stacks: string[];
 	chunks: ReviewChunk[];
+	/**
+	 * Present only when the change's plan declares `Risk flags` other than
+	 * none and `carrasco.redTeamEnabled` is true.
+	 */
+	redTeam?: RedTeamDispatch;
+	/**
+	 * Warnings from deterministic diff checks (today: logic commented out
+	 * instead of removed). Never blocking on their own.
+	 */
+	deterministicFindings?: ReviewerFinding[];
+}
+
+/** One extra red-team dispatch, triggered by the plan's `Risk flags`. */
+export interface RedTeamDispatch {
+	agent: string;
+	flags: string[];
+	focusCategories: string[];
+	/** Dispatch together with the carrasco chunks (true) or after them. */
+	parallel: boolean;
+	prompt: string;
 }
 
 export interface ChunkVerdict {
@@ -198,12 +218,66 @@ export interface AggregatedReviewReport {
 	unparseableChunks: string[];
 	/** Per-chunk verdict — lets a later recheck target only the chunks that didn't approve. */
 	chunkVerdicts: ChunkVerdict[];
+	/** Present when `.harness/reviews/<feature>/red-team.md` existed at aggregate time. */
+	redTeam?: RedTeamOutcome;
+}
+
+/** How the red team's Breakage Report entered the aggregated verdict. */
+export interface RedTeamOutcome {
+	/**
+	 * "unreadable": red-team.md could not be parsed; "missing": review plan asked
+	 * for a red team but no report was written. Both lift APPROVE to
+	 * NEEDS_HUMAN_REVIEW.
+	 */
+	status: "parsed" | "unreadable" | "missing";
+	critical: number;
+	high: number;
+	medium: number;
+	/** Findings at or above `carrasco.severityThreshold` — any of them makes the verdict BLOCK. */
+	blocking: number;
 }
 
 export interface HarnessConfig {
 	coverageMin: number;
-	/** Min source files edited this session to trigger the verify-on-stop gate. Default 3. */
-	verifyOnStop: { minFiles: number };
+	verifyOnStop: {
+		/** Min source files edited this session to trigger the verify-on-stop gate. Default 3. */
+		minFiles: number;
+		/**
+		 * Projects the Stop gate verifies, as paths relative to the project root.
+		 * Only needed for a workspace whose repositories the gate cannot infer from
+		 * the files a session edited (generated output, say). When omitted, the gate
+		 * infers one root per touched project and falls back to the root itself.
+		 * Entries may use `*` / `?` wildcards per path segment (e.g. "projects/*"),
+		 * matching directories only. Declaring roots also makes the gate fail
+		 * closed when a declared root has no detectable stack.
+		 */
+		projectRoots?: string[];
+		/**
+		 * "block" (default) makes the Stop hook return decision:"block" when a
+		 * check fails. "warn" lets the session end and appends what the gate
+		 * WOULD have done to .superpowers/gate-log.jsonl — a way to measure how
+		 * often the gate would fire before it starts to hurt. Any other value
+		 * falls back to "block".
+		 */
+		mode?: "block" | "warn";
+		/**
+		 * Comparison ref (e.g. "origin/main"). When set, the changed-file set is
+		 * `merge-base(baseRef, HEAD)..HEAD` plus the working tree, per repository,
+		 * so committing a change no longer hides it from the gate. A ref that does
+		 * not resolve in a repository degrades to the working tree only.
+		 */
+		baseRef?: string;
+	};
+	/**
+	 * PreToolUse (Task|Agent) hook that points subagent dispatches at the
+	 * workspace's harness files by path (known-issues.md, architecture maps).
+	 * Opt-in: off unless `enabled` is true. `paths` replaces the default list,
+	 * relative to the config's directory. See hooks/inject-harness-context.js.
+	 */
+	injectHarnessContext?: {
+		enabled: boolean;
+		paths?: string[];
+	};
 	securityScan: {
 		enabled: boolean;
 		tools: Record<string, boolean>;
@@ -334,13 +408,21 @@ export type ReviewerSeverity = "Critical" | "High" | "Medium" | "Low";
  * `security` and `governance` escalate to BLOCK at any severity - see
  * `aggregateCarrascoResponses`. The category describes the type of the
  * problem, never its weight.
+ *
+ * `business-rule` is code that is technically correct but produces the wrong
+ * result under the domain's rule (a vanished tenant/fiscal-year filter, an
+ * export that no longer matches the rule that generated it). It deliberately
+ * does NOT escalate: it goes through `severityThreshold` like `correctness`.
+ * Without the label a reviewer that saw the problem had no name for it, and
+ * the parser used to drop the category, demoting it to `maintainability`.
  */
 export type FindingCategory =
 	| "security"
 	| "governance"
 	| "correctness"
 	| "maintainability"
-	| "test";
+	| "test"
+	| "business-rule";
 export interface ReviewerFinding {
 	severity: ReviewerSeverity;
 	/**

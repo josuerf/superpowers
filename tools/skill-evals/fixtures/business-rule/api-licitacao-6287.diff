@@ -1,0 +1,131 @@
+diff --git a/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/repository/biddingresult/impl/BiddingResultFilterImpl.java b/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/repository/biddingresult/impl/BiddingResultFilterImpl.java
+index 626baa79a5..f5107cc3e7 100644
+--- a/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/repository/biddingresult/impl/BiddingResultFilterImpl.java
++++ b/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/repository/biddingresult/impl/BiddingResultFilterImpl.java
+@@ -445,7 +445,7 @@ public class BiddingResultFilterImpl implements BiddingResultFilter {
+ 					from contrato_aditivo_item cai  
+ 						inner join contrato_aditivo ca on ca.id = cai.contrato_aditivo_id  
+ 						inner join contrato c on c.id = ca.contrato_id
+-						inner join tab_temp_solicitacao_item ttsi on cai.solicitacao_item_id = ttsi.id -- and c.fornecedor_uuid = ttsi.fornecedorUuid
++						inner join tab_temp_solicitacao_item ttsi on cai.solicitacao_item_id = ttsi.id --and c.fornecedor_uuid = ttsi.fornecedorUuid
+ 					where c.contrato_id_ata_registro_preco is null
+ 				)
+ 				,valor_acrescimo as( 
+@@ -472,62 +472,62 @@ public class BiddingResultFilterImpl implements BiddingResultFilter {
+ 				,valor_aditivos as( 
+ 					select 
+ 						cai.solicitacao_item_id as solicitacao_item_id, 
+-						cai.fornecedorUuid as fornecedorUuid,
++						--cai.fornecedorUuid as fornecedorUuid,
+ 						sum(cai.quantidade * cai.valor) as valor_aditivos,
+ 						sum(cai.quantidade) as quantidade_aditivos
+ 					from aditivos cai  
+ 					where cai.contrato_aditivo_tipo = 1 
+-					group by cai.solicitacao_item_id, cai.fornecedorUuid 
++					group by cai.solicitacao_item_id--, cai.fornecedorUuid 
+ 				)
+ 				,valor_anulacao as( 
+ 					select  
+ 						cai.solicitacao_item_id as solicitacao_item_id, 
+-						cai.fornecedorUuid as fornecedorUuid,
++						--cai.fornecedorUuid as fornecedorUuid,
+ 						sum(cai.quantidade * cai.valor) as valor_anulacao,
+ 						sum(cai.quantidade) as quantidade_anulacao
+ 					from aditivos cai  
+ 					where cai.contrato_aditivo_tipo = 2 
+-					group by cai.solicitacao_item_id, cai.fornecedorUuid 
++					group by cai.solicitacao_item_id--, cai.fornecedorUuid 
+ 				)
+ 				,valor_requisicao_compra as( 
+ 					select 
+ 						ttsir.solicitacao_item_id as solicitacao_item_id, 
+-						ttsir.fornecedorUuidRci as fornecedorUuid,
++						--ttsir.fornecedorUuidRci as fornecedorUuid,
+ 						sum(ttsir.quantidade * ttsir.valor) as valor_requisicao_compra,
+ 						sum(ttsir.quantidade) as quantidade_requisicao_compra
+ 					from tab_tempo_solicitacao_item_rci ttsir
+ 					where ttsir.contrato_id_rc is not null 
+-					group by ttsir.solicitacao_item_id, ttsir.fornecedorUuidRci 
++					group by ttsir.solicitacao_item_id--, ttsir.fornecedorUuidRci 
+ 				)
+ 				,valor_estorno_requisicao_compra as( 
+ 					select  
+ 						rci.solicitacao_item_id as solicitacao_item_id, 
+-						rci.fornecedorUuidRci as fornecedorUuid,
++						--rci.fornecedorUuidRci as fornecedorUuid,
+ 						sum(erci.quantidade * erci.valor) as valor_estorno_requisicao_compra,
+ 						sum(erci.quantidade) as quantidade_estorno_requisicao_compra 
+ 					from estorno_requisicao_compra_item erci  
+ 						inner join tab_tempo_solicitacao_item_rci rci on rci.id = erci.requisicao_compra_item_id and rci.contrato_id_rc is not null 
+-					group by rci.solicitacao_item_id, rci.fornecedorUuidRci 
++					group by rci.solicitacao_item_id--, rci.fornecedorUuidRci 
+ 				)
+ 				,valor_requisicao_compra_sem_contrato as( 
+ 					select 
+ 						rci.solicitacao_item_id as solicitacao_item_id, 
+-						rci.fornecedorUuidRci as fornecedorUuid,
++						--rci.fornecedorUuidRci as fornecedorUuid,
+ 						sum(rci.quantidade * rci.valor) as valor_requisicao_compra_sem_c,
+ 						sum(rci.quantidade) as quantidade_requisicao_compra_sem_c
+ 					from tab_tempo_solicitacao_item_rci rci
+ 					where rci.contrato_id_rc is null 
+-					group by rci.solicitacao_item_id, rci.fornecedorUuidRci 
++					group by rci.solicitacao_item_id--, rci.fornecedorUuidRci 
+ 				)
+ 				,valor_estorno_requisicao_compra_sem_contrato as( 
+ 					select  
+ 						rci.solicitacao_item_id as solicitacao_item_id, 
+-						rci.fornecedorUuidRci as fornecedorUuid,
++						--rci.fornecedorUuidRci as fornecedorUuid,
+ 						sum(erci.quantidade * erci.valor) as valor_estorno_requisicao_compra_sem_c,
+ 						sum(erci.quantidade) as quantidade_estorno_requisicao_compra_sem_c
+ 					from estorno_requisicao_compra_item erci  
+ 						inner join tab_tempo_solicitacao_item_rci rci on rci.id = erci.requisicao_compra_item_id and rci.contrato_id_rc is null 
+-					group by rci.solicitacao_item_id, rci.fornecedorUuidRci 
++					group by rci.solicitacao_item_id--, rci.fornecedorUuidRci 
+ 				)
+ 				,tab_temp_solicitacao_item_resultado as (
+ 					select si.id as solicitacao_item0, 
+@@ -589,9 +589,9 @@ public class BiddingResultFilterImpl implements BiddingResultFilter {
+ 						left join valor_aditivos vad on vad.solicitacao_item_id = si.id --and vad.fornecedorUuid = si.fornecedorUuid 
+ 						left join valor_anulacao van on van.solicitacao_item_id = si.id --and van.fornecedorUuid = si.fornecedorUuid 
+ 						left join valor_requisicao_compra vrc on vrc.solicitacao_item_id = si.id --and vrc.fornecedorUuid = si.fornecedorUuid 
+-						left join valor_estorno_requisicao_compra verc on verc.solicitacao_item_id = si.id and verc.fornecedorUuid = si.fornecedorUuid 
+-						left join valor_requisicao_compra_sem_contrato vrcsc on vrcsc.solicitacao_item_id = si.id and vrcsc.fornecedorUuid = si.fornecedorUuid 
+-						left join valor_estorno_requisicao_compra_sem_contrato evrcsc on evrcsc.solicitacao_item_id = si.id and evrcsc.fornecedorUuid = si.fornecedorUuid 
++						left join valor_estorno_requisicao_compra verc on verc.solicitacao_item_id = si.id -- and verc.fornecedorUuid = si.fornecedorUuid 
++						left join valor_requisicao_compra_sem_contrato vrcsc on vrcsc.solicitacao_item_id = si.id -- and vrcsc.fornecedorUuid = si.fornecedorUuid 
++						left join valor_estorno_requisicao_compra_sem_contrato evrcsc on evrcsc.solicitacao_item_id = si.id -- and evrcsc.fornecedorUuid = si.fornecedorUuid 
+ 						inner join solicitacao_lote sl on sl.id = si.solicitacao_lote_id 
+ 						left join processo_lote_item pli on pli.id = si.processo_lote_item_id 
+ 						left join tipo_controle_saldo tp on tp.id = pli.tipo_controle_saldo_id  
+diff --git a/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/service/impl/contractadditive/ContractAdditiveServiceImpl.java b/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/service/impl/contractadditive/ContractAdditiveServiceImpl.java
+index 081b3e45d6..88cb5ae5dd 100644
+--- a/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/service/impl/contractadditive/ContractAdditiveServiceImpl.java
++++ b/projects/api-licitacao/src/main/java/br/com/equiplano/nova/asgard/licitacao/service/impl/contractadditive/ContractAdditiveServiceImpl.java
+@@ -355,6 +355,13 @@ public class ContractAdditiveServiceImpl implements ContractAdditiveService {
+ 	}
+ 	
+ 	private ContractAdditive isValidRequest(ContractAdditive model, ContractAdditiveRequest request) {
++
++		if (nonNull(request.additiveTypeContractOne) && nonNull(request.additiveTypeContractTwo)
++			&& nonNull(request.typeOperationAdditiveContractOne) && nonNull(request.typeOperationAdditiveContractTwo)
++			&& request.additiveTypeContractOne.getUuid().equals(request.additiveTypeContractTwo.getUuid())
++			&& request.typeOperationAdditiveContractOne.getUuid().equals(request.typeOperationAdditiveContractTwo.getUuid())) {
++			throw new BaseException(HttpStatus.BAD_REQUEST, "Não é permitido repetir a mesma combinação para o conjunto classificação tce");
++		}
+ 		
+ 		if(nonNull(request.additiveTypeAct)) {
+ 			model.additiveTypeAct = isValidContractAdditiveTypeAct(request.additiveTypeAct.uuid);
+@@ -400,6 +407,11 @@ public class ContractAdditiveServiceImpl implements ContractAdditiveService {
+ 		if(nonNull(request.typeOperationAdditiveContractTwo)) {
+ 			model.typeOperationAdditiveContractTwo = isValidOperationAdditiveContractTce(request.typeOperationAdditiveContractTwo.uuid);
+ 		}
++		
++		if(isNull(request.additiveTypeContractTwo) && isNull(request.typeOperationAdditiveContractTwo)) {
++			model.additiveTypeContractTwo = null;
++			model.typeOperationAdditiveContractTwo = null;
++		}
+ 
+ 		if (nonNull(model.additiveTypeContract) && nonNull(model.getContract()) &&
+ 				CODIGO_CONTRATO_TIPO_ATA_REGISTRO_PRECO.equals(model.getContract().getContractualActTypeTce().getCode()) &&

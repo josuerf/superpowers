@@ -12,6 +12,8 @@ import {
 } from "./loader";
 import { buildAggressivenessDirectives } from "./aggressiveness";
 import { chunkChangedFiles, type ChunkFileInput } from "./chunker";
+import { buildRedTeamDispatch, parseRiskFlags } from "./red-team";
+import { detectCommentedOutLogic } from "../validators/commented-out";
 
 /**
  * Split a unified git diff into per-file sections keyed by the file's `b/`
@@ -75,6 +77,13 @@ export interface BuildReviewPlanOptions {
 	config: ReviewAggressivenessConfig;
 	/** ISO timestamp; injected by the caller so the planner stays deterministic. */
 	generatedAt: string;
+	/**
+	 * Text of the implementation plan behind the change, when known. Its
+	 * `Risk flags` decide whether the plan carries an extra red-team dispatch.
+	 */
+	planText?: string;
+	/** Project root; lets stack resolution read manifests (Java 8 vs 21). */
+	projectRoot?: string;
 }
 
 /**
@@ -83,7 +92,15 @@ export interface BuildReviewPlanOptions {
  * the full carrasco prompt (technology rules + aggressiveness directives).
  */
 export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
-	const { feature, changedFiles, gitDiff, config, generatedAt } = options;
+	const {
+		feature,
+		changedFiles,
+		gitDiff,
+		config,
+		generatedAt,
+		planText,
+		projectRoot,
+	} = options;
 	const diffByFile = splitDiffByFile(gitDiff);
 
 	const fileInputs: ChunkFileInput[] = changedFiles.map((path) => ({
@@ -92,6 +109,10 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 	}));
 
 	const chunkResults = chunkChangedFiles(fileInputs, config.chunking);
+	// Deterministic pre-check: lines commented out instead of decided. Warning
+	// only - each one is handed to the chunk's carrasco to judge, never
+	// counted by the aggregator on its own.
+	const commentedOut = detectCommentedOutLogic(gitDiff);
 
 	const chunks: ReviewChunk[] = chunkResults.map((c) => {
 		const chunkDiff = c.files
@@ -99,10 +120,17 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 			.filter((d): d is string => Boolean(d))
 			.join("\n");
 		const ormStacks = detectOrmFromDiff(chunkDiff);
-		const stacks = Array.from(new Set([...c.stacks, ...ormStacks]));
-		const prompt = buildReviewerPrompt(c.files, chunkDiff, stacks, {
+		const fileStacks = projectRoot
+			? resolveStacksForFiles(c.files, projectRoot)
+			: c.stacks;
+		const stacks = Array.from(new Set([...fileStacks, ...ormStacks]));
+		const basePrompt = buildReviewerPrompt(c.files, chunkDiff, stacks, {
 			aggressiveness: config,
 		});
+		const prompt = withPreCheck(
+			basePrompt,
+			commentedOut.filter((f) => c.files.includes(f.file)),
+		);
 		return {
 			id: c.id,
 			topic: c.topic,
@@ -116,10 +144,14 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 
 	const allStacks = Array.from(
 		new Set([
-			...resolveStacksForFiles(changedFiles),
+			...resolveStacksForFiles(changedFiles, projectRoot),
 			...detectOrmFromDiff(gitDiff),
 		]),
 	);
+
+	const redTeam = planText
+		? buildRedTeamDispatch(parseRiskFlags(planText), gitDiff, config)
+		: null;
 
 	return {
 		feature,
@@ -129,6 +161,8 @@ export function buildReviewPlan(options: BuildReviewPlanOptions): ReviewPlan {
 		totalChunks: chunks.length,
 		stacks: allStacks,
 		chunks,
+		...(redTeam ? { redTeam } : {}),
+		...(commentedOut.length > 0 ? { deterministicFindings: commentedOut } : {}),
 	};
 }
 
@@ -141,6 +175,8 @@ export interface BuildRecheckPromptOptions {
 	/** Optional one-line context from the controller: what changed and why, or a new follow-up ask. */
 	note?: string;
 	config: ReviewAggressivenessConfig;
+	/** Project root; lets stack resolution read manifests (Java 8 vs 21). */
+	projectRoot?: string;
 }
 
 /**
@@ -153,7 +189,10 @@ export interface BuildRecheckPromptOptions {
 export function buildRecheckPrompt(options: BuildRecheckPromptOptions): string {
 	const { files, priorFindings, freshDiff, note, config } = options;
 	const stacks = Array.from(
-		new Set([...resolveStacksForFiles(files), ...detectOrmFromDiff(freshDiff)]),
+		new Set([
+			...resolveStacksForFiles(files, options.projectRoot),
+			...detectOrmFromDiff(freshDiff),
+		]),
 	);
 	const basePrompt = loadReviewerPrompt(stacks);
 
@@ -201,4 +240,28 @@ export function buildRecheckPrompt(options: BuildRecheckPromptOptions): string {
 		return `${prompt}\n\n---\n\n${directives}`;
 	}
 	return prompt;
+}
+
+/**
+ * Append the deterministic pre-check findings for one chunk to its prompt.
+ * They are leads, not verdicts: the carrasco reports each one it confirms,
+ * with its own severity, in the normal REVIEWER_DECISION block.
+ */
+function withPreCheck(prompt: string, findings: ReviewerFinding[]): string {
+	if (findings.length === 0) return prompt;
+	return [
+		prompt,
+		"",
+		"---",
+		"",
+		"## Deterministic Pre-check: commented out instead of decided",
+		"",
+		"These added lines comment out live logic. Treat each as a removal (see",
+		"\"Removals Are Findings Until Proven Otherwise\"): report it unless the diff,",
+		"brief, or commit message justifies it.",
+		"",
+		...findings.map(
+			(f) => `- \`${f.file}:${f.line}\` [${f.category}] ${f.issue}`,
+		),
+	].join("\n");
 }

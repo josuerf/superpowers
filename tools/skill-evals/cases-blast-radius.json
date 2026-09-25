@@ -1,0 +1,63 @@
+{
+  "skill": "skills/writing-plans/SKILL.md",
+  "mode": "plan-from-spec",
+  "repo": "licitacao",
+  "maxTurns": 14,
+  "notes": [
+    "Mede se o plano escrito por writing-plans enumera consumidores e irmaos com comando e contagem (M7).",
+    "O modelo roda numa copia temporaria de fixtures/repos/licitacao e PODE pesquisar o codigo;",
+    "o prompt pede as secoes que a skill exige antes das tarefas sem nomea-las, para que o ref",
+    "anterior (sem Blast Radius) seja medido pelo mesmo prompt.",
+    "teatro-negativo e o caso que importa: mede se a verificacao foi feita (busca no stream) ou fingida.",
+    "Escrito junto com a alteracao da skill; os casos favorecem-na. Leia os numeros com isso em mente."
+  ],
+  "cases": [
+    {
+      "id": "remocao-de-filtro",
+      "fixture": "remocao-de-filtro.md",
+      "why": "remover filtro de query nativa: Does NOT cover deve dizer quem deixa de ser protegido",
+      "checks": [
+        { "id": "blast-secao", "type": "regex", "pattern": "^#{1,6}\\s*Blast Radius", "flags": "im" },
+        { "id": "blast-comando", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "`[^`\\n]*(grep|rg |search\\.js|forge_(siblings|locate))[^`\\n]*`|\\bGrep\\b" },
+        { "id": "blast-contagem", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "\\|\\s*\\d+\\s*(\\||\\(|[a-z])|\\b\\d+\\s*(resultados?|ocorr[eê]ncias?|matches?|hits?|arquivos?|files?|linhas?|lines?|results?)|nenhum resultado|no match" },
+        { "id": "consumidor-encontrado", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "SimAmExporter" },
+        { "id": "dnc-remocao", "type": "regex", "section": "Does NOT cover", "pattern": "flag_selecionado|sele[cç][aã]o|selecionad|vencedor|deixa|protegid|no longer|stops|remov" },
+        { "id": "buscou", "type": "tool-search" }
+      ]
+    },
+    {
+      "id": "metodo-irmao-divergente",
+      "fixture": "metodo-irmao-divergente.md",
+      "why": "altera 1 de 3 metodos irmaos com guardas diferentes: o plano cita os irmaos e justifica",
+      "checks": [
+        { "id": "blast-secao", "type": "regex", "pattern": "^#{1,6}\\s*Blast Radius", "flags": "im" },
+        { "id": "irmao-entidade", "type": "regex", "pattern": "buscarPorEntidade" },
+        { "id": "irmao-exercicio", "type": "regex", "pattern": "buscarPorExercicio" },
+        { "id": "divergencia-justificada", "type": "regex", "pattern": "(buscarPorEntidade|buscarPorExercicio)[^\\n]*(diverg|justific|porque|because|intencional|correto|correct|n[aã]o precisa)|(diverg|justific)[^\\n]*(buscarPorEntidade|buscarPorExercicio)" },
+        { "id": "buscou", "type": "tool-search" }
+      ]
+    },
+    {
+      "id": "assinatura-publica",
+      "fixture": "assinatura-publica.md",
+      "why": "parametro obrigatorio em metodo ja usado por formula cadastrada: linha de Blast Radius + Risk flags backward-compat",
+      "checks": [
+        { "id": "risk-backward-compat", "type": "regex", "pattern": "Risk flags?\\W[^\\n]*backward-compat" },
+        { "id": "consumidor-formula", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "FormulaResolver" },
+        { "id": "blast-comando", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "`[^`\\n]*(grep|rg |search\\.js|forge_(siblings|locate))[^`\\n]*`|\\bGrep\\b" },
+        { "id": "buscou", "type": "tool-search" }
+      ]
+    },
+    {
+      "id": "teatro-negativo",
+      "fixture": "teatro-negativo.md",
+      "why": "mudanca trivial sem consumidor: Blast Radius presente com comando e resultado, nao omitido nem fingido",
+      "checks": [
+        { "id": "blast-secao", "type": "regex", "pattern": "^#{1,6}\\s*Blast Radius", "flags": "im" },
+        { "id": "blast-comando", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "`[^`\\n]*(grep|rg |search\\.js|forge_(siblings|locate))[^`\\n]*`|\\bGrep\\b" },
+        { "id": "blast-contagem", "type": "regex", "section": "^#{1,6}\\s*Blast Radius", "until": "^#{1,2}\\s", "pattern": "\\|\\s*\\d+\\s*(\\||\\(|[a-z])|\\b\\d+\\s*(resultados?|ocorr[eê]ncias?|matches?|hits?|arquivos?|files?|linhas?|lines?|results?)|nenhum resultado|no match" },
+        { "id": "buscou", "type": "tool-search" }
+      ]
+    }
+  ]
+}

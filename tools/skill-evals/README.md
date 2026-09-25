@@ -15,6 +15,10 @@ custo muito menor.
 |---|---|---|
 | `visual-companion` | O companion é oferecido quando a demanda tem superfície visual? | sensibilidade (ofereceu quando devia) e falso positivo (ofereceu quando não devia) |
 | `execution-choice` | O handoff escolhe inline ou subagentes, e justifica? | aderência ao default em casos limpos; desvio correto em casos com razão plantada |
+| `blast-radius` | O plano enumera consumidores e irmãos com comando e contagem, e declara remoções no `Does NOT cover`? | casos aprovados (todos os checks); `teatro-negativo` confere no stream se a busca foi feita |
+| `readback` | O implementador emite o readback antes de editar, reescreve os invariantes e declara a lacuna plantada? O revisor de plano nomeia o que o refutaria? | emissão, fidelidade (n-gramas copiados), honestidade, desconfirmação |
+| `risk-flags` | O planejador atribui a `Risk flag` certa — e nenhuma onde não há risco? | casos aprovados; `trivial-none` mede falso positivo |
+| `business-rule` | O carrasco reencontra achados business-rule reais (HIGH/CRITICAL) no diff do MR? | reencontro: achado no arquivo esperado, linha na tolerância, `category: business-rule` |
 
 ## Como funciona
 
@@ -36,8 +40,41 @@ node tools/skill-evals/score.js results/<arquivo>.json
 node tools/skill-evals/score.js results/<antes>.json results/<depois>.json   # comparação
 ```
 
-Opções de `run.js`: `--suite visual|execution|both`, `--reps N`, `--case ID`,
-`--model NOME`, `--label TEXTO`.
+Opções de `run.js`: `--suite visual|execution|both|blast|readback|risk|all|business`,
+`--reps N`, `--case ID`, `--model NOME`, `--label TEXTO`, `--dry-run`. `all` roda
+todas as suítes menos `business` (ver abaixo). `--dry-run` monta todos os prompts
+— inclusive o `task-brief` do `readback` e o `build-review-prompt.ts` do
+`business` — sem chamar o modelo e sem gravar resultado: confere a fiação de
+cada suíte de graça.
+
+As três suítes por caso (`blast`, `readback`, `risk`) declaram `checks` no
+JSON de cada caso, pontuados por `checks.js` (regex, eventos de ferramenta do
+stream e sobreposição de n-gramas). Cada caso roda num diretório temporário
+fora do repositório, com ferramentas de leitura liberadas e sem MCP
+(`--strict-mcp-config`); `blast` copia para lá `fixtures/repos/licitacao`, e
+`readback` gera o brief com o `scripts/task-brief` do ref em teste — é isso que
+muda entre antes e depois. `SKILL_EVALS_BASH` troca o `bash` usado (no Windows,
+o `bash` do PATH pode ser o do WSL).
+
+### Suíte business-rule
+
+Não entra em `both` nem em `all`: cada caso é uma revisão inteira (~20–45k caracteres de
+prompt). Rode com `--suite business` e, para fumaça, `--case ID --reps 1`.
+
+- O prompt é o do harness, não uma cópia: `build-review-prompt.ts` chama
+  `buildReviewPlan` (chunking + pré-check de lógica comentada) com
+  `reviewAggressiveness` no nível carrasco e usa o chunk que contém o arquivo
+  alvo.
+- Os fixtures (`fixtures/business-rule/<repo>-<mr>.diff`) são o diff real do
+  MR, recortado para ~400 linhas; `fixtureTrim` no JSON diz o que ficou de
+  fora e `source.base`/`source.head` dizem de onde veio. Casos do mesmo MR
+  reaproveitam a mesma resposta na mesma repetição.
+- O revisor roda **sem ferramentas** (`--tools ""`) e vê só o diff: o
+  repositório daquele MR não está aqui. Casos `sibling` medem se ele acha a
+  divergência pelo que o diff mostra, não se consultaria o repositório.
+- O detector fica em `business-rule-detector.js` e é testado de verdade por
+  `detector-test.js`. Resposta sem bloco `REVIEWER_DECISION` parseável conta
+  como "sem bloco", não como "não achou".
 
 ## Como comparar antes/depois honestamente
 

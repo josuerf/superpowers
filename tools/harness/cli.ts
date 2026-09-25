@@ -10,8 +10,15 @@ import {
 	buildReviewPlan,
 	buildRecheckPrompt,
 	aggregateCarrascoResponses,
+	foldRedTeamReport,
+	prepareRedTeamRecheck,
+	RED_TEAM_REPORT,
+	RED_TEAM_PREVIOUS,
 	saveCarrascoReview,
 	evaluateGateStatus,
+	resolveMergeBase,
+	baseRefWarning,
+	reviewDiff,
 	featureReviewDir,
 	buildReviewExclude,
 	resolveInlineChunking,
@@ -137,7 +144,14 @@ async function runReview(): Promise<void> {
 	const config = loadProjectConfig(cwd);
 	const ra = config.reviewAggressiveness;
 	const feature = getFlag("--feature") || extractFeatureName(cwd);
+	// Comparison ref: --base, else verifyOnStop.baseRef. The range starts at
+	// merge-base(baseRef, HEAD) so it covers the branch's own commits and not
+	// whatever landed on the base since; a ref that does not resolve here
+	// degrades to the working tree (HEAD), same as passing no base at all.
+	const baseRef = getFlag("--base") || config.verifyOnStop.baseRef;
 	const dir = featureReviewDir(cwd, feature);
+	const baseWarning = baseRefWarning(cwd, baseRef);
+	if (baseWarning) console.error(baseWarning);
 
 	if (sub === "gate-status") {
 		if (!ra.enabled) {
@@ -150,7 +164,7 @@ async function runReview(): Promise<void> {
 			);
 			process.exit(0);
 		}
-		const status = evaluateGateStatus(cwd, feature);
+		const status = evaluateGateStatus(cwd, feature, baseRef);
 		console.log(JSON.stringify(status));
 		process.exit(status.gate === "pass" ? 0 : 1);
 	}
@@ -163,7 +177,7 @@ async function runReview(): Promise<void> {
 	// this flag").
 
 	if (sub === "plan") {
-		const base = getFlag("--base");
+		const base = resolveMergeBase(cwd, baseRef) ?? undefined;
 		const changedFiles = gatherChangedFiles(cwd, buildReviewExclude(ra), base);
 		if (changedFiles.length === 0) {
 			console.log("No changed files to review.");
@@ -203,13 +217,27 @@ async function runReview(): Promise<void> {
 			planConfig = { ...ra, chunking: resolved.chunking };
 		}
 
-		const gitDiff = gitOut(cwd, base ? ["diff", base] : ["diff", "HEAD"]) || "";
+		const gitDiff = reviewDiff(cwd, baseRef);
+		// --plan-file: the implementation plan behind the change. Its `Risk flags`
+		// add a red-team dispatch (gated by carrasco.redTeamEnabled).
+		const planFile = getFlag("--plan-file");
+		let planText: string | undefined;
+		if (planFile) {
+			const planPath = path.resolve(cwd, planFile);
+			if (!fs.existsSync(planPath)) {
+				console.error(`Plan file not found: ${planPath}`);
+				process.exit(1);
+			}
+			planText = fs.readFileSync(planPath, "utf8");
+		}
 		const plan = buildReviewPlan({
 			feature,
 			changedFiles,
 			gitDiff,
 			config: planConfig,
 			generatedAt: new Date().toISOString(),
+			planText,
+			projectRoot: cwd,
 		});
 
 		fs.mkdirSync(dir, { recursive: true });
@@ -225,6 +253,16 @@ async function runReview(): Promise<void> {
 				`${chunk.prompt}\n`,
 			);
 		}
+		// A fresh plan starts a fresh review: a red-team report from an earlier
+		// plan must not be folded into this one's verdict.
+		const staleRedTeam = path.join(dir, RED_TEAM_REPORT);
+		if (fs.existsSync(staleRedTeam)) fs.renameSync(staleRedTeam, path.join(dir, RED_TEAM_PREVIOUS));
+		const redTeamPromptPath = path.join(dir, "red-team-prompt.md");
+		if (plan.redTeam) {
+			fs.writeFileSync(redTeamPromptPath, `${plan.redTeam.prompt}\n`);
+		} else if (fs.existsSync(redTeamPromptPath)) {
+			fs.rmSync(redTeamPromptPath);
+		}
 
 		console.log(`Carrasco review plan — feature: ${feature} | level: ${plan.level}`);
 		console.log(
@@ -235,11 +273,19 @@ async function runReview(): Promise<void> {
 				`  ${chunk.id} [${chunk.topic}] — ${chunk.files.length} file(s), ~${chunk.estimatedLines} changed lines, stacks: ${chunk.stacks.join(", ") || "universal"}`,
 			);
 		}
+		for (const f of plan.deterministicFindings ?? []) {
+			console.log(`  WARNING ${f.file}:${f.line} [${f.category}] ${f.issue}`);
+		}
 		console.log(`\nPlan saved to: ${path.join(dir, "plan.json")}`);
 		console.log(`Per-chunk prompts: ${path.join(dir, "prompts")}/`);
 		console.log(
 			`Dispatch one carrasco subagent per chunk, then write each response to ${path.join(dir, "responses")}/<chunk-id>.txt and run: review aggregate --feature ${feature}`,
 		);
+		if (plan.redTeam) {
+			console.log(
+				`Red team (Risk flags: ${plan.redTeam.flags.join(", ")}): dispatch ${plan.redTeam.agent} with ${redTeamPromptPath} ${plan.redTeam.parallel ? "in the same message as the chunks" : "after the chunks"} — focus: ${plan.redTeam.focusCategories.join(", ")}. Write its report to ${path.join(dir, "red-team.md")} (not responses/) BEFORE review aggregate: aggregate reads it and its findings at or above severityThreshold block like any carrasco finding.`,
+			);
+		}
 		process.exit(0);
 	}
 
@@ -271,7 +317,16 @@ async function runReview(): Promise<void> {
 					.filter((c) => c.action !== "APPROVE")
 					.map((c) => c.chunkId);
 
-		if (targetIds.length === 0) {
+		// A red team that blocked (or whose report was unreadable/missing) is
+		// re-run against the fix; otherwise its old report would block forever.
+		const redTeamRecheck = prepareRedTeamRecheck(
+			dir,
+			decision.redTeam,
+			reviewDiff(cwd, baseRef),
+			ra,
+		);
+
+		if (targetIds.length === 0 && !redTeamRecheck) {
 			console.log(
 				`No blocked chunks to recheck for '${feature}' — the last review already approved everything.`,
 			);
@@ -288,10 +343,9 @@ async function runReview(): Promise<void> {
 				console.error(`  Unknown chunk id '${chunkId}' — skipping (not in the last review).`);
 				continue;
 			}
-			const freshDiff =
-				verdict.files.length > 0
-					? gitOut(cwd, ["diff", "HEAD", "--", ...verdict.files]) || ""
-					: "";
+			// Same range as the review (merge-base of baseRef), restricted to the
+			// chunk: diffing against HEAD showed nothing once the fix was committed.
+			const freshDiff = reviewDiff(cwd, baseRef, verdict.files);
 			const prompt = buildRecheckPrompt({
 				chunkId,
 				files: verdict.files,
@@ -299,6 +353,7 @@ async function runReview(): Promise<void> {
 				freshDiff,
 				note,
 				config: ra,
+				projectRoot: cwd,
 			});
 			fs.writeFileSync(path.join(dir, "prompts", `${chunkId}.md`), `${prompt}\n`);
 			const responsePath = path.join(dir, "responses", `${chunkId}.txt`);
@@ -319,6 +374,11 @@ async function runReview(): Promise<void> {
 		console.log(
 			"Chunks not listed above keep their previous verdict — their response files are untouched and merge back in automatically.",
 		);
+		if (redTeamRecheck) {
+			console.log(
+				`Red team: re-dispatch superpowers-prepared:red-team with ${redTeamRecheck} and write its report to ${path.join(dir, RED_TEAM_REPORT)} before review aggregate (the previous report is in ${RED_TEAM_PREVIOUS}).`,
+			);
+		}
 		process.exit(0);
 	}
 
@@ -352,15 +412,19 @@ async function runReview(): Promise<void> {
 			}
 		}
 
-		const report = aggregateCarrascoResponses(
+		let report = aggregateCarrascoResponses(
 			feature,
 			responses,
 			ra,
 			new Date().toISOString(),
 			chunkFilesById,
 		);
+		// The red team's Breakage Report is not a REVIEWER_DECISION block, so it
+		// lives outside responses/; fold it in here so its findings reach the gate.
+		const redTeamPath = path.join(dir, RED_TEAM_REPORT);
+		report = foldRedTeamReport(report, dir, ra);
 		if (ra.reportOutput.saveToHarness) {
-			const saved = saveCarrascoReview(cwd, report, ra);
+			const saved = saveCarrascoReview(cwd, report, ra, baseRef);
 			console.log(`Report saved to: ${saved.dir}`);
 		}
 
@@ -373,6 +437,14 @@ async function runReview(): Promise<void> {
 				`  ⚠️ Unparseable chunks: ${report.unparseableChunks.join(", ")}`,
 			);
 		}
+		if (report.redTeam) {
+			console.log(
+				report.redTeam.status !== "parsed"
+					? `  ⚠️ Red team report ${report.redTeam.status} (${redTeamPath}) — needs human review`
+					: `  Red team: Critical ${report.redTeam.critical} | High ${report.redTeam.high} | Medium ${report.redTeam.medium} (${report.redTeam.blocking} blocking)`,
+			);
+		}
+		await recordReviewPatterns(cwd, report);
 		if (report.harness_action === "BLOCK") process.exit(2);
 		if (report.harness_action === "NEEDS_HUMAN_REVIEW") process.exit(3);
 		process.exit(0);
@@ -380,6 +452,50 @@ async function runReview(): Promise<void> {
 
 	console.error(`Unknown review subcommand: ${sub}. Use plan | recheck | aggregate | gate-status.`);
 	process.exit(1);
+}
+
+/**
+ * M13: the aggregated verdict's Critical/High findings become pending
+ * `error_pattern` entries (lib/patterns/record.ts), so the catalog fills
+ * without anyone remembering to run `patterns record`. This caller is the
+ * memory gate's strict side: it never promotes (promotion needs a later
+ * explicit `record`/import or `promote`), and a finding whose `file:line`
+ * does not resolve in this checkout is discarded and counted in the wiki log.
+ * The verdict is the point of `aggregate`; this is a byproduct, so any failure
+ * here is a warning and never changes the exit code.
+ */
+async function recordReviewPatterns(cwd: string, report: { feature: string; findings: import("../../lib/harness/types.js").ReviewerFinding[] }): Promise<void> {
+	try {
+		const { PatternCatalog } = await import("../../lib/patterns/catalog.js");
+		const { loadPatternsConfig, resolveReviewPatternsWiki } = await import("../../lib/patterns/config.js");
+		const { recordFindings } = await import("../../lib/patterns/record.js");
+		const { parseDecisionJson } = await import("../../lib/patterns/review-sources.js");
+		const cfg = loadPatternsConfig(cwd);
+		if (!cfg.enabled || report.findings.length === 0) return;
+		// The project's wiki, never the global one (see resolveReviewPatternsWiki).
+		const wiki = resolveReviewPatternsWiki(cfg, cwd);
+		if (!wiki) {
+			console.log(
+				`  Patterns record skipped: no project patterns wiki in ${cwd} (.superpowers/patterns-wiki or docs/superpowers-prepared/patterns-wiki)`,
+			);
+			return;
+		}
+		const project = path.basename(cwd);
+		const findings = parseDecisionJson(JSON.stringify({ feature: report.feature, findings: report.findings }), project);
+		const s = recordFindings(findings, new PatternCatalog(wiki, wiki), cfg, {
+			promote: false,
+			verifyCitesRoot: cwd,
+			logPath: path.join(wiki, "patterns.log"),
+			trigger: `review-aggregate:${report.feature}`,
+		});
+		if (s.created + s.incremented > 0 || s.discarded.unresolvableCite + s.discarded.noCite > 0) {
+			console.log(
+				`  Patterns: ${s.created} new pending, ${s.incremented} recurrence(s) recorded; ${s.discarded.noCite + s.discarded.unresolvableCite} discarded without a resolvable citation (${wiki})`,
+			);
+		}
+	} catch (e) {
+		console.warn(`  Patterns record skipped: ${e instanceof Error ? e.message : e}`);
+	}
 }
 
 async function main() {

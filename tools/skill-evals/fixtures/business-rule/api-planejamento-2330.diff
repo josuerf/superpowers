@@ -1,0 +1,341 @@
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/mapper/ppaindicator/PpaIndicatorMapper.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/mapper/ppaindicator/PpaIndicatorMapper.java
+index 53e07a398..b72883213 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/mapper/ppaindicator/PpaIndicatorMapper.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/mapper/ppaindicator/PpaIndicatorMapper.java
+@@ -50,6 +50,9 @@ public class PpaIndicatorMapper {
+             response.nome = "Indicador sem movimento";
+         }
+ 
++        response.avaliacao = model.avaliacao;
++        response.metodologia = model.metodologia;
++
+         return response;
+     }
+ 
+@@ -65,6 +68,8 @@ public class PpaIndicatorMapper {
+         model.userUuid = request.userUuid;
+         model.setIpOrigem(request.ipOrigem);
+         model.code = request.code;
++        model.avaliacao = request.avaliacao;
++        model.metodologia = request.metodologia;
+ 
+         return model;
+     }
+@@ -76,6 +81,16 @@ public class PpaIndicatorMapper {
+         model.code = request.code;
+         model.excluidoEm = null;
+         model.usuarioExcluidorUuid = null;
++        // Campo ausente no payload (null) preserva o que ja esta gravado: uma
++        // edicao parcial nao pode apagar o texto rico do editor, que e
++        // justamente o sintoma que o CONTAB-4752 corrige. Limpar continua
++        // funcionando: a tela envia "" (nao null) quando o usuario apaga.
++        if (nonNull(request.avaliacao)) {
++            model.avaliacao = request.avaliacao;
++        }
++        if (nonNull(request.metodologia)) {
++            model.metodologia = request.metodologia;
++        }
+ 
+         return model;
+     }
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/model/ppaindicator/PpaIndicator.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/model/ppaindicator/PpaIndicator.java
+index 49f0825b5..1563497ec 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/model/ppaindicator/PpaIndicator.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/model/ppaindicator/PpaIndicator.java
+@@ -34,4 +34,10 @@ public class PpaIndicator extends BaseLogModel<PpaIndicator> {
+     @OneToMany(mappedBy = "ppaIndicator", fetch = FetchType.LAZY, cascade = {})
+     public List<PpaIndicatorMovement> movimentos;
+ 
++    @Column(nullable = true, name = "metodologia")
++    public String metodologia;
++
++    @Column(nullable = true, name = "avaliacao")
++    public String avaliacao;
++
+ }
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/request/ppaindicator/PpaIndicatorRequest.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/request/ppaindicator/PpaIndicatorRequest.java
+index 44c21cfcd..dc324de87 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/request/ppaindicator/PpaIndicatorRequest.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/request/ppaindicator/PpaIndicatorRequest.java
+@@ -33,4 +33,8 @@ public class PpaIndicatorRequest extends BaseHeader {
+ 
+     public List<PpaIndicatorMovementRequest> movimentos;
+ 
++    public String metodologia;
++
++    public String avaliacao;
++
+ }
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/response/ppaindicator/PpaIndicatorResponse.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/response/ppaindicator/PpaIndicatorResponse.java
+index a1a660b03..651f23577 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/response/ppaindicator/PpaIndicatorResponse.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/response/ppaindicator/PpaIndicatorResponse.java
+@@ -42,4 +42,8 @@ public class PpaIndicatorResponse implements Serializable {
+ 
+     @JsonProperty("ppaVersao")
+     public PpaVersaoResponse ppaVersion;
++
++    public String avaliacao;
++
++    public String metodologia;
+ }
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarAcaoThread.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarAcaoThread.java
+index 2f73ecf18..5e44eeed2 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarAcaoThread.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarAcaoThread.java
+@@ -6,9 +6,11 @@ import static java.util.Objects.nonNull;
+ import java.time.LocalDate;
+ import java.util.ArrayList;
+ import java.util.HashMap;
++import java.util.HashSet;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
++import java.util.Set;
+ 
+ import br.com.equiplano.nova.asgard.planejamento.configuration.ThreadContextHolder;
+ import br.com.equiplano.nova.asgard.planejamento.model.ppaacaocorrelacao.PpaAcaoCorrelacao;
+@@ -178,16 +180,49 @@ public class CopiarAcaoThread {
+     private void copiarPpaActionPpaProgram(PpaAction ppaAction, PpaAction ppaActionLast, String userUuid,
+             String ipOrigem, PpaVersao ppaVersion) {
+         List<PpaActionPpaProgram> programas = ppaActionPpaProgramRepository.findAllByPpaAction(ppaActionLast);
++
++        // Recorte por programa, nunca tudo-ou-nada. Uma acao pode estar ligada
++        // a varios programas, e a copia interrompida pode ter criado so parte
++        // dos vinculos: tratar "tem algum vinculo" como "tem todos" abandonava
++        // os que faltavam de forma permanente, porque toda execucao seguinte
++        // reentrava no mesmo ramo. Mesmo criterio de copiarAcaoAno, que ja faz
++        // o recorte por exercicio. O recorte tambem protege a unique
++        // ppa_acao_ppa_programa_akey_02 (ppa_acao_id, ppa_programa_id).
++        Set<Integer> programasNoDestino = new HashSet<>();
+         // Em CRIACAO a acao destino acabou de nascer e nao tem satelite nenhuma:
+         // consultar o destino aqui seria uma query por acao sem nenhum efeito.
+         if (completando()) {
+             List<PpaActionPpaProgram> programasDestino = ppaActionPpaProgramRepository.findAllByPpaAction(ppaAction);
+-            if (programasDestino.stream().anyMatch(p -> isNull(p.excluidoEm))) {
+-                return;
++            for (PpaActionPpaProgram vinculoDestino : programasDestino) {
++                if (nonNull(vinculoDestino.ppaProgram)) {
++                    // Inclui tambem vinculo com excluido_em preenchido. Dois
++                    // motivos, e os dois importam:
++                    //
++                    // 1) A unique ppa_acao_ppa_programa_akey_02
++                    //    (ppa_acao_id, ppa_programa_id) NAO e parcial, entao a
++                    //    linha excluida segue ocupando o par no indice e um
++                    //    insert colidiria, derrubando a transacao inteira.
++                    // 2) RN04: nao da para distinguir exclusao vinda do backfill
++                    //    da V36 de remocao deliberada do usuario na versao nova
++                    //    — BaseLogModel so tem excluidoEm/usuarioExcluidorUuid,
++                    //    preenchidos igual nos dois casos. Reativar por conta
++                    //    propria desfaria a decisao do usuario. Quem revive esse
++                    //    vinculo e a tela de acao, que tem a intencao dele
++                    //    (PpaActionServiceImpl.gravaProgramas, via
++                    //    getBy...ExcluidoEmIsNotNull).
++                    programasNoDestino.add(vinculoDestino.ppaProgram.code);
++                }
+             }
++            // O vinculo existir nao garante que ele esteja completo: quando a
++            // copia anterior resolveu o objetivo antes de ele existir no
++            // programa destino, a linha ficou com ppa_programa_objetivo_id
++            // nulo. Sair sem olhar o objetivo tornava a falha permanente.
++            completarObjetivoDoVinculo(programasDestino, programas, ppaVersion, userUuid, ipOrigem);
+         }
+         for (PpaActionPpaProgram acaoPrograma : programas) {
+-            if (isNull(acaoPrograma.excluidoEm)) {
++            if (isNull(acaoPrograma.excluidoEm)
++                    && !(nonNull(acaoPrograma.ppaProgram)
++                            && programasNoDestino.contains(acaoPrograma.ppaProgram.code))) {
+                 PpaProgram ppaProgram = ppaProgramRepository.getByPpaVersionAndCode(ppaVersion,
+                         acaoPrograma.ppaProgram.code);
+                 PpaProgramObjective ppaProgramObjective = null;
+@@ -228,6 +263,57 @@ public class CopiarAcaoThread {
+         }
+     }
+ 
++    /**
++     * Completa o Objetivo de vinculos acao/programa que ja existem no destino
++     * mas estao sem ppa_programa_objetivo_id. E a unica via de conserto para as
++     * acoes que foram copiadas antes de os objetivos existirem no programa
++     * destino: elas nunca voltam ao caminho de insert.
++     *
++     * RN04: so preenche lacuna. Objetivo ja escolhido na versao nova e dado do
++     * usuario e nao pode ser trocado pelo da versao anterior. Sem objetivo
++     * equivalente no destino, nao grava nada.
++     */
++    private void completarObjetivoDoVinculo(List<PpaActionPpaProgram> vinculosDestino,
++            List<PpaActionPpaProgram> vinculosOrigem, PpaVersao ppaVersion, String userUuid, String ipOrigem) {
++        for (PpaActionPpaProgram vinculoDestino : vinculosDestino) {
++            if (nonNull(vinculoDestino.excluidoEm) || nonNull(vinculoDestino.ppaProgramObjective)
++                    || isNull(vinculoDestino.ppaProgram)) {
++                continue;
++            }
++
++            PpaActionPpaProgram vinculoOrigem = vinculosOrigem.stream()
++                    .filter(v -> isNull(v.excluidoEm) && nonNull(v.ppaProgramObjective) && nonNull(v.ppaProgram)
++                            && Objects.equals(v.ppaProgram.code, vinculoDestino.ppaProgram.code))
++                    .findFirst()
++                    .orElse(null);
++            if (isNull(vinculoOrigem)) {
++                continue;
++            }
++
++            PpaProgram ppaProgram = ppaProgramRepository.getByPpaVersionAndCode(ppaVersion,
++                    vinculoOrigem.ppaProgram.code);
++            if (isNull(ppaProgram)) {
++                continue;
++            }
++
++            PpaProgramObjective objetivoDestino = ppaProgramObjectiveRepository
++                    .getByPpaProgramAndPpaObjectiveIdAndPublicPolicyId(ppaProgram,
++                            vinculoOrigem.ppaProgramObjective.ppaObjective.id,
++                            vinculoOrigem.ppaProgramObjective.publicPolicy.id);
++            if (isNull(objetivoDestino)) {
++                continue;
++            }
++
++            vinculoDestino.ppaProgramObjective = objetivoDestino;
++            vinculoDestino.userUuid = userUuid;
++            vinculoDestino.setIpOrigem(ipOrigem);
++            // Sem semLog: ao contrario do resto da rotina, que cria linhas
++            // novas em massa, aqui alteramos uma linha preexistente que pode
++            // ser do usuario. Essa alteracao precisa de rastro em log_completo.
++            ppaActionPpaProgramRepository.save(vinculoDestino);
++        }
++    }
++
+     private List<PpaActionMovement> copiarMovimentoAcao(PpaAction ppaAction, PpaAction ppaActionLast, String userUuid,
+             String ipOrigem, Integer anoExercicioLogado) {
+         List<PpaActionMovement> movimentos = ppaActionMovementRepository.findAllByPpaAction(ppaActionLast);
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarIndicadorThread.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarIndicadorThread.java
+index fc57430f1..fb0657b1b 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarIndicadorThread.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarIndicadorThread.java
+@@ -79,6 +79,7 @@ public class CopiarIndicadorThread {
+         List<PpaIndicator> indicadores = ppaIndicatorRepository.findAllByPpaVersion(ppaLastVersion);
+         List<PpaIndicator> copiaIndicadores = new ArrayList<>();
+         List<PpaIndicator> indicadoresExistentes = new ArrayList<>();
++        List<PpaIndicator> textosCompletados = new ArrayList<>();
+         for (PpaIndicator indicador : indicadores) {
+             if (isNull(indicador.excluidoEm)) {
+                 boolean jaExiste = ppaIndicatorRepository.existsByCodeAndPpaVersionAndExcluidoEmIsNull(indicador.code, ppaVersao);
+@@ -88,6 +89,9 @@ public class CopiarIndicadorThread {
+                                 .getByCodeAndPpaVersionAndExcluidoEmIsNull(indicador.code, ppaVersao);
+                         if (nonNull(existente)) {
+                             indicadoresExistentes.add(existente);
++                            if (completarTextosDoIndicador(existente, indicador, userUuid, ipOrigem)) {
++                                textosCompletados.add(existente);
++                            }
+                         }
+                     }
+                     continue;
+@@ -97,6 +101,11 @@ public class CopiarIndicadorThread {
+ 
+                 model.ppaVersion = ppaVersao;
+                 model.code = indicador.code;
++                // Avaliacao e metodologia sao colunas da propria linha do
++                // indicador (V25), nao satelites: sem copia-las aqui a aba
++                // Indicador nasce vazia na versao nova.
++                model.avaliacao = indicador.avaliacao;
++                model.metodologia = indicador.metodologia;
+                 model.userUuid = userUuid;
+                 model.setIpOrigem(ipOrigem);
+                 model.semLog = Boolean.TRUE;
+@@ -106,6 +115,11 @@ public class CopiarIndicadorThread {
+         }
+         List<PpaIndicator> indicadoresParaProcessar = new ArrayList<>();
+         ppaIndicatorRepository.saveAll(copiaIndicadores).forEach(indicadoresParaProcessar::add);
++        // Em batelada, como a criacao: um save por indicador dentro do laco
++        // renderia N idas ao banco numa versao com muitos textos pendentes.
++        if (!textosCompletados.isEmpty()) {
++            ppaIndicatorRepository.saveAll(textosCompletados);
++        }
+         indicadoresParaProcessar.addAll(indicadoresExistentes);
+         this.$indicadoresCriados = copiaIndicadores.size();
+ 
+@@ -127,6 +141,42 @@ public class CopiarIndicadorThread {
+             ppaIndicatorMovementRepository.saveAll(copiaMovimentos);
+     }
+ 
++    /**
++     * O indicador que ja estava no destino nunca passa por copiaIndicadores,
++     * entao nenhum save o alcanca. Quando ele sobreviveu a uma copia
++     * interrompida, avaliacao e metodologia ficaram vazias e so este ponto
++     * consegue completa-las.
++     *
++     * RN04: preenche lacuna, nunca sobrescreve. Texto ja presente no destino e
++     * dado que o usuario digitou na versao nova e tem precedencia sobre o da
++     * versao anterior. Sem alteracao a gravar, nao gasta um UPDATE por
++     * indicador.
++     */
++    private boolean completarTextosDoIndicador(PpaIndicator destino, PpaIndicator origem, String userUuid,
++            String ipOrigem) {
++        boolean alterou = false;
++
++        // Lacuna e somente null: e o estado que a copia interrompida deixa,
++        // porque o insert nunca atribuia estes campos. Texto vazio ("" ou
++        // "<p></p>") significa que o usuario abriu o editor e apagou o
++        // conteudo na versao nova — repreencher seria desfazer o que ele fez
++        // e faria o valor voltar a cada clique no botao.
++        if (isNull(destino.avaliacao) && nonNull(origem.avaliacao)) {
++            destino.avaliacao = origem.avaliacao;
++            alterou = true;
++        }
++        if (isNull(destino.metodologia) && nonNull(origem.metodologia)) {
++            destino.metodologia = origem.metodologia;
++            alterou = true;
++        }
++
++        if (alterou) {
++            destino.userUuid = userUuid;
++            destino.setIpOrigem(ipOrigem);
++        }
++        return alterou;
++    }
++
+     private List<PpaMeasureIndicator> copiarMedidaIndicador(PpaIndicator ppaIndicator, PpaIndicator ppaIndicatorLast,
+             String userUuid,
+             String ipOrigem) {
+diff --git a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarProgramaThread.java b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarProgramaThread.java
+index 056b89ed2..164b24179 100644
+--- a/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarProgramaThread.java
++++ b/projects/api-planejamento/src/main/java/br/com/equiplano/nova/asgard/planejamento/service/impl/ppaversion/CopiarProgramaThread.java
+@@ -154,16 +154,6 @@ public class CopiarProgramaThread {
+                 versionNumber, ppaLastVersion,
+                 userUuid, ipOrigem, anoExercicioLogado, schema, headers, ppaVersao);
+ 
+-        thread.setModo($modo);
+-        thread2.setModo($modo);
+-
+-        thread.run();
+-        thread2.run();
+-
+-        this.$programasCriados = copiaProgramas.size();
+-        this.$indicadoresCriados = thread.getIndicadoresCriados();
+-        this.$acoesCriadas = thread2.getAcoesCriadas();
+-
+         List<PpaMovementProgram> copiaMovimentos = new ArrayList<>();
+         List<PpaProgramObjective> copiaObjetivos = new ArrayList<>();
+ 
+@@ -189,8 +179,22 @@ public class CopiarProgramaThread {
+ 
+         if (!copiaMovimentos.isEmpty())
+             ppaMovementProgramRepository.saveAll(copiaMovimentos);
++        // Os objetivos precisam estar gravados ANTES de CopiarAcaoThread rodar:
++        // o vinculo acao/programa resolve o objetivo equivalente no programa
++        // destino por consulta, e com a ordem invertida esse lookup devolvia
++        // null e a acao nascia sem Objetivo.
+         if (!copiaObjetivos.isEmpty())
+             ppaProgramObjectiveRepository.saveAll(copiaObjetivos);
++
++        thread.setModo($modo);
++        thread2.setModo($modo);
++
++        thread.run();
++        thread2.run();
++
++        this.$programasCriados = copiaProgramas.size();
++        this.$indicadoresCriados = thread.getIndicadoresCriados();
++        this.$acoesCriadas = thread2.getAcoesCriadas();
+     }
+ 
+     private List<PpaMovementProgram> copiarMovimentoPrograma(PpaProgram ppaProgram, PpaProgram ppaProgramLast,

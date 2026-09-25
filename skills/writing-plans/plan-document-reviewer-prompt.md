@@ -32,6 +32,8 @@ Subagent (general-purpose):
     | Task Decomposition | Tasks have clear boundaries, steps are actionable |
     | Phase Grouping | Tasks grouped into phases, each with `Depends on` and cohesion; every task in exactly one phase; ~3 phases of 4-8 tasks. Flag ungrouped plans and many-tiny-phase plans. |
     | Buildability | Could an engineer follow this plan without getting stuck? |
+    | Blast Radius | Does it exist? Does every row have a command AND a count? Does it cover REMOVALS, not only additions? Does every sibling-method divergence have a justification? A table without commands is theater — reject it. | <!-- [fork] -->
+    | Invariants | Does it exist? Does every line cite a source (spec §, ADR, laudo §5, or file:line)? An invariant without a source is the planner's opinion. | <!-- [fork] -->
 
     Phase grouping matters more than it looks: the executor forms its
     subagent batches from these phases, and over-splitting them is the
@@ -45,6 +47,12 @@ Subagent (general-purpose):
 
     Approve unless there are serious gaps — missing requirements from the spec,
     contradictory steps, placeholder content, or tasks so vague they can't be acted on.
+
+    **What would prove you wrong:** before closing the review, name the
+    evidence that would overturn your main finding — or, if you approve,
+    the evidence that would show the plan is not ready — and say whether
+    you looked for it. A finding whose refutation you did not attempt goes
+    into the review with that caveat written. <!-- [fork] -->
 
     ## Output Format
 

@@ -1,0 +1,60 @@
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/controlador/cadastro/pessoapublica/OpcoesRpcGenericoPessoaPublica.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/controlador/cadastro/pessoapublica/OpcoesRpcGenericoPessoaPublica.java
+index 06b360cf44..6c8642ead7 100644
+--- a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/controlador/cadastro/pessoapublica/OpcoesRpcGenericoPessoaPublica.java
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/controlador/cadastro/pessoapublica/OpcoesRpcGenericoPessoaPublica.java
+@@ -24,10 +24,10 @@ public class OpcoesRpcGenericoPessoaPublica {
+ 			SrhBuscarRegimePrevidenciaComplementarGenericoServico servico = new SrhBuscarRegimePrevidenciaComplementarGenericoServico(conexao);
+ 			Integer codEntidade = dao.getAuxSession().getCodEntidade();
+ 
+-			for (SrhRegimePrevidenciaComplementarGenericoModel convenio : servico.buscarConveniosAtivos(codEntidade))
++			for (SrhRegimePrevidenciaComplementarGenericoModel convenio : servico.buscarConvenios(codEntidade))
+ 				planos.add(new OpcaoParaSelect(convenio.getIdRpcGenerico(), convenio.getDescricaoConvenio()));
+ 
+-			for (SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante : servico.buscarParticipantesAtivosDosConveniosAtivos(codEntidade))
++			for (SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante : servico.buscarParticipantesDosConvenios(codEntidade))
+ 				participantes.add(new RpcGenericoParticipanteOpcaoModelView(participante));
+ 		}
+ 	}
+diff --git a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/servicos/rpc/generico/SrhBuscarRegimePrevidenciaComplementarGenericoServico.java b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/servicos/rpc/generico/SrhBuscarRegimePrevidenciaComplementarGenericoServico.java
+index 1d86f59d11..62e7eae7db 100644
+--- a/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/servicos/rpc/generico/SrhBuscarRegimePrevidenciaComplementarGenericoServico.java
++++ b/projects/AtualizadorWeb/RecursosHumanos/SrhControlador/src/main/java/es/srh/servicos/rpc/generico/SrhBuscarRegimePrevidenciaComplementarGenericoServico.java
+@@ -48,16 +48,14 @@ public class SrhBuscarRegimePrevidenciaComplementarGenericoServico {
+ 		return quantidadeTotal.intValue();
+ 	}
+ 
+-	public List<SrhRegimePrevidenciaComplementarGenericoModel> buscarConveniosAtivos(Integer codEntidade) {
++	public List<SrhRegimePrevidenciaComplementarGenericoModel> buscarConvenios(Integer codEntidade) {
+ 
+ 		ConsultaComParametros consulta = new ConsultaComParametros(SrhRegimePrevidenciaComplementarGenericoModel.class);
+ 		consulta.concatenar(" SELECT rpc FROM SrhRegimePrevidenciaComplementarGenericoModel rpc ");
+ 		consulta.concatenar(" JOIN rpc.entidade entidade ");
+ 		consulta.concatenar(" WHERE entidade.codEntidade = :codEntidade ");
+-		consulta.concatenar(" AND rpc.ativo = :ativo ");
+ 		consulta.concatenar(" ORDER BY rpc.descricaoConvenio ");
+ 		consulta.adicionarParametro("codEntidade", codEntidade);
+-		consulta.adicionarParametro("ativo", TpSimNaoType.SIM);
+ 
+ 		return conexao.buscar(consulta);
+ 	}
+@@ -209,19 +207,16 @@ public class SrhBuscarRegimePrevidenciaComplementarGenericoServico {
+ 		return conexao.buscar(consulta);
+ 	}
+ 
+-	public List<SrhRegimePrevidenciaComplementarGenericoParticipanteModel> buscarParticipantesAtivosDosConveniosAtivos(Integer codEntidade) {
++	public List<SrhRegimePrevidenciaComplementarGenericoParticipanteModel> buscarParticipantesDosConvenios(Integer codEntidade) {
+ 
+ 		ConsultaComParametros consulta = new ConsultaComParametros(SrhRegimePrevidenciaComplementarGenericoParticipanteModel.class);
+ 		consulta.concatenar(" SELECT participante FROM SrhRegimePrevidenciaComplementarGenericoParticipanteModel participante ");
+ 		consulta.concatenar(" JOIN participante.rpcGenerico rpc ");
+ 		consulta.concatenar(" JOIN rpc.entidade entidade ");
+ 		consulta.concatenar(" WHERE entidade.codEntidade = :codEntidade ");
+-		consulta.concatenar(" AND rpc.ativo = :ativo ");
+-		consulta.concatenar(" AND participante.ativo = :ativo ");
+ 		consulta.concatenar(" AND participante.ehDataAdesaoPorMatricula = :ehDataAdesaoPorMatricula ");
+ 		consulta.concatenar(" ORDER BY rpc.descricaoConvenio, participante.codParticipante ");
+ 		consulta.adicionarParametro("codEntidade", codEntidade);
+-		consulta.adicionarParametro("ativo", TpSimNaoType.SIM);
+ 		consulta.adicionarParametro("ehDataAdesaoPorMatricula", TpSimNaoType.SIM);
+ 
+ 		return conexao.buscar(consulta);

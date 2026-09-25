@@ -16,6 +16,7 @@ export async function validateLint(
 		"csharp-aspnet": "dotnet format --verify-no-changes 2>&1 || true",
 		"python-fastapi": "black --check . 2>&1 || true",
 		"java-springboot": "mvn checkstyle:check 2>&1 || ./gradlew checkstyleMain 2>&1 || true",
+		"java8-spring": "mvn checkstyle:check 2>&1 || true",
 		terraform: "terraform fmt -check -recursive 2>&1 || true",
 		"go-std": "gofmt -l . 2>&1 || true",
 	};

@@ -1,6 +1,6 @@
 {
   "name": "superpowers-prepared",
-  "version": "6.22.0",
+  "version": "6.23.0",
   "description": "Superpowers skills and runtime bootstrap for coding agents",
   "main": ".opencode/plugins/superpowers-prepared.js",
   "scripts": {
@@ -12,7 +12,8 @@
     "patterns:lint": "npx tsx tools/patterns/cli.ts lint",
     "patterns:query": "npx tsx tools/patterns/cli.ts query",
     "patterns:stats": "npx tsx tools/patterns/cli.ts stats",
-    "patterns:export": "npx tsx tools/patterns/cli.ts export"
+    "patterns:export": "npx tsx tools/patterns/cli.ts export",
+    "sdd:metrics": "npx tsx tools/sdd-metrics/collect.ts"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

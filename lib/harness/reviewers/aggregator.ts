@@ -7,6 +7,7 @@ import type {
 	AsiTarget,
 	ChunkVerdict,
 	HarnessAction,
+	RedTeamOutcome,
 	ReviewAggressivenessConfig,
 	ReviewerDecision,
 	ReviewerFinding,
@@ -35,7 +36,11 @@ function thresholdRank(
 const DEFAULT_CATEGORY: NonNullable<ReviewerFinding["category"]> =
 	"maintainability";
 
-/** Categories that block regardless of severity. */
+/**
+ * Categories that block regardless of severity. `business-rule` is left out on
+ * purpose: most real business-rule findings are Medium, and escalating all of
+ * them would turn the gate into an obstacle. It is judged by the threshold.
+ */
 const ESCALATING_CATEGORIES: ReadonlySet<string> = new Set([
 	"security",
 	"governance",
@@ -222,6 +227,13 @@ export function formatAggregatedMarkdown(
 			`- ⚠️ Chunks with no parseable verdict: ${report.metrics.chunks_unparseable} (${report.unparseableChunks.join(", ")})`,
 		);
 	}
+	if (report.redTeam) {
+		lines.push(
+			report.redTeam.status === "unreadable"
+				? "- ⚠️ Red team report (red-team.md) is unreadable — needs human review"
+				: `- Red team: Critical ${report.redTeam.critical} | High ${report.redTeam.high} | Medium ${report.redTeam.medium} (${report.redTeam.blocking} blocking)`,
+		);
+	}
 	lines.push("");
 	if (report.asi_target) {
 		lines.push("## Fix First (ASI)");
@@ -256,12 +268,71 @@ export function formatAggregatedMarkdown(
 }
 
 /**
+ * merge-base(baseRef, HEAD), or null when the ref does not resolve in this
+ * repository (no `origin/main` in a fresh clone, no commits yet, not a repo).
+ * Callers treat null as "no range": they degrade to the working tree.
+ */
+export function resolveMergeBase(cwd: string, baseRef?: string): string | null {
+	if (!baseRef) return null;
+	const out = runGit(["merge-base", baseRef, "HEAD"], cwd);
+	const sha = out?.trim();
+	return sha ? sha : null;
+}
+
+/**
+ * The diff a review looks at: from merge-base(baseRef, HEAD) to the working
+ * tree when the baseRef resolves, else the working tree against HEAD. `review
+ * plan` and `review recheck` share it — a recheck that diffed against HEAD saw
+ * nothing once the fix was committed.
+ */
+export function reviewDiff(cwd: string, baseRef?: string, files?: string[]): string {
+	// `files` restricts the diff to one chunk; an empty list means "nothing",
+	// never "the whole range".
+	if (files && files.length === 0) return "";
+	const base = resolveMergeBase(cwd, baseRef);
+	const args = base ? ["diff", base] : ["diff", "HEAD"];
+	if (files) args.push("--", ...files);
+	return runGit(args, cwd) ?? "";
+}
+
+/**
+ * The stderr warning for a configured baseRef (--base or verifyOnStop.baseRef)
+ * that does not resolve here, or null when there is nothing to say. Degrading
+ * to the working tree is the right fallback, but doing it in silence let a
+ * typo in baseRef quietly drop every committed change from the review.
+ */
+export function baseRefWarning(cwd: string, baseRef?: string): string | null {
+	if (!baseRef) return null;
+	if (resolveMergeBase(cwd, baseRef)) return null;
+	return `warning: base ref '${baseRef}' does not resolve in ${cwd} (no merge-base with HEAD) — falling back to the working tree (HEAD); committed changes on this branch are not covered.`;
+}
+
+/**
  * Fingerprint the current working-tree changes (tracked diff vs HEAD plus
  * untracked/staged status). Used to tie a saved decision to the exact change
  * set it reviewed, so the stop gate can detect when a review is stale. Returns
  * null when git is unavailable (caller should fail open).
+ *
+ * With a `baseRef` that resolves, the fingerprint covers the branch range
+ * instead: the content diff from merge-base(baseRef, HEAD) to the working tree
+ * plus the list of untracked files. Staging flags are deliberately left out,
+ * so committing an already-reviewed change set keeps the same fingerprint —
+ * without that, every commit made a fresh review look stale. An unresolvable
+ * `baseRef` falls back to the working-tree fingerprint.
  */
-export function computeDiffFingerprint(cwd: string): string | null {
+export function computeDiffFingerprint(
+	cwd: string,
+	baseRef?: string,
+): string | null {
+	const mergeBase = resolveMergeBase(cwd, baseRef);
+	if (mergeBase) {
+		const rangeDiff = runGit(["diff", mergeBase], cwd);
+		const untracked = runGit(["ls-files", "--others", "--exclude-standard"], cwd);
+		if (rangeDiff === null && untracked === null) return null;
+		return createHash("sha256")
+			.update(`${rangeDiff ?? ""}\n--UNTRACKED--\n${untracked ?? ""}`)
+			.digest("hex");
+	}
 	const diff = runGit(["diff", "HEAD"], cwd);
 	const status = runGit(["status", "--porcelain"], cwd);
 	if (diff === null && status === null) return null;
@@ -300,6 +371,8 @@ export interface SavedDecision {
 	metrics: AggregatedReviewReport["metrics"];
 	/** Per-chunk verdicts from this decision — lets `review recheck` target only chunks that didn't approve. */
 	chunkVerdicts: ChunkVerdict[];
+	/** How the red-team report entered this decision — lets `review recheck` re-run a red team that blocked. */
+	redTeam?: RedTeamOutcome;
 }
 
 export function reviewsDir(cwd: string): string {
@@ -319,6 +392,7 @@ export function saveCarrascoReview(
 	cwd: string,
 	report: AggregatedReviewReport,
 	config: ReviewAggressivenessConfig,
+	baseRef?: string,
 ): { dir: string; markdownPath?: string; jsonPath?: string; decisionPath: string } {
 	const dir = featureReviewDir(cwd, report.feature);
 	fs.mkdirSync(dir, { recursive: true });
@@ -346,10 +420,11 @@ export function saveCarrascoReview(
 		level: report.level,
 		harness_action: report.harness_action,
 		timestamp: report.timestamp,
-		fingerprint: computeDiffFingerprint(cwd),
+		fingerprint: computeDiffFingerprint(cwd, baseRef),
 		headSha: getHeadSha(cwd),
 		metrics: report.metrics,
 		chunkVerdicts: report.chunkVerdicts,
+		...(report.redTeam ? { redTeam: report.redTeam } : {}),
 	};
 	fs.writeFileSync(result.decisionPath, `${JSON.stringify(decision, null, 2)}\n`);
 	return result;
@@ -370,8 +445,9 @@ export interface GateStatus {
 export function evaluateGateStatus(
 	cwd: string,
 	feature: string,
+	baseRef?: string,
 ): GateStatus {
-	const current = computeDiffFingerprint(cwd);
+	const current = computeDiffFingerprint(cwd, baseRef);
 	if (current === null) {
 		return {
 			gate: "pass",
@@ -405,6 +481,40 @@ export function evaluateGateStatus(
 			gate: "block",
 			action: decision.harness_action,
 			reason: "carrasco review is stale — the working tree changed since the last review",
+		};
+	}
+
+	// A red-team report written after the decision was aggregated never reached
+	// it (redTeam.parallel false dispatches the red team after the chunks). Its
+	// findings may block, so the decision is stale until aggregate runs again.
+	const redTeamPath = path.join(featureReviewDir(cwd, feature), "red-team.md");
+	try {
+		if (
+			fs.existsSync(redTeamPath) &&
+			fs.statSync(redTeamPath).mtimeMs > fs.statSync(decisionPath).mtimeMs
+		) {
+			return {
+				gate: "block",
+				action: decision.harness_action,
+				reason: "red team report is newer than the carrasco decision — re-run review aggregate",
+			};
+		}
+	} catch {
+		// stat race: fall through to the decision as saved
+	}
+
+	// A red team planned for this change (Risk flags) is mandatory by policy:
+	// "nobody ran it" or "nobody can read what it said" must not ride the
+	// general NEEDS_HUMAN_REVIEW pass below. Carrasco's own NEEDS_HUMAN_REVIEW
+	// is unchanged.
+	if (decision.redTeam && decision.redTeam.status !== "parsed") {
+		return {
+			gate: "block",
+			action: decision.harness_action,
+			reason:
+				decision.redTeam.status === "missing"
+					? "red team planned but report missing — dispatch the red team, write red-team.md, re-run review aggregate"
+					: "red team report is unreadable — rewrite red-team.md in the Breakage Report format, re-run review aggregate",
 		};
 	}
 

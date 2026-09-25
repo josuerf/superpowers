@@ -265,6 +265,11 @@ Run `verify-local` (completeness, lint, typecheck, test, coverage, patterns) and
 Running this first is what keeps a reviewer seat from being spent on what lint
 would have caught.
 
+<!-- [fork] --> In a workspace harness (repositories under `projects/<repo>`, session at the
+workspace root), pass `--root projects/<repo>` for the repository you changed.
+Without it the gate measures the workspace root, which has no tests, and
+"Coverage 0.0%" is the harness saying it found nothing to measure.
+
 ### 2. One branch-wide review — carrasco OR code-reviewer, never both
 
 They read the same diff against overlapping rubrics. Running both doubles the
@@ -355,6 +360,7 @@ behalf — and the findings you chose not to act on — reach them.
 When the final review is clean and its fixes are committed, delete this
 plan's workspace directory — the git history is the record now. Sibling
 directories belong to other plans; leave them alone.
+<!-- [fork] --> If `.superpowers/sdd/.gitignore` is tracked in git, the repo versions SDD artifacts: commit the workspace's ledger and review findings (`SDD-Plan:` trailer) before deleting it.
 
 Use superpowers-prepared:finishing-a-development-branch.
 

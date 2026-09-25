@@ -1,0 +1,2 @@
+# Diffs reais de MR: preservar bytes (alguns fontes tem CRLF)
+*.diff -text

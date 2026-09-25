@@ -4,6 +4,8 @@ import {
 	formatReviewerDecisionMarkdown,
 } from "../../../lib/harness/reviewers/parser";
 import type { ReviewerDecision } from "../../../lib/harness/types";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 describe("parseReviewerResponse", () => {
 	test("parses response with decision markers", () => {
@@ -199,6 +201,34 @@ describe("parseReviewerResponse", () => {
 		expect(result!.findings[0].category).toBe("security");
 	});
 
+	// Before business-rule was a valid category the parser dropped it, and the
+	// aggregator then read the finding as maintainability: the most serious
+	// domain defect became the mildest label.
+	test("keeps the business-rule category", () => {
+		const response = `\`\`\`json
+{
+  "harness_action": "BLOCK",
+  "metrics": { "total_findings": 1, "critical_high_count": 1 },
+  "asi_target": null,
+  "findings": [
+    {
+      "severity": "High",
+      "category": "business-rule",
+      "file": "src/main/java/EmpenhoRepository.java",
+      "line": 88,
+      "issue": "fiscal-year filter present in the sibling findByEntidade (EmpenhoRepository.java:52) was dropped",
+      "suggestion": "restore AND e.exercicio = :exercicio"
+    }
+  ]
+}
+\`\`\``;
+
+		const result = parseReviewerResponse(response);
+		expect(result).not.toBeNull();
+		expect(result!.findings).toHaveLength(1);
+		expect(result!.findings[0].category).toBe("business-rule");
+	});
+
 	test("leaves category undefined when the reviewer omits it", () => {
 		const response = `\`\`\`json
 {
@@ -260,6 +290,96 @@ describe("parseReviewerResponse", () => {
 		expect(result!.findings).toHaveLength(1);
 		expect(result!.findings[0].severity).toBe("High");
 		expect(result!.findings[0].category).toBeUndefined();
+	});
+
+	describe("code fence inside a JSON string", () => {
+		const decision = (suggestion: string) =>
+			JSON.stringify(
+				{
+					harness_action: "BLOCK",
+					metrics: { total_findings: 1, critical_high_count: 1 },
+					asi_target: null,
+					findings: [
+						{
+							severity: "High",
+							category: "business-rule",
+							file: "src/Repo.java",
+							line: 44,
+							issue: "filter removed",
+							suggestion,
+						},
+					],
+				},
+				null,
+				2,
+			);
+		const javaSuggestion =
+			"Restore:\n```java\n\"and lr.flag_selecionado = 'S' \" +\n```\nthen add a test.";
+
+		test("keeps the BLOCK of a real reviewer response (presta-contas-api-2404)", () => {
+			const response = readFileSync(
+				join(__dirname, "fixtures", "presta-contas-api-2404-response.md"),
+				"utf8",
+			);
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.harness_action).toBe("BLOCK");
+			expect(result!.findings).toHaveLength(2);
+			expect(result!.findings.map((f) => f.line)).toEqual([45, 47]);
+			expect(result!.findings[0].suggestion).toContain("```diff");
+		});
+
+		test("parses a ```java block inside suggestion between markers", () => {
+			const response = `Summary.\n\n<!-- REVIEWER_DECISION -->\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n<!-- /REVIEWER_DECISION -->\n\n## Report\n\n\`\`\`java\nint x = 1;\n\`\`\``;
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.harness_action).toBe("BLOCK");
+			expect(result!.findings[0].suggestion).toBe(javaSuggestion);
+		});
+
+		test("parses it without markers, even with more fences after the block", () => {
+			const response = `Summary.\n\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n\n## Report\n\n\`\`\`java\nint x = 1;\n\`\`\``;
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.findings[0].suggestion).toBe(javaSuggestion);
+		});
+
+		test("still rejects a truncated decision", () => {
+			const full = decision(javaSuggestion);
+			const truncated = full.slice(0, full.indexOf('"issue"'));
+			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n${truncated}\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			expect(parseReviewerResponse(response)).toBeNull();
+		});
+
+		test("a valid ```json example in the prose before the decision does not hide it", () => {
+			const example = '```json\n{ "note": "example of a config the change reads" }\n```';
+			const response = `Summary. The config looks like:\n\n${example}\n\n<!-- REVIEWER_DECISION -->\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			const result = parseReviewerResponse(response);
+			expect(result).not.toBeNull();
+			expect(result!.harness_action).toBe("BLOCK");
+		});
+
+		test("without markers, the LAST decision-shaped fence wins over an earlier example", () => {
+			const example = '```json\n{ "harness_action": "APPROVE", "metrics": { "total_findings": 0, "critical_high_count": 0 }, "findings": [] }\n```';
+			const response = `The format is:\n\n${example}\n\nMy decision:\n\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\``;
+			const result = parseReviewerResponse(response);
+			expect(result!.harness_action).toBe("BLOCK");
+		});
+
+		test("between markers, prose json then the decision fence parses the decision", () => {
+			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n{ "a": 1 }\n\`\`\`\n\`\`\`json\n${decision(javaSuggestion)}\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			expect(parseReviewerResponse(response)!.harness_action).toBe("BLOCK");
+		});
+
+		test("valid json fences with no decision shape are still rejected", () => {
+			const response = 'Here:\n```json\n{ "a": 1 }\n```\nand\n```json\n[1, 2]\n```';
+			expect(parseReviewerResponse(response)).toBeNull();
+		});
+
+		test("does not stitch JSON across prose between two fences", () => {
+			const response = `<!-- REVIEWER_DECISION -->\n\`\`\`json\n{ "harness_action": "BLOCK",\n\`\`\`\nsome prose\n\`\`\`json\n"metrics": {} }\n\`\`\`\n<!-- /REVIEWER_DECISION -->`;
+			expect(parseReviewerResponse(response)).toBeNull();
+		});
 	});
 });
 

@@ -79,6 +79,7 @@ count=$(printf '%s\n' $nums | wc -l | tr -d ' ')
     echo
   fi
 } > "$out"
+ctx="$(cd "$(dirname "$0")" && pwd)/task-brief-context"; if [ -f "$ctx" ]; then if env_block=$("${BASH:-bash}" "$ctx" "$plan"); then printf '%s\n\n' "$env_block" >> "$out"; else echo "task-brief: task-brief-context failed; brief written without the context envelope" >&2; fi; fi  # [fork]
 
 missing=""
 for n in $nums; do

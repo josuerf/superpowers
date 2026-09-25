@@ -16,6 +16,7 @@ export async function validateTypeCheck(
 		"csharp-aspnet": "dotnet build --no-restore 2>&1 || true",
 		"python-fastapi": "mypy . 2>&1 || true",
 		"java-springboot": "mvn compile -q 2>&1 || ./gradlew compileJava 2>&1 || true",
+		"java8-spring": "mvn compile -q 2>&1 || true",
 		"go-std": "go build ./... 2>&1 || true",
 		terraform: "terraform validate 2>&1 || true",
 	};

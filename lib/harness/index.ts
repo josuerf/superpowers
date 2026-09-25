@@ -428,6 +428,9 @@ export {
 	formatAggregatedMarkdown,
 	saveCarrascoReview,
 	computeDiffFingerprint,
+	resolveMergeBase,
+	baseRefWarning,
+	reviewDiff,
 	getHeadSha,
 	evaluateGateStatus,
 	reviewsDir,
@@ -439,6 +442,15 @@ export type {
 	GateStatus,
 	GateOutcome,
 } from "./reviewers/aggregator";
+export {
+	parseRedTeamReport,
+	applyRedTeamReport,
+	foldRedTeamReport,
+	prepareRedTeamRecheck,
+	RED_TEAM_REPORT,
+	RED_TEAM_PROMPT,
+	RED_TEAM_PREVIOUS,
+} from "./reviewers/red-team-report";
 export type {
 	ReviewChunk,
 	ReviewPlan,
@@ -446,6 +458,7 @@ export type {
 	ReviewAggressivenessConfig,
 	ReviewAggressivenessLevel,
 	ChunkVerdict,
+	RedTeamOutcome,
 	ReviewerFinding,
 } from "./types";
 

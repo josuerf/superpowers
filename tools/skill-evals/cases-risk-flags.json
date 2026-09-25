@@ -1,0 +1,42 @@
+{
+  "skill": "skills/writing-plans/SKILL.md",
+  "mode": "plan-from-spec",
+  "brief": "flags",
+  "maxTurns": 3,
+  "notes": [
+    "Mede a atribuicao de Risk flags pelo planejador (M7/M12): a flag e auto-declarada, e esse e o elo fraco.",
+    "Sem repositorio: o prompt pede so titulos e metadados das tarefas a partir do spec.",
+    "trivial-none mede falso positivo: flag onde nao ha risco dispara red team a toa.",
+    "regulatorio-afrouxa-validacao tambem mede a Open question e a memoria de calculo (lei citada)."
+  ],
+  "cases": [
+    {
+      "id": "concorrencia",
+      "fixture": "risco-concorrencia.md",
+      "why": "workers em paralelo sobre o mesmo contador e a mesma tabela",
+      "checks": [
+        { "id": "flag-concurrency", "type": "regex", "pattern": "Risk flags?\\W[^\\n]*concurrency" }
+      ]
+    },
+    {
+      "id": "regulatorio-afrouxa-validacao",
+      "fixture": "risco-regulatorio.md",
+      "why": "remove validacao de exportacao ao TCE e cita lei",
+      "checks": [
+        { "id": "flag-regulatory", "type": "regex", "pattern": "Risk flags?\\W[^\\n]*regulatory" },
+        { "id": "open-question", "type": "regex", "pattern": "Open question|Pergunta (em aberto|ao (humano|controlador|parceiro))" },
+        { "id": "memoria-de-calculo", "type": "regex", "pattern": "mem[oó]ria de c[aá]lculo|calculation worksheet|worked example|base legal|legal basis" },
+        { "id": "dnc-remocao", "type": "regex", "section": "Does NOT cover", "pattern": "cinco anos|5 anos|five.year|vig[eê]ncia|deixa|protegid|no longer|remov" }
+      ]
+    },
+    {
+      "id": "trivial-none",
+      "fixture": "risco-trivial.md",
+      "why": "so o texto de um rotulo muda",
+      "checks": [
+        { "id": "flag-none", "type": "regex", "pattern": "Risk flags?\\W+`?none" },
+        { "id": "sem-flag-espuria", "type": "regex", "pattern": "Risk flags?\\W[^\\n]*(security|concurrency|data-migration|regulatory|backward-compat)", "expect": false }
+      ]
+    }
+  ]
+}

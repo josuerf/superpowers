@@ -261,7 +261,7 @@ that implementer. Single-file mechanical fixes also take the cheapest tier.
 Before dispatching any implementer subagent:
 
 1. Invoke `extract-boundary` to gather minimal context for the batch's files, semantic understanding and project context. Scope it to the batch as a whole — the types and signatures its tasks share — not to each task separately; per-task extraction across a 6-task batch produces six overlapping envelopes and defeats the point.
-2. Include in the implementer prompt: "After each change, run `npx tsx "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" local` to verify code quality and security issues."
+2. Include in the implementer prompt: "After each change, run `npx tsx "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" local` to verify code quality and security issues." <!-- [fork] --> In a workspace harness (repositories under `projects/<repo>`), append `--root projects/<repo>` for the repository the task touches — otherwise the harness verifies the workspace root and reports 0% coverage.
 
 ### Pattern Injection
 Include learned patterns in implementer and reviewer prompts:
@@ -269,7 +269,8 @@ Include learned patterns in implementer and reviewer prompts:
 - **Reviewer**: Append `formatPatternsForReview(patterns)` output. Add: "Verify implementation does NOT trigger known error patterns."
 
 After all tasks (or all tasks in a wave) complete, run
-`npx tsx "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" all` (verify-all)
+`npx tsx "${CLAUDE_PLUGIN_ROOT:-${QWEN_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}}/tools/harness/cli.ts" all` (verify-all,
+plus <!-- [fork] --> `--root projects/<repo>` per touched repository in a workspace harness)
 before the final review. If verify-all fails, delegate the fixes to the
 relevant subagents; the per-batch review loop below is unchanged by it.
 
@@ -521,6 +522,11 @@ and fix-round diffs need it.
   a pointer to that ledger entry in the dispatch.
 - Record the implementer's agent identity from the dispatch result —
   fix-loop rounds 1-2 resume this agent.
+- The implementer's first return is the contract readback, not a report.
+  Read it before you resume the implementer. If the rewritten invariants
+  diverge from the brief, or "What I do NOT know" lists a load-bearing
+  assumption, answer first. A readback you did not read never happened —
+  and reading it is cheap: twenty lines against a whole batch redone. <!-- [fork] -->
 - Never dispatch multiple implementation subagents in parallel unless they
   form a file-disjoint wave (see Parallel Waves) — overlapping batches conflict.
 
@@ -597,6 +603,28 @@ review, but you must resolve each one yourself before marking the task
 complete: you hold the plan and cross-task context the reviewer
 lacks. If you confirm an item is a real gap, treat it as a failed spec
 review — it enters the fix loop with the other findings.
+
+<!-- [fork] -->
+**Red team on flagged batches.** When any task in the batch carries `Risk
+flags` other than `none` (see writing-plans), dispatch
+`superpowers-prepared:red-team` IN PARALLEL with the batch reviewer, on the
+same review package, with the focus categories for the flag:
+
+| Flag | Red-team focus categories |
+|---|---|
+| `security` | adversarial-inputs, assumption-violations |
+| `concurrency` | concurrency-timing, state-corruption, error-cascading |
+| `data-migration` | state-corruption, production-context-assumptions |
+| `regulatory` | production-context-assumptions, assumption-violations |
+| `backward-compat` | production-context-assumptions, error-cascading |
+
+A Critical/High red-team finding enters the fix loop like any other. Category
+8 of the red team (Production Context Assumptions, `agents/red-team.md`) is the
+one that covers this fleet's dominant class — data-shape drift, contract drift,
+deploy ordering, accumulated production state — and no other reviewer in the
+fork has an equivalent. The harness path mirrors this table:
+`review plan --plan-file <plan>` (`lib/harness/reviewers/red-team.ts`).
+<!-- [/fork] -->
 
 Template: [task-reviewer-prompt.md](task-reviewer-prompt.md)
 
@@ -747,6 +775,11 @@ superpowers-prepared:requesting-code-review's
 [code-reviewer.md](../requesting-code-review/code-reviewer.md). Point it at
 the ledger's deferred-minor and parked lines so it can triage which must be
 fixed before merge.
+Also include the plan and spec paths, the plan's Review Focus section
+verbatim if it has one (the input classes and failure modes the plan's tests
+do not exercise — the reviewer checks each deliberately), and a pointer to the
+ledger's `Ruling:` lines so it can weigh the calls you made — the same inputs
+executing-plans gives its final reviewer. <!-- [fork] -->
 
 If the final whole-branch review returns findings, dispatch ONE fix subagent
 with the complete findings list — not one fixer per finding.
@@ -776,6 +809,7 @@ When the final whole-branch review is clean and its fixes are merged,
 delete this plan's workspace (`rm -rf <workspace>`) — the git history is
 the record now. Sibling directories belong to other plans; leave them
 alone.
+<!-- [fork] --> If `.superpowers/sdd/.gitignore` is tracked in git, the repo versions SDD artifacts: commit the workspace's briefs, reports, ledger and review findings (`SDD-Plan:` trailer) before deleting it.
 
 Use superpowers-prepared:finishing-a-development-branch.
 

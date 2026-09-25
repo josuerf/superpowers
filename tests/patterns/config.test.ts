@@ -1,4 +1,4 @@
-import { loadPatternsConfig, resolveWikiPaths, defaultPatternsConfig } from '../../lib/patterns/config';
+import { loadPatternsConfig, resolveWikiPaths, defaultPatternsConfig, resolveReviewPatternsWiki } from '../../lib/patterns/config';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -72,5 +72,31 @@ describe('resolveWikiPaths', () => {
     expect(paths.global).not.toBe(paths.project);
     expect(paths.global).toContain('.superpowers');
     expect(paths.project).toContain(tmpDir);
+  });
+});
+
+describe('resolveReviewPatternsWiki', () => {
+  let root: string;
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'review-wiki-'));
+  });
+  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  it('never returns the global wiki, even with globalWiki on (the default)', () => {
+    const cfg = { ...defaultPatternsConfig(), globalPath: path.join(root, 'global-wiki') };
+    fs.mkdirSync(cfg.globalPath, { recursive: true });
+    expect(resolveReviewPatternsWiki(cfg, root)).toBeNull();
+  });
+
+  it("returns the project's configured wiki (.superpowers/patterns-wiki) when it exists", () => {
+    const wiki = path.join(root, '.superpowers', 'patterns-wiki');
+    fs.mkdirSync(wiki, { recursive: true });
+    expect(resolveReviewPatternsWiki(defaultPatternsConfig(), root)).toBe(wiki);
+  });
+
+  it('falls back to docs/superpowers-prepared/patterns-wiki when that is the one present', () => {
+    const wiki = path.join(root, 'docs', 'superpowers-prepared', 'patterns-wiki');
+    fs.mkdirSync(wiki, { recursive: true });
+    expect(resolveReviewPatternsWiki(defaultPatternsConfig(), root)).toBe(wiki);
   });
 });

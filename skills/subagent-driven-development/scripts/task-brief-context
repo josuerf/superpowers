@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Emit the context envelope of a batch brief: everything the plan says that
+# the task extractor (task-brief) drops by construction — Goal, Architecture,
+# Spec, Laudo, Harness, Global Constraints, Invariants, Blast Radius, Review
+# Focus, and phase cohesion — followed by the contract readback the
+# implementer emits before its first edit.
+#
+# Fork-only file. The whole delta lives here so that task-brief, which is
+# shared with upstream, carries a single call line (see FORK-DELTA.md).
+#
+# Usage: task-brief-context PLAN_FILE   (writes the envelope to stdout)
+set -euo pipefail
+
+if [ $# -ne 1 ]; then
+  echo "usage: task-brief-context PLAN_FILE" >&2
+  exit 2
+fi
+plan=$1
+[ -f "$plan" ] || { echo "no such plan file: $plan" >&2; exit 2; }
+
+# sec <title-regex>: print the whole "## X" section, up to the next "## ".
+# Headings inside fenced code blocks are not headings.
+sec() {
+  awk -v want="$1" '
+    /^```/ { infence = !infence; if (insec) print; next }
+    !infence && /^##[ \t]/ {
+      if (insec) { insec = 0; exit }
+      if ($0 ~ ("^##[ \t]+(" want ")([^A-Za-z].*)?$")) { insec = 1; next }
+    }
+    insec { print }
+  ' "$plan"
+}
+
+# field <label>: print the "**Label:** ..." line and the lines that continue
+# it, up to a blank line or the next "**Other:**" field.
+field() {
+  awk -v want="$1" '
+    /^```/ { infence = !infence; p = 0; next }
+    infence { next }
+    $0 ~ ("^\\*\\*" want ":\\*\\*") { p = 1; print; next }
+    p && (/^[ \t]*$/ || /^\*\*[^*]+:\*\*/ || /^#/) { p = 0 }
+    p { print }
+  ' "$plan"
+}
+
+# trim: drop leading and trailing blank lines, so a section holding only
+# blank lines counts as empty.
+trim() {
+  awk 'NF { for (i = 0; i < blank; i++) print ""; blank = 0; seen = 1; print; next }
+       seen { blank++ }'
+}
+
+# emit <title> <body> [required]: an empty required section is information,
+# and the implementer must know it is empty — a blank heading reads as "no
+# constraint", which is usually the opposite of the truth.
+emit() {
+  local title=$1 body=$2 required=${3:-no}
+  echo "## $title"
+  echo
+  if [ -n "$body" ]; then
+    printf '%s\n' "$body"
+  elif [ "$required" = "yes" ]; then
+    echo "**MISSING FROM THE PLAN.** writing-plans requires this section and the"
+    echo "plan does not carry it. Treat it as context you do NOT have: before"
+    echo "removing any filter, guard, or validation, ask the controller why it"
+    echo "exists. Do not read the absence of a constraint as the absence of a"
+    echo "constraint."
+  else
+    echo "_(nothing declared in the plan)_"
+  fi
+  echo
+}
+
+echo "# Context envelope — read before the tasks"
+echo
+echo "The **Global constraints** and **Invariants** sections below are NORMATIVE:"
+echo "they hold for every step of every task in this batch. A task that"
+echo "satisfies its own text and violates one of them is wrong."
+echo
+
+emit "Product context" "$( { field Goal; field Architecture; field 'Tech Stack'; } | trim)"
+emit "Source artifacts (paths — read what you need)" "$( { field Spec; field Laudo; field Harness; } | trim)"
+emit "Global constraints (NORMATIVE)" "$(sec 'Global Constraints' | trim)" yes
+emit "Invariants you must NOT break (NORMATIVE)" "$(sec 'Invariants|Invariantes' | trim)" yes
+emit "Blast radius declared by the plan" "$(sec 'Blast Radius' | trim)" yes
+emit "Review focus (the reviewer will check every line)" "$(sec 'Review Focus' | trim)"
+emit "Phases and cohesion" "$(awk '
+  /^```/ { infence = !infence }
+  !infence && /^#+[ \t]+Phase[ \t]/ { print; p = 1; next }
+  p && !infence && /^\*\*(Depends on|Cohesion):\*\*/ { print; next }
+  p && !infence && /^#+[ \t]+Task[ \t]/ { p = 0 }
+' "$plan")"
+
+cat <<'READBACK'
+## Before writing any code: confirm the contract
+
+Your FIRST output — before any Edit or Write — is this block, and nothing else:
+
+- **Objective:** what will be true at the end, in one sentence.
+- **Allowed files:** the ones you will touch, from the brief.
+- **Forbidden files:** what you will NOT touch, and why.
+- **Invariants I will preserve:** every line of the Invariants section,
+  REWRITTEN in your own words, and how you will check each one. Copying does
+  not count.
+- **Siblings I read:** for each method, query, or branch you will change, the
+  sibling you read (`file:line`) and what it does differently.
+- **Filters, guards, and try/catch this batch removes:** one per line, with
+  who stops being protected. "None" if that is the case.
+- **What would prove me wrong:** the disconfirming evidence you will actively
+  look for while you implement.
+- **What I do NOT know:** what the brief does not say and you will have to
+  assume. Each load-bearing assumption here becomes a question to the
+  controller BEFORE you code.
+- **Stop condition:** what makes you stop and report instead of carrying on.
+
+The second-to-last item matters most. A brief you can execute with no
+assumption at all is rare; declaring zero assumptions almost always means
+you did not look.
+
+## At the end of each task: symmetry sweep and reversal check
+
+Before you move to the next task, and again in your report file:
+
+- **Symmetry sweep.** List the siblings of the code you changed — the
+  methods, queries, or branches that solve the same kind of problem (use
+  `forge_siblings` when the forge MCP is available in the session; else
+  search and give the command and the count). For each one, say what you
+  did: changed together, or does not need it — and why.
+- **Reversal check.** For every bug fix, undo the fix, run its test, and
+  confirm it FAILS; then restore the fix and confirm it passes. Record the
+  command and the failing output in the report. A test that still passes
+  with the fix undone does not pin the bug — fix the test.
+READBACK
+
+echo
+echo "---"
+echo

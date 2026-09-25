@@ -27,6 +27,16 @@ describe("loadBasePrompt", () => {
 		expect(prompt).toContain("Senior Code Reviewer");
 		expect(prompt).toContain("Universal Engineering Checklist");
 	});
+
+	test("an uncited sibling divergence keeps the severity its impact justifies (no ceiling)", () => {
+		const prompt = loadBasePrompt();
+		expect(prompt).not.toContain("must not be reported");
+		expect(prompt).not.toMatch(/at most as a suspicion/i);
+		expect(prompt).toMatch(/severity (that )?(the|its) impact justifies/i);
+		expect(prompt).toMatch(/sibling was not located/i);
+		expect(prompt).toMatch(/search command you ran/i);
+		expect(prompt).toMatch(/not a (severity )?ceiling/i);
+	});
 });
 
 describe("loadStackPrompt", () => {
@@ -268,5 +278,50 @@ describe("buildReviewerPrompt", () => {
 			},
 		);
 		expect(prompt).toContain("## Decision Policy");
+	});
+});
+
+describe("java8-spring stack (M5)", () => {
+	test("loads the java8-spring rules file", () => {
+		const prompt = loadStackPrompt("java8-spring");
+		expect(prompt).toContain("Java 8 / Spring Boot 2.x");
+		expect(prompt).toContain("javax.persistence");
+		expect(prompt).toContain("What IS a finding");
+	});
+
+	test("is listed among the available stacks", () => {
+		expect(getAvailableStacks()).toContain("java8-spring");
+	});
+
+	test("loadReviewerPrompt includes the java8 rules, not the Java 21 ones", () => {
+		const prompt = loadReviewerPrompt(["java8-spring"]);
+		expect(prompt).toContain("Java 8 / Spring Boot 2.x");
+		expect(prompt).not.toContain("Spring Boot 3.x (Java 21) Specific Evaluation Rules");
+	});
+
+	describe("resolveStacksForFiles with a project root", () => {
+		const tmp = path.join(__dirname, "..", "..", "..", "tmp-test-loader-java8");
+		beforeEach(() => fs.mkdirSync(path.join(tmp, "legacy", "src"), { recursive: true }));
+		afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+		test("a .java under a Java 8 pom resolves to java8-spring", () => {
+			fs.writeFileSync(
+				path.join(tmp, "legacy", "pom.xml"),
+				"<project><properties><java.version>1.8</java.version></properties></project>",
+			);
+			expect(resolveStacksForFiles(["legacy/src/A.java"], tmp)).toEqual(["java8-spring"]);
+		});
+
+		test("a .java under a modern pom stays java-springboot", () => {
+			fs.writeFileSync(
+				path.join(tmp, "legacy", "pom.xml"),
+				"<project><properties><java.version>21</java.version></properties></project>",
+			);
+			expect(resolveStacksForFiles(["legacy/src/A.java"], tmp)).toEqual(["java-springboot"]);
+		});
+
+		test("without a project root the mapping stays path-based", () => {
+			expect(resolveStacksForFiles(["legacy/src/A.java"])).toEqual(["java-springboot"]);
+		});
 	});
 });

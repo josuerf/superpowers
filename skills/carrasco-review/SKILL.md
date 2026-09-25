@@ -25,7 +25,7 @@ Announce: `I'm running the carrasco-review skill.`
 - `enabled` — master switch. Defaults to `false`: this skill only runs the automated Stop-hook gate when a project opts in via `.harness.config.json`. Invoking the skill directly (e.g. "carrasco review") always works regardless of this flag.
 - `level` — `standard` (default, current calibrated behavior) | `strict` | `carrasco` (uncompromising — every finding treated as blocking).
 - `chunking` — `maxFilesPerChunk`, `maxLinesPerChunk`, `byTopic`. Chunking only kicks in when the change set exceeds a limit; otherwise all files are one chunk. `maxChunks` (optional) is a hard ceiling on the number of chunks — and therefore carrasco subagents — a plan can produce: `byTopic` alone creates at least one chunk per topic (directory area) touched no matter how generous the size limits are, so it cannot express a total cap on its own. When the natural chunk count exceeds `maxChunks`, the smallest chunks are merged pairwise (by file count) until it fits; a merge across two different topics loses topic cohesion for that one chunk. Absent = no cap (prior behavior).
-- `carrasco` — `redTeamParallel` (dispatch chunks in parallel), `requireReproducibleTrigger`, `focusCategories`, `severityThreshold` (BLOCK if any finding ≥ this).
+- `carrasco` — `redTeamEnabled` (red-team focus guidance in the carrasco prompt, and the extra red-team dispatch a flagged plan earns), `redTeamParallel` (dispatch chunks — and the red team — in parallel), `requireReproducibleTrigger`, `focusCategories`, `severityThreshold` (BLOCK if any finding ≥ this).
 - `standards` — `autoDetect` (read CLAUDE.md/AGENTS.md + neighboring code) and `paths` (authoritative standards/architecture docs to enforce).
 - `exclude` — what never reaches a reviewer. `patterns` are regular expressions matched against each repo-relative path; they add to the built-in list (generated/vendored/lock artifacts, `.claude/`, `.harness/`) unless `useDefaults` is `false`, which replaces it. This matters more than it looks: the change set includes **untracked** files, so a directory of local content the repo happens not to commit inflates the chunk count — one project turned 3 real changed files into 472 files across 49 chunks, i.e. 49 reviewer dispatches for one card. If `review plan` reports a file count far above the real diff, this is the knob.
 - `reportOutput` — `saveToHarness`, `format` (`markdown` | `json` | `both`).
@@ -66,16 +66,17 @@ explicitly asked for a review, treat it as an **inline** run:
 
 ## Procedure
 
-1. **Plan.** Run the harness CLI `review plan` (see *Running the CLI* below). It writes `.harness/reviews/<feature>/plan.json`, one prompt file per chunk under `prompts/`, and an empty `responses/` directory. Read `plan.json` to get the feature name and the chunk list. If it reports "No changed files", stop.
+1. **Plan.** Run the harness CLI `review plan` (add `--plan-file <path>` when the change comes from an implementation plan) (see *Running the CLI* below). It writes `.harness/reviews/<feature>/plan.json`, one prompt file per chunk under `prompts/`, and an empty `responses/` directory. Read `plan.json` to get the feature name and the chunk list. If it reports "No changed files", stop.
 
 2. **Dispatch the carrascos.** For each chunk, read its prompt at `.harness/reviews/<feature>/prompts/<chunk-id>.md` and dispatch a `superpowers-prepared:carrasco` subagent with that prompt as its task.
    - **Dispatch all chunks in a SINGLE message** with multiple parallel Agent tool calls when `carrasco.redTeamParallel` is true (the default). Run sequentially only if it is false.
    - **Context isolation:** construct each subagent's prompt from the chunk prompt file ONLY. Never forward this session's history or other chunks' results.
    - Append to each subagent prompt: *"You are a focused subagent. Do NOT invoke superpowers-prepared process skills (workflow-control skills such as brainstorming, writing-plans, subagent-driven-development, or any code-review pipeline including this one) and never dispatch a subagent of your own. Skills defined by this project or workspace are allowed. Return your full report including the `<!-- REVIEWER_DECISION -->` JSON block."*
+   - **Red team.** If `review plan` was run with `--plan-file <plan>` and the plan declares `Risk flags` other than `none`, `plan.json` carries a `redTeam` entry and the CLI writes `.harness/reviews/<feature>/red-team-prompt.md`. Dispatch `superpowers-prepared:red-team` with that prompt — in the same message as the chunks when `redTeam.parallel` is true, after them otherwise — and write its report to `.harness/reviews/<feature>/red-team.md` (NOT `responses/`: it is a Breakage Report, not a `REVIEWER_DECISION` block) **before** running `review aggregate`. Aggregate reads it: red-team findings at or above `severityThreshold` block exactly like carrasco findings and enter the fix loop with them; a report it cannot parse, or a planned red team with no report, makes the verdict NEEDS_HUMAN_REVIEW and `gate-status` blocks with that reason (the red team is mandatory once the plan declares Risk flags) — never a silent pass. A `**Severity:**` line under any scenario heading counts; a "nothing found" sentence never cancels an explicit severity. A `red-team.md` written after the decision makes `gate-status` stale until aggregate runs again. `carrasco.redTeamEnabled: false` switches this dispatch off.
 
 3. **Collect.** Write each subagent's returned text verbatim to `.harness/reviews/<feature>/responses/<chunk-id>.txt` (the chunk id matches the prompt filename).
 
-4. **Aggregate.** Run the harness CLI `review aggregate --feature <feature>`. It parses every response, merges findings, decides the overall verdict against `severityThreshold`, and saves the consolidated report + `decision.json`. Exit code: `0` APPROVE, `2` BLOCK, `3` NEEDS_HUMAN_REVIEW.
+4. **Aggregate.** Run the harness CLI `review aggregate --feature <feature>`. It parses every response and `red-team.md` when present, merges findings, decides the overall verdict against `severityThreshold`, and saves the consolidated report + `decision.json`. Exit code: `0` APPROVE, `2` BLOCK, `3` NEEDS_HUMAN_REVIEW.
 
 5. **Report & act.**
    - Show the verdict and the report path (`.harness/reviews/<feature>/carrasco-review.md`).
@@ -91,13 +92,19 @@ explicitly asked for a review, treat it as an **inline** run:
    recompute the whole plan:
    - It reads the last decision's per-chunk verdicts and, for each chunk that
      didn't approve, writes a new prompt containing only that chunk's prior
-     findings, the diff of just that chunk's files since the last review (the
-     fix — not the original diff again), and your note.
+     findings, the diff of just that chunk's files over the review range
+     (from merge-base of `--base`/`verifyOnStop.baseRef` when set, so a
+     committed fix stays visible; else the working tree against HEAD), and
+     your note.
    - Chunks that already approved are left untouched — their prompt and
      response files are not regenerated.
    - Dispatch one `superpowers-prepared:carrasco` subagent per chunk printed
      by `recheck`, exactly as in step 2, then write each response to the same
      `responses/<chunk-id>.txt` path.
+   - If `recheck` prints a **Red team** line (the last red team blocked, or
+     its report was unreadable or missing), re-dispatch
+     `superpowers-prepared:red-team` with the regenerated
+     `red-team-prompt.md` and write the new `red-team.md` before aggregating.
    - Run `review aggregate --feature <feature>` again — it merges the fresh
      verdicts for rechecked chunks with the untouched ones automatically, no
      extra flag needed.
@@ -106,7 +113,7 @@ explicitly asked for a review, treat it as an **inline** run:
 
 Use the harness CLI the same way as `harness-verify`, with the plugin-root env var for your harness:
 
-- **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" review <plan|recheck|aggregate|gate-status> [--feature <name>] [--base <sha>] [--chunks <id,id>] [--note "<text>"] [--root <project>] [--inline] [--max-chunks <n>] [--max-files-per-chunk <n>] [--by-topic <true|false>]`
+- **Windows (PowerShell):** `npx tsx "$( $env:CLAUDE_PLUGIN_ROOT, $env:QWEN_PLUGIN_ROOT, $env:CURSOR_PLUGIN_ROOT, $env:CODEX_PLUGIN_ROOT | Where-Object { $_ } | Select-Object -First 1 )\tools\harness\cli.ts" review <plan|recheck|aggregate|gate-status> [--feature <name>] [--base <sha>] [--chunks <id,id>] [--note "<text>"] [--root <project>] [--inline] [--max-chunks <n>] [--max-files-per-chunk <n>] [--by-topic <true|false>] [--plan-file <path>]`
 
   `--inline` and the `--max-chunks`/`--max-files-per-chunk`/`--by-topic` overrides only apply to `plan`, and only matter for the automatic Stop-hook trigger — see *Automatic Trigger* above.
 - **Linux/macOS:** `npx tsx "${CLAUDE_PLUGIN_ROOT:-...}/tools/harness/cli.ts" review <subcommand> [...]`
