@@ -286,6 +286,30 @@ assert "invalid mode blocks" "true" "$(has "$(runhook "$D")" '"decision":"block"
 rm -rf "$D"
 
 echo ""
+echo "test-verify-on-stop: kill switch (verifyOnStop.enabled)"
+
+# gateenabled <dir> -> what isGateEnabled returns for that dir
+gateenabled() {
+  node -e "const m=require(process.argv[1]);process.stdout.write(String(m.isGateEnabled(process.argv[2])))" "$HOOK" "$1" 2>/dev/null
+}
+
+# 32. Only an explicit false turns the gate off; anything else keeps it on
+D=$(mk); assert "no config -> enabled" "true" "$(gateenabled "$D")"; rm -rf "$D"
+D=$(mk); cfg "$D" '{"verifyOnStop":{"enabled":false}}'; assert "enabled:false -> disabled" "false" "$(gateenabled "$D")"; rm -rf "$D"
+D=$(mk); cfg "$D" '{"verifyOnStop":{"enabled":"false"}}'; assert "enabled:\"false\" -> enabled" "true" "$(gateenabled "$D")"; rm -rf "$D"
+D=$(mk); cfg "$D" '{nope'; assert "malformed config -> enabled" "true" "$(gateenabled "$D")"; rm -rf "$D"
+
+# 33. enabled:false -> {} with neither the carrasco gate nor verify-all run and
+# no gate-log line, even in warn mode with a would-be block pending.
+D=$(e2e_repo); cfg "$D" '{"verifyOnStop":{"enabled":false,"minFiles":1,"mode":"warn"},"reviewAggressiveness":{"enabled":true}}'
+OUT=$(runhook "$D")
+assert "disabled gate returns {}" "{}" "$OUT"
+assert "disabled gate writes no gate log" "false" "$([ -f "$D/.superpowers/gate-log.jsonl" ] && echo true || echo false)"
+D2=$(e2e_repo); cfg "$D2" '{"verifyOnStop":{"enabled":false,"minFiles":1},"reviewAggressiveness":{"enabled":true}}'
+assert "disabled gate does not block in block mode" "{}" "$(runhook "$D2")"
+rm -rf "$D" "$D2"
+
+echo ""
 echo "test-verify-on-stop: projectRoots glob and baseRef range (M3)"
 
 # A workspace whose products are separate repositories ignored by the

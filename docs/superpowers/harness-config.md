@@ -203,6 +203,7 @@ session, instead of on every individual edit.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
+| `enabled` | `boolean` | `true` | Kill switch. `false` turns the whole hook off: no carrasco gate, no verify-all and no gate-log line. Only a literal `false` disables it; any other value (or a malformed config) keeps the gate on. |
 | `minFiles` | `number` | `3` | Minimum number of session-edited changed source files required to trigger the gate. Set to `1` to gate every edit; raise it to make the gate fire less often. |
 | `mode` | `"block"` \| `"warn"` | `"block"` | `"block"` returns `decision: "block"` when a check fails. `"warn"` lets the session end and appends what the gate *would* have done to `.superpowers/gate-log.jsonl` (see below). Any other value falls back to `"block"`. |
 | `baseRef` | `string` | — | Comparison ref, e.g. `"origin/main"`. When set, the changed-file set is `merge-base(baseRef, HEAD)..HEAD` plus the working tree, per repository — see below. |
