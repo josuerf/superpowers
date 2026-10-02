@@ -92,6 +92,14 @@ function getGateMode(cwd) {
   return readVerifyOnStopConfig(cwd).mode === 'warn' ? 'warn' : 'block';
 }
 
+// Kill switch: verifyOnStop.enabled === false turns the whole hook off — no
+// carrasco gate, no verify-all, no gate-log line. Only an explicit boolean
+// false disables it; a missing key, a typo or a broken config keeps the gate
+// on, for the same reason an unknown mode falls back to "block".
+function isGateEnabled(cwd) {
+  return readVerifyOnStopConfig(cwd).enabled !== false;
+}
+
 // verifyOnStop.baseRef (e.g. "origin/main"), or null when unset/blank.
 function getBaseRef(cwd) {
   const v = readVerifyOnStopConfig(cwd).baseRef;
@@ -819,6 +827,12 @@ async function main() {
     const data = JSON.parse(input);
     const cwd = realPath(data.cwd || process.cwd());
 
+    // Checked first so a disabled gate costs nothing: not even the transcript read.
+    if (!isGateEnabled(cwd)) {
+      process.stdout.write('{}');
+      return;
+    }
+
     // Scope the gate to files THIS session actually edited. When the transcript
     // is readable we intersect with it: an empty intersection (the session made
     // no edits — e.g. the user just asked a question) means there is nothing to
@@ -1031,6 +1045,7 @@ if (require.main === module) {
     FORCE_INCLUDE_PATTERNS,
     shouldExclude,
     getGateMode,
+    isGateEnabled,
     getBaseRef,
     appendGateLog,
     GATE_LOG_DIR,
