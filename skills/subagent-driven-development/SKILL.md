@@ -195,6 +195,17 @@ For tasks centered on frontend/UI, apply `frontend-design standards` skill (if a
 For tasks involving React/Next.js code, apply `vercel-react-best-practices` or any other available skills (of the current frontend framework) for performance optimization, data fetching patterns, and bundle size.
 For tasks involving new libs, specific versions or technologies, use `context7` (if available) to check for updated lib or technology information or how-tos.
 
+<!-- [fork] -->
+**Prefer the project's own agents, skills, and playbooks.** Before each
+dispatch, check what the project or workspace defines (`.claude/agents/`,
+the harness's agents, skills, and playbooks) and the task's **Follow** line.
+When an agent's description fits the batch's work, dispatch that agent
+instead of `general-purpose`, still with the implementer prompt as its
+instructions; name the matching project skills under "Suggested skills".
+Use `general-purpose` only when nothing the project defines fits. The same
+applies to reviewers: a project review agent that fits outranks the generic
+one.
+
 ## Pre-Flight Plan Review
 
 Before dispatching Task 1, scan the plan once for conflicts, writing down

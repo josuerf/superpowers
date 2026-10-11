@@ -5,7 +5,7 @@ of cohesive tasks (see SKILL.md "Batching"), so `TASKS` below is normally a
 range like `1-6`. A single task is the exception, not the default.
 
 ```
-Subagent (general-purpose):
+Subagent (general-purpose, or the project agent that fits — see SKILL.md "Use the project harness"):
   description: "Implement Batch B (Tasks N-M): [batch name]"
   model: [MODEL — REQUIRED: choose per SKILL.md Model Selection; an omitted
          model silently inherits the session's most expensive one]
@@ -35,6 +35,15 @@ Subagent (general-purpose):
     contract" from the end of the envelope. It comes before any Edit or
     Write, nothing else comes with it, and you end your turn there — the
     controller reads it and resumes you. <!-- [fork] -->
+
+    The plan decides what each task does, not how the code looks. Write
+    the bodies the way this project already writes them: follow each
+    task's **Follow** line (harness rules, conventions, ADRs, design
+    system, the sibling code to mirror) and the plan's Design Decisions.
+    If the plan does show code, treat it as intent, never as the style to
+    copy. When a harness standard and generic good practice disagree, the
+    harness wins; if following it would seriously break good practice,
+    stop and ask before you choose. <!-- [fork] -->
 
     Suggested skills: [SUGGESTED_SKILLS — optional. Name the project or
     implementation-support skills that match this task's work, or write

@@ -11,9 +11,19 @@ description: >
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write implementation plans for an engineer who has not seen this codebase or this spec. Assume they write idiomatic code in the project's language once they know the exact interface and the exact test, and that they will make a reasonable choice wherever the plan leaves one open. What they cannot know is what you decided: which files, which names and signatures, which values from the spec, which tests prove each task. Document those. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+<!-- [fork] -->
+**The harness decides how the code looks; the plan decides what it does.**
+A plan carries no implementation code. Implementers who find a body in the
+plan copy it, and the copy ignores the project's own patterns. Instead, each
+task points at what the implementer must follow: the harness rules,
+conventions, ADRs, design system, and the existing sibling code that already
+solves the same kind of problem. Harness standards win over generic good
+practice; when following one would seriously break good engineering
+practice, the plan says so in Design Decisions and your human partner
+confirms the departure before the plan is approved. Where the harness is
+silent, the plan names the good practice it relies on.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -91,10 +101,10 @@ deliverable needs them; split only where a reviewer could meaningfully
 reject one task while approving its neighbor. Each task ends with an
 independently testable deliverable.
 
-## Bite-Sized Task Granularity
+## Step Granularity
 
 - Keep tasks independent when possible.
-- Keep each step to one action (roughly 2-5 minutes).
+- Keep each step to one action with a checkable result.
 - Use exact file paths.
 - Include exact verification commands and expected outcomes.
 - Use TDD ordering when code behavior changes.
@@ -182,6 +192,19 @@ This is the only section of the plan the implementer receives as a **norm
 over every step**: a task that satisfies its own text and breaks a line
 here is wrong.]
 
+<!-- [fork] -->
+## Design Decisions
+
+[The architectural choices this plan makes, one line each, with the source
+that justifies it in parentheses: the layer or component a behavior lives
+in, the pattern it follows, the design-system element a screen uses, the
+library it calls, the project agent or skill the work belongs to. Sources,
+in order of authority: the harness (rules, ADR, conventions, design system,
+`file:line` of the sibling code being mirrored), then the spec, then named
+good practice when the harness is silent. A choice that departs from the
+harness carries `**Departure:**`, the good-practice reason, and
+`confirmed by <who> on <date>`; an unconfirmed departure blocks the plan.]
+
 ## Review Focus
 
 [The five input classes or failure modes the spec implies but no task's
@@ -223,14 +246,22 @@ other may be executed concurrently)*
   and return types. A task's implementer sees only their own task; this
   block is how they learn the names and types neighboring tasks use.]
 
-- [ ] **Step 1: Write the failing test**
+**Acceptance criteria:** <!-- [fork] -->
+- [observable behavior, with the spec's exact values — what a reviewer
+  checks to accept the task; each one is proven by a test below]
+
+**Follow:** <!-- [fork] --> [the harness documents and the existing code
+this task must match: `engineering/<area>/conventions.md`, `ADR-NNN`, the
+design-system component, and the sibling to mirror (`path/to/Sibling.ext`).
+Add `Agent: <project agent>` and `Skills: <project skills>` when the
+project defines ones that fit this work.]
 
 **Does NOT cover:** *(required when this task ADDS a condition, gate, trigger, or any "when X do Y" logic — state the scenarios the condition excludes — AND ALSO when this task REMOVES OR RELAXES an existing condition, filter, guard, validation, or `try/catch` — then state who is no longer protected and why that is correct. "It wasn't being used" is not a justification: show who stopped needing it. If an excluded scenario should be covered, revise this task before implementing.)* <!-- [fork] -->
 
-- [ ] **Step 1: Write failing test**
+- [ ] **Step 1: Write the failing test `<test name>` in `<test path>`**
 
 ```<lang>
-<actual test code>
+<the test's name and its assertions, with the spec's exact values>
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -238,11 +269,11 @@ other may be executed concurrently)*
 Run: `<command>`
 Expected: FAIL with "<expected failure reason>"
 
-- [ ] **Step 3: Implement minimal change**
+- [ ] **Step 3: Implement `<name>(<params>): <return type>` in `<path>`**
 
-```<lang>
-<actual implementation code>
-```
+One line on the approach when the signature, the tests, and **Follow** leave
+a choice (which library call, which data structure); a code block only for
+an algorithm they do not determine.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -262,15 +293,34 @@ SDD-Batch: <N>-<M>"
 ```
 ````
 
-## No Placeholders
+## What a Step Contains
 
-Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
-- "TBD", "TODO", "implement later", "fill in details"
-- "Add appropriate error handling" / "add validation" / "handle edge cases"
-- "Write tests for the above" (without actual test code)
-- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
-- Steps that describe what to do without showing how (code blocks required for code steps)
-- References to types, functions, or methods not defined in any task
+A step is done when the implementer can write exactly one reasonable thing
+from it. That is the whole requirement: unambiguous, not complete. Each kind
+of step carries what makes it unambiguous and nothing more:
+
+- **A test step:** the test's name and its assertions, as code, with the
+  spec's exact values in them.
+- **A code step:** the exact signature (name, parameters, return type), the
+  file it lives in, and the specific values the spec pins. The implementer
+  writes the body. A body appears only for an algorithm the signature and
+  tests do not determine, or for exact copy the spec fixes.
+- **A verification step:** the command to run and the output that means it
+  passed.
+- **A reference to another task:** that task's Interfaces block says what
+  to use; the plan does not repeat that task's code.
+
+A plan is the set of decisions the implementer cannot make alone. A plan
+longer than the code it describes has written the code instead. Lines that
+decide nothing ("TBD", "handle edge cases", "add appropriate validation",
+"write tests for the above", a type or function no task defines) are the
+opposite failure, and the self-review catches both.
+
+<!-- [fork] --> How the body is written (structure, naming, error handling,
+logging, the component it renders with) is not the plan's to decide: the
+task's **Follow** line points at the harness and the sibling code that
+already decide it. A plan that needs to show style is missing a **Follow**
+reference, not a code block.
 
 ## Quality Bar
 
@@ -285,7 +335,7 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **1. Spec coverage:** Skim each section/requirement in the spec. Can you point to a task that implements it? List any gaps.
 
-**2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
+**2. Step scan:** Every step must let the implementer write exactly one reasonable thing, and no step may carry more than that: a line that decides nothing is a gap, a function body the signature and tests already determine is a transcript. Fix both.
 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
@@ -293,7 +343,11 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **5. Review Focus:** For each input class or failure mode the spec implies, is there a task whose tests exercise it? The five uncovered ones most likely to bite a person go in the Review Focus section, and each line there gets its test added to the owning task. An empty section means you checked and found none, not that you skipped the check.
 
-**6. Blast radius and invariants:** Does every Blast Radius row have a command and a count? Does every sibling-method divergence have a written justification? Does every filter, guard, or `try/catch` some task removes appear in some `Does NOT cover`? Does every Invariants line cite its source? If any answer is no, the plan is not ready — and the task that failed is the one that will hurt most. <!-- [fork] -->
+**6. Proportion:** Compare the length of the plan's task steps to the spec's. <!-- [fork] --> The header sections (Blast Radius, Invariants, Design Decisions, Review Focus) are checks, not program, and stay out of the count. Task steps several times longer than the spec are a transcript of the program, not a plan. If code blocks are most of the tasks, replace bodies with signatures, test names and assertions, and **Follow** references, and check that each step is still unambiguous.
+
+**7. Harness and decisions:** <!-- [fork] --> Does every task have a **Follow** line pointing at harness documents or sibling code (or "none" after you checked)? Does every Design Decisions line cite its source? Is every departure from the harness confirmed by your human partner? Where the project defines an agent or skill for this kind of work, does the task name it?
+
+**8. Blast radius and invariants:** Does every Blast Radius row have a command and a count? Does every sibling-method divergence have a written justification? Does every filter, guard, or `try/catch` some task removes appear in some `Does NOT cover`? Does every Invariants line cite its source? If any answer is no, the plan is not ready — and the task that failed is the one that will hurt most. <!-- [fork] -->
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 

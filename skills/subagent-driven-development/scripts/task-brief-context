@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Emit the context envelope of a batch brief: everything the plan says that
 # the task extractor (task-brief) drops by construction — Goal, Architecture,
-# Spec, Laudo, Harness, Global Constraints, Invariants, Blast Radius, Review
-# Focus, and phase cohesion — followed by the contract readback the
+# Spec, Laudo, Harness, Global Constraints, Invariants, Blast Radius, Design
+# Decisions, Review Focus, and phase cohesion — followed by the contract readback the
 # implementer emits before its first edit.
 #
 # Fork-only file. The whole delta lives here so that task-brief, which is
@@ -83,6 +83,7 @@ emit "Source artifacts (paths — read what you need)" "$( { field Spec; field L
 emit "Global constraints (NORMATIVE)" "$(sec 'Global Constraints' | trim)" yes
 emit "Invariants you must NOT break (NORMATIVE)" "$(sec 'Invariants|Invariantes' | trim)" yes
 emit "Blast radius declared by the plan" "$(sec 'Blast Radius' | trim)" yes
+emit "Design decisions (the harness and patterns this code must follow)" "$(sec 'Design Decisions' | trim)"
 emit "Review focus (the reviewer will check every line)" "$(sec 'Review Focus' | trim)"
 emit "Phases and cohesion" "$(awk '
   /^```/ { infence = !infence }
@@ -102,6 +103,10 @@ Your FIRST output — before any Edit or Write — is this block, and nothing el
 - **Invariants I will preserve:** every line of the Invariants section,
   REWRITTEN in your own words, and how you will check each one. Copying does
   not count.
+- **Patterns I will follow:** for each task, the **Follow** references
+  (harness rules, conventions, ADRs, design system) and the existing file you
+  will mirror, read before you write. Code shown in the plan is intent, not
+  style: the project's own code decides how the body looks.
 - **Siblings I read:** for each method, query, or branch you will change, the
   sibling you read (`file:line`) and what it does differently.
 - **Filters, guards, and try/catch this batch removes:** one per line, with
