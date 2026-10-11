@@ -3,58 +3,69 @@
   "notes": [
     "Mede se o visual companion e oferecido quando a demanda tem superficie visual.",
     "Escrito ANTES da alteracao da skill, para que o baseline nao seja medido com casos feitos sob medida para a correcao.",
-    "Casos 9 e 10 sao deliberadamente ambiguos: nao contam para sensibilidade nem especificidade, so sao reportados."
+    "Casos 9 e 10 sao deliberadamente ambiguos: nao contam para sensibilidade nem especificidade, so sao reportados.",
+    "Dois turnos desde o sync v7.0.0 (out/2026): o brainstorming novo abre com opt-out + uma pergunta aberta, e a oferta vem na resposta seguinte. Cada caso tem uma resposta neutra do parceiro (`answer`), escrita sem nada visual; a oferta conta se aparecer na primeira OU na segunda mensagem."
   ],
   "cases": [
     {
       "id": "tela-cadastro-nova",
       "surface": true,
-      "prompt": "Precisamos de uma tela nova de cadastro de fornecedores no sistema. Ela precisa dos dados cadastrais, validacao de CNPJ e a lista de contatos do fornecedor."
+      "prompt": "Precisamos de uma tela nova de cadastro de fornecedores no sistema. Ela precisa dos dados cadastrais, validacao de CNPJ e a lista de contatos do fornecedor.",
+      "answer": "Hoje o pessoal de compras anota o fornecedor numa planilha quando chega a primeira proposta, e depois alguem redigita tudo no sistema antigo."
     },
     {
       "id": "redesenho-dashboard",
       "surface": true,
-      "prompt": "O dashboard de indicadores da diretoria esta confuso: ninguem acha o que precisa. Quero reorganizar a disposicao dos cards e dos graficos."
+      "prompt": "O dashboard de indicadores da diretoria esta confuso: ninguem acha o que precisa. Quero reorganizar a disposicao dos cards e dos graficos.",
+      "answer": "A diretoria abre o dashboard na reuniao de segunda para ver execucao orcamentaria e contratos vencendo, e perde uns dez minutos procurando os numeros."
     },
     {
       "id": "wizard-onboarding",
       "surface": true,
-      "prompt": "Quero um fluxo de onboarding em tres etapas para usuarios novos: dados da empresa, escolha do plano e confirmacao."
+      "prompt": "Quero um fluxo de onboarding em tres etapas para usuarios novos: dados da empresa, escolha do plano e confirmacao.",
+      "answer": "Sao prefeituras pequenas que acabaram de contratar o sistema; quem faz o cadastro costuma ser alguem do administrativo, sem muita familiaridade."
     },
     {
       "id": "relatorio-impresso",
       "surface": true,
-      "prompt": "Precisamos de um relatorio de fechamento mensal para impressao, com cabecalho institucional, totalizadores e quebra por setor."
+      "prompt": "Precisamos de um relatorio de fechamento mensal para impressao, com cabecalho institucional, totalizadores e quebra por setor.",
+      "answer": "Ele e assinado pelo secretario e vai para o arquivo e para o tribunal de contas no fim de cada mes."
     },
     {
       "id": "endpoint-saldo",
       "surface": false,
-      "prompt": "Criar um endpoint REST que retorna o saldo atual de um contrato a partir do id do contrato."
+      "prompt": "Criar um endpoint REST que retorna o saldo atual de um contrato a partir do id do contrato.",
+      "answer": "O app de fiscalizacao precisa mostrar o saldo quando o fiscal abre o contrato em campo."
     },
     {
       "id": "migracao-coluna",
       "surface": false,
-      "prompt": "Precisamos incluir a coluna centro_de_custo na tabela de lancamentos, com script de migracao e backfill dos registros existentes."
+      "prompt": "Precisamos incluir a coluna centro_de_custo na tabela de lancamentos, com script de migracao e backfill dos registros existentes.",
+      "answer": "A controladoria precisa filtrar os lancamentos por centro de custo nos relatorios a partir do proximo exercicio."
     },
     {
       "id": "refactor-service",
       "surface": false,
-      "prompt": "O service de calculo de impostos esta com quase 900 linhas e ficou impossivel de manter. Quero separar as regras por tipo de imposto."
+      "prompt": "O service de calculo de impostos esta com quase 900 linhas e ficou impossivel de manter. Quero separar as regras por tipo de imposto.",
+      "answer": "Toda mudanca de aliquota vira uma semana de testes porque ninguem tem certeza do que cada parte faz."
     },
     {
       "id": "cli-exporta-log",
       "surface": false,
-      "prompt": "Escrever um comando de linha que exporta os logs de auditoria de um periodo para um arquivo CSV."
+      "prompt": "Escrever um comando de linha que exporta os logs de auditoria de um periodo para um arquivo CSV.",
+      "answer": "A auditoria interna pede esses logs uma vez por trimestre e hoje alguem roda SQL na mao."
     },
     {
       "id": "ambiguo-api-com-documentacao",
       "surface": null,
-      "prompt": "Vamos expor uma API publica de consulta de notas fiscais e publicar a documentacao dela para os parceiros."
+      "prompt": "Vamos expor uma API publica de consulta de notas fiscais e publicar a documentacao dela para os parceiros.",
+      "answer": "Os parceiros sao escritorios de contabilidade que hoje baixam as notas uma a uma pelo portal."
     },
     {
       "id": "ambiguo-email-transacional",
       "surface": null,
-      "prompt": "Precisamos disparar um email de confirmacao quando o pedido for aprovado."
+      "prompt": "Precisamos disparar um email de confirmacao quando o pedido for aprovado.",
+      "answer": "O cliente nao sabe se o pedido foi aprovado e liga para o suporte."
     }
   ]
 }

@@ -14,7 +14,7 @@ const scorePath = path.join(__dirname, 'score.js');
 // score.js roda ao ser carregado; reimplementamos so as regex, mantidas em
 // sincronia manualmente. Se divergirem, este teste passa e o eval mente — por
 // isso as constantes abaixo sao copia literal das de score.js.
-const VISUAL_TERM = /(mockup|wireframe|prot[oó]tipo|visual companion|companion visual|preview|pr[eé]-?visualiza|esbo[cç]o|tela de exemplo|maquete)/i;
+const VISUAL_TERM = /(mockup|wireframe|prot[oó]tipo|visual companion|companion visual|preview|pr[eé]-?visualiza|esbo[cç]o|tela de exemplo|maquete|diagrama|diagram|mapa mental|mind map|aba no navegador|browser tab)/i;
 const OFFER_MARK = /(quer que|gostaria|posso (montar|fazer|preparar|gerar|criar)|te mostr|lhe mostr|mostrar para voc|want me|shall i|i can put together|montar (um|uma)|prefere)/i;
 const SURFACE_CHECK = /superf[ií]cie visual\s*[:\-]\s*(sim|n[aã]o|yes|no)/i;
 
@@ -66,6 +66,9 @@ console.log('--- oferta do companion: deve DETECTAR ---');
   'Posso preparar um esboço da disposição dos cards no dashboard, se preferir ver antes de decidir.',
   'Gostaria de ver um wireframe da tela antes de eu escrever a spec?',
   'Uma coisa antes das perguntas. Posso montar um mockup da tela. Quer ver?',
+  'Isso fica mais fácil se eu mostrar. Quer que eu abra uma aba no navegador com alguns mockups?',
+  'Posso montar um diagrama do fluxo de aprovação para você corrigir antes de seguirmos. Quer?',
+  'This might be easier if I show you. Want me to open a browser tab with some mockups?',
 ].forEach((t) => check(detectOffer(t), t.slice(0, 62)));
 
 console.log('--- oferta do companion: NAO deve detectar ---');
@@ -76,6 +79,7 @@ console.log('--- oferta do companion: NAO deve detectar ---');
   'Vou seguir os padrões visuais existentes em src/components.',
   'O relatório impresso precisa de cabeçalho e totalizadores.',
   'Quer que eu comece pelo endpoint de consulta? A validação fica na camada de serviço.',
+  'O diagrama de classes atual tem três camadas; a regra fica no service.',
 ].forEach((t) => check(!detectOffer(t), t.slice(0, 62)));
 
 console.log('--- marcador da checagem de superficie ---');
