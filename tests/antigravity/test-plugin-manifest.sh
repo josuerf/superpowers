@@ -32,8 +32,8 @@ for field in ["name", "description", "displayName", "logo",
     if not manifest.get(field):
         fail(f"manifest field {field!r} is missing or empty")
 
-if manifest["name"] != "superpowers":
-    fail(f"name must be 'superpowers', got {manifest['name']!r}")
+if manifest["name"] != "superpowers-prepared":  # [fork]
+    fail(f"name must be 'superpowers-prepared', got {manifest['name']!r}")
 if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", manifest["name"]):
     fail("name is not kebab-case")
 
@@ -79,16 +79,21 @@ if not any(entry.get("path") == ".antigravity-plugin/plugin.json"
 # description is what gets the model to load it at the start of a session.
 skill_md = (root / "skills" / "using-superpowers" / "SKILL.md").read_text(encoding="utf-8")
 frontmatter = re.match(r"---\n(.*?)\n---\n", skill_md, re.DOTALL)
-description = frontmatter and re.search(r"^description:(.*)$", frontmatter.group(1), re.MULTILINE)
-if not description or "Use when starting any conversation" not in description.group(1):
-    fail("using-superpowers description no longer says 'Use when starting any "
-         "conversation'; Antigravity relies on it to bootstrap")
+# [fork] the fork's description is a folded block ("description: >") whose
+# bootstrap phrase is "BLOCKING REQUIREMENT — invoke this skill BEFORE".
+description = frontmatter and " ".join(frontmatter.group(1).split())
+if not description or "invoke this skill BEFORE" not in description:
+    fail("using-superpowers description no longer says 'invoke this skill "
+         "BEFORE'; Antigravity relies on it to bootstrap")
 
 # --- Layout agy depends on -------------------------------------------------
 # A root plugin.json would be read instead of .antigravity-plugin/plugin.json,
 # a root hooks.json would run on every model call, and Cursor loads any
 # rules/*.md shipped in a plugin.
-for stray in ["plugin.json", "hooks.json", "rules"]:
+# [fork] the fork ships a root plugin.json (name only, since v6.7.0) and a
+# root hooks.json (kept in sync with hooks/hooks.json) and does not target
+# Antigravity yet; see FORK-DELTA.md before removing either.
+for stray in ["rules"]:
     if (root / stray).exists():
         fail(f"root {stray} must not exist")
 PY
