@@ -198,6 +198,13 @@ step's code is written first and run first. Watching it fail is a step,
 not a formality — a test that passes before the implementation exists is
 a finding about the test.
 
+<!-- [fork] --> Write each body the way the project already writes it: read
+the task's **Follow** references (harness rules, conventions, ADRs, design
+system, the sibling to mirror) and the plan's Design Decisions before the
+first edit. Code shown in the plan is intent, not style. When a harness
+standard and generic good practice disagree, the harness wins; if following
+it would seriously break good practice, stop and ask your human partner.
+
 Every step that runs a command has an `Expected:` line. Run the command,
 read its output, and compare. Three outcomes:
 

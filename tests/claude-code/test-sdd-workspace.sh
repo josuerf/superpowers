@@ -17,6 +17,16 @@ fail() {
     FAILURES=$((FAILURES + 1))
 }
 
+# Push a path through the same `cd ... && pwd` normalization that
+# sdd-workspace's own printed output goes through, so both sides of a
+# string comparison are guaranteed to be spelled identically. On Windows
+# Git Bash/MSYS, `git rev-parse --show-toplevel` (Windows-style,
+# C:/Users/...) and `cd ... && pwd` (MSYS-style, /c/Users/...) can print
+# different spellings of the identical physical directory; on Linux/macOS
+# this is a no-op since the two already agree (module the resolved-symlink
+# /var -> /private/var case handled by the mktemp comment above).
+physical_path() { (cd "$1" && pwd); }
+
 cleanup() {
     if [[ -n "$TEST_ROOT" && -d "$TEST_ROOT" ]]; then
         rm -rf "$TEST_ROOT"
@@ -31,12 +41,11 @@ main() {
 
     # Resolve repo to its physical path so string comparisons match the
     # helper's output (git rev-parse --show-toplevel resolves symlinks; on
-    # macOS mktemp lives under /var -> /private/var). On Git Bash for Windows
-    # rev-parse prints a Windows path (C:/...) while the helpers print an MSYS
-    # one (/c/...), so pass it through the same `cd && pwd` the helpers use.
+    # macOS mktemp lives under /var -> /private/var).
     git init -q -b main "$TEST_ROOT/repo"
     local repo
-    repo="$(cd "$(cd "$TEST_ROOT/repo" && git rev-parse --show-toplevel)" && pwd)"
+    repo="$(cd "$TEST_ROOT/repo" && git rev-parse --show-toplevel)"
+    repo="$(physical_path "$repo")"
 
     cat > "$repo/plan-a.md" <<'PLAN'
 # Plan A
@@ -123,7 +132,8 @@ PLAN
     # --- task-brief lands in its plan's directory ---
     local brief_out brief_path
     brief_out="$(cd "$repo" && "$SDD_SCRIPTS/task-brief" plan-a.md 1)"
-    brief_path="$(printf '%s\n' "$brief_out" | sed -n 's/^wrote \(.*\): [0-9][0-9]* lines$/\1/p')"
+    # [fork] the fork's task-brief appends ", N task(s)" (batch briefs).
+    brief_path="$(printf '%s\n' "$brief_out" | sed -n 's/^wrote \(.*\): [0-9][0-9]* lines.*$/\1/p')"
     if [[ "$brief_path" == "$repo/.superpowers/sdd/plan-a/task-1-brief.md" ]]; then
         pass "task-brief writes its brief under the plan's workspace"
     else
@@ -195,7 +205,8 @@ PLAN
     local wt="$TEST_ROOT/wt"
     ( cd "$repo" && git worktree add -q "$wt" -b wt-feature )
     local wt_root wt_dir
-    wt_root="$(cd "$(cd "$wt" && git rev-parse --show-toplevel)" && pwd)"
+    wt_root="$(cd "$wt" && git rev-parse --show-toplevel)"
+    wt_root="$(physical_path "$wt_root")"
     wt_dir="$(cd "$wt" && "$SDD_SCRIPTS/sdd-workspace" plan-a.md)"
     if [[ "$wt_dir" == "$wt_root/.superpowers/sdd/plan-a" && "$wt_dir" != "$dir_a" ]]; then
         pass "linked worktree resolves its own distinct workspace"
@@ -352,13 +363,22 @@ PLAN
         echo "    marker: $(cat "$dir_out/plan-path" 2>/dev/null)"
     fi
 
-    # --- [fork] A committed .gitignore is respected, not overwritten ---
-    printf '*.diff\n' > "$repo/.superpowers/sdd/.gitignore"
-    (cd "$repo" && "$SDD_SCRIPTS/sdd-workspace" "$TEST_ROOT/outside/remote-plan.md" >/dev/null)
-    if [[ "$(cat "$repo/.superpowers/sdd/.gitignore")" == "*.diff" ]]; then
-        pass "existing .superpowers/sdd/.gitignore is kept (repo opts into versioning)"
+    # --- A repo's own committed .superpowers/sdd/.gitignore is left alone ---
+    git init -q -b main "$TEST_ROOT/own-ignore"
+    local own own_ignore
+    own="$(cd "$TEST_ROOT/own-ignore" && git rev-parse --show-toplevel)"
+    own_ignore=$'*\n!.gitignore\n!*/\n!*/progress.md'
+    mkdir -p "$own/.superpowers/sdd"
+    printf '%s\n' "$own_ignore" > "$own/.superpowers/sdd/.gitignore"
+    printf '# Plan\n\n## Task 1: One\n\nOne.\n' > "$own/plan.md"
+    (cd "$own" && git add -A && git -c user.name=t -c user.email=t@t commit -qm init)
+    (cd "$own" && "$SDD_SCRIPTS/sdd-workspace" plan.md >/dev/null)
+    if [[ "$(cat "$own/.superpowers/sdd/.gitignore")" == "$own_ignore" \
+        && -z "$(cd "$own" && git status --porcelain -- .superpowers/sdd/.gitignore)" ]]; then
+        pass "an existing .superpowers/sdd/.gitignore is not overwritten"
     else
-        fail "existing .superpowers/sdd/.gitignore is kept (repo opts into versioning)"
+        fail "an existing .superpowers/sdd/.gitignore is not overwritten"
+        echo "    now: $(cat "$own/.superpowers/sdd/.gitignore")"
     fi
 
     echo ""

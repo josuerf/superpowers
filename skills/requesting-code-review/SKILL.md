@@ -93,12 +93,23 @@ The red team agent finds concrete failure scenarios (specific inputs, race condi
 
 **Red team critical findings block merge** alongside security critical findings.
 
+## Example
+
+```
+[Just completed Task 2: Add verification function]
+
+You: Let me request code review before proceeding.
+
+BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | cut -d' ' -f1)
+HEAD_SHA=$(git rev-parse HEAD)
+
 [Dispatch code reviewer subagent]
   WHAT_WAS_IMPLEMENTED: ...
   DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
   PLAN_OR_REQUIREMENTS: Task 2 from docs/superpowers-prepared/plans/deployment-plan.md
   BASE_SHA: a7981ec
   HEAD_SHA: 3df7661
+```
 
 ## Auto-Fix Pipeline
 

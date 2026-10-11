@@ -393,7 +393,7 @@ With this stack, sessions start with full context and zero re-discovery overhead
 
 ### Design & Planning
 - **deliberation** — Structured decision analysis for complex architectural choices: assembles 3–5 named stakeholder perspectives, each speaks once without debate, then surfaces convergence points and live tensions without forcing a premature conclusion. Use before brainstorming when the problem itself may need reframing
-- **brainstorming** — Socratic design refinement with engineering rigor, project-level scope decomposition, and architecture guidance for existing codebases
+- **brainstorming** — Draws out what you want and why (open questions, playback in chunks, visual companion for screens and flows), sizes the work, and has a builder subagent check the written design before planning
 - **writing-plans** — Executable implementation plans with exact paths, verification commands, TDD ordering, and pre-execution plan review gate
 - **claude-md-creator** — Create lean, high-signal CLAUDE/AGENTS context files for repositories
 
@@ -595,8 +595,9 @@ Install Superpowers as a plugin from this repository:
 agy plugin install https://github.com/josuerf/superpowers-prepared
 ```
 
-Antigravity runs the plugin's session-start hook, so Superpowers is active from
-the first message. Reinstall with the same command to update.
+Antigravity lists each installed skill's description, and the description of
+the `using-superpowers` skill prompts the model to load that skill at the start
+of a conversation. Reinstall with the same command to update.
 
 ### Codex App
 
@@ -886,7 +887,7 @@ Superpowers Optimized is a fork of [Superpowers](https://github.com/obra/superpo
 - **diagnosing-superpowers** - Work out what went wrong in a session, with evidence; export a scrubbed bundle or file an issue
 
 **Collaboration** 
-- **brainstorming** - Socratic design refinement
+- **brainstorming** - Drawing out intent before building
 - **writing-plans** - Detailed implementation plans
 - **executing-plans** - Inline plan execution: one context, one final review
 - **dispatching-parallel-agents** - Concurrent subagent workflows

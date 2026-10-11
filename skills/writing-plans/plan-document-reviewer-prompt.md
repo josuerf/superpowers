@@ -34,6 +34,8 @@ Subagent (general-purpose):
     | Buildability | Could an engineer follow this plan without getting stuck? |
     | Blast Radius | Does it exist? Does every row have a command AND a count? Does it cover REMOVALS, not only additions? Does every sibling-method divergence have a justification? A table without commands is theater — reject it. | <!-- [fork] -->
     | Invariants | Does it exist? Does every line cite a source (spec §, ADR, laudo §5, or file:line)? An invariant without a source is the planner's opinion. | <!-- [fork] -->
+    | Transcript | Does any code step carry a body the signature, tests, and Follow line already determine? Implementers copy plan code and skip the project's patterns — flag every such body. | <!-- [fork] -->
+    | Harness | Does every task have a Follow line (harness docs, sibling code to mirror, project agent/skills)? Does every Design Decisions line cite its source, and is every departure from the harness confirmed? | <!-- [fork] -->
 
     Phase grouping matters more than it looks: the executor forms its
     subagent batches from these phases, and over-splitting them is the
