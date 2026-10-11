@@ -154,6 +154,37 @@ Produza AGORA a proxima mensagem que voce enviaria a ele, e apenas ela.
 Nao implemente nada e nao escreva codigo.`;
 }
 
+// Segundo turno: o brainstorming abre com opt-out + uma pergunta aberta, e a
+// oferta do companion vem na resposta seguinte. A resposta do parceiro e
+// neutra (nada visual), escrita por caso em `answer`.
+function buildVisualFollowUpPrompt(skillText, scenario, firstReply, answer) {
+  return `Voce e um agente de engenharia seguindo a skill abaixo, que ja esta carregada.
+Siga-a exatamente como faria numa sessao real.
+
+<SKILL name="brainstorming">
+${skillText}
+</SKILL>
+
+${PROJECT_CONTEXT}
+
+Seu parceiro humano escreveu:
+
+"${scenario}"
+
+Voce respondeu:
+
+<SUA_RESPOSTA>
+${firstReply}
+</SUA_RESPOSTA>
+
+Ele respondeu agora:
+
+"${answer}"
+
+Produza AGORA a proxima mensagem que voce enviaria a ele, e apenas ela.
+Nao implemente nada e nao escreva codigo.`;
+}
+
 function buildExecutionPrompt(skillText, planText, planPath) {
   return `Voce e um agente de engenharia seguindo a skill abaixo, que ja esta carregada.
 Siga-a exatamente como faria numa sessao real.
@@ -185,7 +216,7 @@ function currentRef() {
   return `${(b.stdout || '').trim()}@${(r.stdout || '').trim()}`;
 }
 
-function runSuite(name, cfgFile, buildPrompt, checkpoint) {
+function runSuite(name, cfgFile, buildPrompt, checkpoint, buildFollowUp) {
   const cfg = JSON.parse(fs.readFileSync(path.join(HERE, cfgFile), 'utf8'));
   const skillText = readSkill(cfg.skill);
   const cases = ONLY ? cfg.cases.filter((c) => c.id === ONLY) : cfg.cases;
@@ -197,9 +228,19 @@ function runSuite(name, cfgFile, buildPrompt, checkpoint) {
       n += 1;
       process.stderr.write(`  [${name}] ${n}/${total} ${c.id} rep${rep} ... `);
       const prompt = buildPrompt(skillText, c);
-      const r = runClaude(prompt);
+      let r = runClaude(prompt);
+      let turns = [r.text];
+      // Suite de dois turnos: o segundo prompt carrega a primeira resposta, e
+      // o texto pontuado e a conversa inteira do agente (turno 1 + turno 2).
+      if (buildFollowUp && !r.error) {
+        const r2 = runClaude(buildFollowUp(skillText, c, r.text));
+        turns = [r.text, r2.text];
+        const usage = {};
+        for (const k of Object.keys(r.usage)) usage[k] = r.usage[k] + (r2.usage[k] || 0);
+        r = { text: turns.join('\n\n---\n\n'), usage, ms: r.ms + r2.ms, error: r2.error };
+      }
       process.stderr.write(r.error ? `ERRO (${r.ms}ms)\n` : `ok (${r.ms}ms, ${r.usage.total} tok)\n`);
-      runs.push({ caseId: c.id, rep, ...c, text: r.text, usage: r.usage, ms: r.ms, error: r.error });
+      runs.push({ caseId: c.id, rep, ...c, text: r.text, turns, usage: r.usage, ms: r.ms, error: r.error });
       // Grava a cada execucao: uma suite completa leva dezenas de minutos e ja
       // foi perdida inteira por uma interrupcao. Parcial pontua normalmente —
       // score.js divide pelo que existe, nao pelo que era esperado.
@@ -395,7 +436,8 @@ function main() {
 
   if (SUITE === 'visual' || SUITE === 'both' || SUITE === 'all') {
     suites.push(runSuite('visual-companion', 'cases-visual-companion.json',
-      (skill, c) => buildVisualPrompt(skill, c.prompt), flush));
+      (skill, c) => buildVisualPrompt(skill, c.prompt), flush,
+      (skill, c, first) => buildVisualFollowUpPrompt(skill, c.prompt, first, c.answer)));
   }
   for (const [key, [name, cfgFile]] of Object.entries(CHECK_SUITES)) {
     if (SUITE === key || SUITE === 'all') suites.push(runCheckSuite(name, cfgFile, flush));

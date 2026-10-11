@@ -15,6 +15,11 @@
 #      parsers break on it (upstream #1751, #1918) and the bootstrap silently
 #      never loads. Covered by tests/hooks/test-session-start.sh — if the
 #      compiler drops unknown keys, re-add it and make that test pass.
+#   3. No plugin.json or hooks.json at the repo ROOT. Nothing reads them
+#      (Claude Code and Copilot CLI use .claude-plugin/ and hooks/hooks.json),
+#      and Antigravity reads a root plugin.json instead of
+#      .antigravity-plugin/ and runs a root hooks.json on every model call.
+#      Delete them if a compile emits them; tests/antigravity guards this.
 
 meta:
   name: superpowers-prepared

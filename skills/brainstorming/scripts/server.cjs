@@ -84,6 +84,8 @@ function decodeFrame(buffer) {
 
 const PORT_FILE = process.env.BRAINSTORM_PORT_FILE || null;
 const randomPort = () => 49152 + Math.floor(Math.random() * 16383);
+// [fork] True while PORT is a random draw, which may be redrawn on a refused bind.
+let portIsRandom = false;
 // Prefer an explicit port, else the port this session last bound (so a restart
 // reuses it and an already-open browser tab reconnects), else a random high port.
 function preferredPort() {
@@ -94,6 +96,7 @@ function preferredPort() {
       if (Number.isInteger(p) && p > 1023 && p < 65536) return p;
     } catch (e) { /* no prior port recorded */ }
   }
+  portIsRandom = true;
   return randomPort();
 }
 let PORT = preferredPort();
@@ -661,6 +664,10 @@ function startServer() {
   let triedFallback = false;
 
   function onListen() {
+    // [fork] The idle clock starts when we can be reached, not at process
+    // start: a slow startup (antivirus scanning node on Windows took 2s+)
+    // must not eat the idle window before any client can connect.
+    lastActivity = Date.now();
     // Cookie name keys on the ACTUAL bound port (may differ from the preferred
     // one after an EADDRINUSE fallback) so it can't collide with another server's
     // cookie in the shared localhost jar.
@@ -683,18 +690,35 @@ function startServer() {
       url_host: URL_HOST, url: companionUrl(),
       screen_dir: CONTENT_DIR, state_dir: STATE_DIR, idle_timeout_ms: IDLE_TIMEOUT_MS
     });
-    console.log(info);
     // server-info embeds the key — keep it owner-only.
-    fs.writeFileSync(path.join(STATE_DIR, 'server-info'), info + '\n', { mode: 0o600 });
+    // [fork] Written before the stdout line and swapped in by rename: anyone
+    // who reacts to "server-started" on stdout could otherwise read an empty
+    // or half-written file (seen on Windows as a flaky server.test.js).
+    const infoFile = path.join(STATE_DIR, 'server-info');
+    fs.writeFileSync(infoFile + '.tmp', info + '\n', { mode: 0o600 });
+    fs.renameSync(infoFile + '.tmp', infoFile);
+    console.log(info);
   }
 
+  // [fork] EACCES is a refused port too: Windows reserves dynamic ranges for
+  // Hyper-V/WSL/Docker, and a random draw that lands in one used to kill the
+  // server. A random port is simply drawn again, a few times.
+  let randomRedraws = 0;
   server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE' && !triedFallback) {
+    const refused = err.code === 'EADDRINUSE' || err.code === 'EACCES';
+    if (refused && portIsRandom && randomRedraws < 10) {
+      randomRedraws++;
+      PORT = randomPort();
+      server.listen(PORT, HOST, onListen);
+      return;
+    }
+    if (refused && !triedFallback) {
       if (tokenSource === 'env') {
         console.error('Server failed to bind: preferred port is in use and BRAINSTORM_TOKEN is set; refusing fallback with explicit token');
         process.exit(1);
       }
       triedFallback = true;
+      portIsRandom = true;
       PORT = randomPort();
       if (tokenSource === 'file') {
         TOKEN = generateToken();

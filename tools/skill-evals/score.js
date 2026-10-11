@@ -14,7 +14,7 @@ const { classify } = require('./business-rule-detector');
 // --- deteccao: oferta do visual companion ------------------------------------
 // Um termo visual sozinho nao e oferta ("vamos discutir o layout" nao e).
 // Exigimos um termo visual E um marcador de oferta na MESMA frase.
-const VISUAL_TERM = /(mockup|wireframe|prot[oó]tipo|visual companion|companion visual|preview|pr[eé]-?visualiza|esbo[cç]o|tela de exemplo|maquete)/i;
+const VISUAL_TERM = /(mockup|wireframe|prot[oó]tipo|visual companion|companion visual|preview|pr[eé]-?visualiza|esbo[cç]o|tela de exemplo|maquete|diagrama|diagram|mapa mental|mind map|aba no navegador|browser tab)/i;
 const OFFER_MARK = /(quer que|gostaria|posso (montar|fazer|preparar|gerar|criar)|te mostr|lhe mostr|mostrar para voc|want me|shall i|i can put together|montar (um|uma)|prefere)/i;
 // Marcador explicito da checagem de superficie (existe so depois da Fase 2).
 const SURFACE_CHECK = /superf[ií]cie visual\s*[:\-]\s*(sim|n[aã]o|yes|no)/i;

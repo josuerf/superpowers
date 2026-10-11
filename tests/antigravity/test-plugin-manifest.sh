@@ -90,10 +90,7 @@ if not description or "invoke this skill BEFORE" not in description:
 # A root plugin.json would be read instead of .antigravity-plugin/plugin.json,
 # a root hooks.json would run on every model call, and Cursor loads any
 # rules/*.md shipped in a plugin.
-# [fork] the fork ships a root plugin.json (name only, since v6.7.0) and a
-# root hooks.json (kept in sync with hooks/hooks.json) and does not target
-# Antigravity yet; see FORK-DELTA.md before removing either.
-for stray in ["rules"]:
+for stray in ["plugin.json", "hooks.json", "rules"]:
     if (root / stray).exists():
         fail(f"root {stray} must not exist")
 PY

@@ -72,7 +72,7 @@ upstream tira a linha desta tabela.
 | `skills/writing-skills/persuasion-principles.md` | só EOL | — (sem customização) | só EOL |
 | `skills/writing-skills/render-graphs.js` | só EOL | — (sem customização) | só EOL |
 | `skills/writing-skills/testing-skills-with-subagents.md` | prefixo `superpowers-prepared:` nas referências de skill | o nome da skill faz parte do texto | nenhum (pré-convenção) |
-| `tests/antigravity/test-plugin-manifest.sh` | nome `superpowers-prepared`, frase de bootstrap da `description` do fork ("invoke this skill BEFORE"), sem checar `plugin.json`/`hooks.json` da raiz (o fork tem os dois e não mira o Antigravity ainda) | o teste cobre o manifesto que o fork rebatizou | `# [fork]` |
+| `tests/antigravity/test-plugin-manifest.sh` | nome `superpowers-prepared` e frase de bootstrap da `description` do fork ("invoke this skill BEFORE") | o teste cobre o manifesto que o fork rebatizou | `# [fork]` |
 | `tests/claude-code/test-sdd-workspace.sh` | regex aceita o sufixo ", N task(s)" da saída do `task-brief` do fork | o teste cobre o script que o fork alterou | `# [fork]` |
 | `tests/devin/test-devin-plugin.sh` | espera o nome `superpowers-prepared` e o repositório do fork | o teste confere o manifesto renomeado | nenhum (pré-convenção) |
 | `tests/hermes/test_bootstrap.py` | marcador de bootstrap e `skill_view` com `superpowers-prepared:` | idem, para Hermes | nenhum (pré-convenção) |
