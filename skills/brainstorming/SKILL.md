@@ -272,8 +272,8 @@ browser.
 
 <!-- [fork] -->
 **Visual surface check.** Don't wait to feel that a picture would help;
-that test rarely fires. After reading the project and before your second
-question, write one line:
+that test rarely fires. After reading the project, and before you reply to
+their first answer, write one line:
 
 > **Visual surface: yes/no.** Will this create or change something a person
 > looks at (a screen, a flow across screens, a component, navigation, a
@@ -281,8 +281,9 @@ question, write one line:
 > structure of three or more parts that a diagram or mind map would show
 > faster than text?
 
-Yes: the offer is owed the first time one of the moments above comes up.
-No: stay in text unless a playback chunk trips the check above.
+Yes: your reply to their first answer is the offer, on its own; don't wait
+for a playback chunk. No: stay in text unless a playback chunk trips the
+check above.
 
 **Offer it just-in-time.** Offer it the first time one of the moments
 above comes up, never upfront. The offer is its own message with nothing
