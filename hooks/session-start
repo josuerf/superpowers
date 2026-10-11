@@ -422,7 +422,13 @@ fi
 # Generate .harness.config.json with default values if it doesn't exist yet.
 # This makes the configuration visible and editable without needing to look up
 # every field. Only generates if the file is absent — never overwrites.
-node -e "
+# Never inside the plugin itself: a session started from its hooks/ or root
+# directory (tests do this) is not a project to configure.
+case "$(pwd -P)" in
+  "$PLUGIN_ROOT"|"$PLUGIN_ROOT"/*) harness_gen_skip=1 ;;
+  *) harness_gen_skip=0 ;;
+esac
+[ "$harness_gen_skip" = 1 ] || node -e "
     const fs = require('fs');
     const p = require('path').join(process.cwd(), '.harness.config.json');
     if (!fs.existsSync(p)) {
