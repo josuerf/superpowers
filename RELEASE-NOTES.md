@@ -1,5 +1,68 @@
 # Superpowers Optimized Release Notes
 
+## v6.25.0 (2026-10-11)
+
+Sync with upstream `obra/superpowers` v6.4.2 and v7.0.0 (their notes are
+further down). The two upstream changes that matter most here are the
+rebuilt brainstorming and plans that record decisions instead of code; the
+fork layers its harness rules on top of both.
+
+### Brainstorming
+
+- **Upstream v7 skeleton, fork blocks on top.** The skill now draws out
+  intent before it routes: an opt-out line and one open question first,
+  open questions before menus, "how it gets made" (which platform, language,
+  and library choices the user owns), playback in 200-300 word chunks with
+  guesses marked, sizing after understanding, and a **builder check**
+  subagent that replaces the spec-document reviewer.
+- Kept from the fork, marked `[fork]`: Quality Gates on every size that
+  ships code (opting out of the questions never skips them), the
+  mini-envelope for query filters and regulatory exports, the failure-mode
+  check, the spec path, and the local-vs-Artifact choice.
+- **The harness is the default.** Its rules, design system, ADRs,
+  conventions, agents, and playbooks win over generic good practice; a
+  departure needs a serious good-practice reason and the user's confirmation.
+- **Visuals come earlier and cover more.** The written surface check now
+  also fires for processes, flows, and structures of three or more parts
+  (diagram, mind map), and a "yes" makes the reply to the user's first
+  answer the companion offer. Playback chunks that describe a flow get a
+  diagram next to them.
+
+### Writing Plans
+
+- **No implementation code in plans.** Upstream v6.4.2's "What a Step
+  Contains": a code step carries the signature, the file, and the spec's
+  values; a body only for an algorithm the signature and tests do not
+  determine. Implementers were copying plan code and skipping the project's
+  patterns.
+- New in the fork: **Acceptance criteria** and **Follow** per task (harness
+  docs, the sibling code to mirror, project agent and skills), a **Design
+  Decisions** section with a source per choice, Self-Review items for
+  proportion (task steps only) and harness coverage. Fixes the duplicated
+  "Step 1" in the task template.
+- `plan-document-reviewer-prompt.md` stays (upstream removed it): the
+  `revisor-plano-desconfirmatorio` eval uses it. It now flags transcripts and
+  missing Follow lines.
+
+### Subagent-Driven Development and Executing Plans
+
+- Implementers follow the task's **Follow** line and the harness, never the
+  style of code shown in a plan; the brief's context envelope carries Design
+  Decisions and the readback asks which patterns they will follow.
+- The controller prefers the project's own agents, skills, and playbooks
+  over `general-purpose` when one fits.
+
+### Hooks and scripts
+
+- `run-hook.cmd` from upstream: per-user Git for Windows, skips WSL `bash`
+  launchers, never runs a `bash.cmd`/`where.bat` planted in the repo, and
+  passes the hook's exit code.
+- `session-start` reads the bootstrap in pure bash (no `dirname`/`awk`), so
+  it survives a SessionStart launched with a broken `PATH`.
+- `sdd-workspace` keeps plan markers repo-relative on Git Bash; `task-done`
+  records tasks whose test passes silently; `server.cjs` inserts screens
+  containing `$'` or `$&` intact.
+
 ## v6.23.0 (2026-09-25)
 
 Implements plan M of the September 2026 code-review study (308 findings over
