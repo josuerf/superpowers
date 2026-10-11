@@ -1,11 +1,30 @@
 # Superpowers Optimized Release Notes
 
-## v6.25.0 (2026-10-11)
+## v7.0.0 (2026-10-11)
 
 Sync with upstream `obra/superpowers` v6.4.2 and v7.0.0 (their notes are
-further down). The two upstream changes that matter most here are the
-rebuilt brainstorming and plans that record decisions instead of code; the
-fork layers its harness rules on top of both.
+further down); the fork's major version follows upstream's. The two upstream
+changes that matter most here are the rebuilt brainstorming and plans that
+record decisions instead of code; the fork layers its harness rules on top
+of both.
+
+### Visual companion on Windows
+
+- **The server no longer dies on a port Windows reserves.** Hyper-V, WSL,
+  and Docker reserve dynamic port ranges; a random port that landed in one
+  failed with `EACCES` and the companion exited (2 of 15 starts on a dev
+  machine). `EACCES` now counts as a refused port, and a random port is
+  drawn again, up to 10 times.
+- `server-info` is written before the `server-started` line, through a
+  temp file and rename, so nothing reads it half-written.
+- The idle clock starts when the server listens, not when the process
+  starts: a slow start (antivirus scanning node) no longer eats the window.
+
+### Antigravity
+
+- The fork installs as a native Antigravity plugin: the root `plugin.json`
+  and `hooks.json` (hookbridge leftovers nothing read) are gone, and
+  `agy plugin validate` (1.3.3) reports `[ok]`.
 
 ### Brainstorming
 
