@@ -21,6 +21,11 @@
   either implements one task as the implementer (readback without waiting,
   no commit) or reviews one wave (batch review, plus the red team when
   asked) into a findings file, changing nothing else.
+- **`SUPERPOWERS_PREPARED_RITO=1` quiets this plugin's hooks** for the
+  caller's session: no `.harness.config.json`, `context-snapshot.json` or
+  `.gitignore` written in the working directory, and no carrasco gate,
+  commit, decision-log or SDD-trailer order at Stop or after a commit. Set
+  it only where another tool owns review and commit.
 - **New eval suite `modo-rito`** (`run.js --suite rito`): each case runs in
   a temporary git repository and checks what the session wrote and
   committed, both with and without the marker. `rito-test.js` tests the

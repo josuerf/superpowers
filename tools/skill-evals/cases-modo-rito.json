@@ -284,7 +284,7 @@
         {
           "id": "readback-no-1o-turno",
           "type": "first-turn-regex",
-          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei|confirm the contract|confirm(o|ar) o contrato"
+          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei|confirm the contract|confirm(o|ar) o contrato|confirma[cç][aã]o do contrato|Antes de escrever c[oó]digo"
         },
         {
           "id": "espera-no-readback",
@@ -363,7 +363,7 @@
         {
           "id": "readback-antes-de-editar",
           "type": "readback-first",
-          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei|confirm the contract|confirm(o|ar) o contrato"
+          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei|confirm the contract|confirm(o|ar) o contrato|confirma[cç][aã]o do contrato|Antes de escrever c[oó]digo"
         },
         {
           "id": "implementou",
