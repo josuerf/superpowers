@@ -106,8 +106,11 @@ Flow depende deles e o sync precisa preservar as linhas que apontam para eles.
   `modo-rito`, que prova os dois lados (com e sem o marcador).
 - `SUPERPOWERS_PREPARED_RITO=1` (card C123, contrato C-35 da fase 22): o forge
   passa a variável em toda sessão de etapa; `hooks/session-start` (linha da
-  tabela) e `hooks/context-engine.js` (arquivo só do fork) deixam de escrever
-  na pasta corrente. Teste: `tests/hooks/test-rito-hooks.sh`.
+  tabela) e `hooks/context-engine.js` deixam de escrever na pasta corrente,
+  `hooks/track-edits.js` não mexe no `.gitignore`, e `hooks/verify-on-stop.js`
+  e `hooks/stop-reminders.js` não bloqueiam o Stop com ordem de revisar ou
+  commitar (os quatro são arquivos só do fork). Teste:
+  `tests/hooks/test-rito-hooks.sh`.
 
 ## Arquivos que o upstream apagou e o fork manteve
 

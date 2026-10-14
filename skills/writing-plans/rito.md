@@ -24,6 +24,11 @@ These parts of SKILL.md are switched off, even where SKILL.md says MUST or
   no "Stop here", no waiting for a reply, no execution skill invoked.
 - **Confirmation of a departure from the harness**: nobody can confirm it
   now. Record the departure as an assumption item instead.
+- **Messages injected by hooks** (a carrasco or verification gate, a
+  commit reminder, a decision-log or state.md reminder, a TDD reminder):
+  they do not apply in rito mode. The forge owns review, commit and logs;
+  answer such a message, if you must, with one line saying rito mode is on,
+  and keep to this file.
 - **Scope Check's suggestion** to break the work into separate plans:
   write one plan, and record the suggestion as an assumption item.
 
@@ -71,8 +76,10 @@ plan is one item of `tarefas`:
 
   No other value is valid.
 
-Keep every field name of the shape and add none. No list other than
-`suposicoes` may be empty. Ids follow `PREFIX-NNN`
+Keep every field name of the shape and add none. `tarefas` and each
+task's `arquivos` must not be empty; any other list may be empty when
+nothing true fits (`riscos: []` for a task with no risk flag, never an
+invented one). Ids follow `PREFIX-NNN`
 (three digits or more, never repeated in a list). Write the texts in the
 language of the request.
 
@@ -82,8 +89,11 @@ Never stop to ask and never end your answer with a question. Every
 question you would have asked (a clarifying question, an `**Open
 question:**`, an unconfirmed departure from the harness) becomes one item
 in `suposicoes`: `{"id": "SUP-NNN", "texto": "..."}`, numbered from
-`SUP-001`, saying what you assumed and what changes if it is wrong. A task
-whose open question you turned into an assumption keeps its risk value.
+`SUP-001`, saying what you assumed and what changes if it is wrong. An
+`**Open question:**` that SKILL.md says must be answered before the task
+is implemented keeps that weight: its `texto` starts with the task id
+(`TASK-003: ...`) and says the answer is needed before implementing, the
+task's `descricao` repeats it, and the task keeps its risk value.
 
 ## The request
 

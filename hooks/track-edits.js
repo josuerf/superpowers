@@ -28,6 +28,8 @@ const AI_ARTIFACTS = ['project-map.md', 'session-log.md', 'state.md', 'known-iss
  * immediately so `git status` never shows it as an untracked file.
  */
 function ensureGitignored(filePath, cwd) {
+  // [fork] card C123 (C-35): in rito mode nothing is written in the product's tree.
+  if (process.env.SUPERPOWERS_PREPARED_RITO === '1') return;
   try {
     const basename = path.basename(filePath);
     if (!AI_ARTIFACTS.includes(basename)) return;

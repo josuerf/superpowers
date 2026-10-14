@@ -20,6 +20,8 @@
  *   no-tool       { pattern }           nenhuma chamada de ferramenta com nome que case
  *   first-turn-regex   { pattern, expect? }  regex no texto do 1o turno (casos de dois turnos)
  *   first-turn-no-edit {}              nenhuma Edit/Write no 1o turno
+ *   readback-first { pattern }         um texto que casa sai antes da primeira escrita
+ *                                       (Edit/Write ou Bash que grava arquivo), pela ordem do stream
  */
 
 const RISCOS = ['seguranca', 'concorrencia', 'migracao_dados', 'regulatorio', 'compatibilidade'];
@@ -105,6 +107,26 @@ function validateShape(shape, obj) {
   return [`forma desconhecida: ${shape}`];
 }
 
+/** O hook antigo escreve exatamente isto; outro conteudo e da sessao, e reprova. */
+const HOOK_CONTENT = {
+  '.gitignore': (s) => /^\s*# AI assistant artifacts\s*\ncontext-snapshot\.json\s*$/.test(s),
+  '.harness.config.json': (s) => { try { const j = JSON.parse(s); return j.coverageMin !== undefined && j.patterns !== undefined; } catch { return false; } },
+};
+
+function isHookNoise(obs, line) {
+  if (obs.hookNoiseExpected === false || !HOOK_NOISE.includes(line)) return false;
+  const file = line.slice(3);
+  if (!obs.hookFiles || !(file in obs.hookFiles)) return obs.hookFiles === undefined;
+  return HOOK_CONTENT[file](obs.hookFiles[file]);
+}
+
+/** Primeira escrita no repositorio: Edit/Write, ou Bash que redireciona para arquivo ou usa sed -i/tee. */
+const EDITING_BASH = /(^|[^0-9&])>{1,2}\s*(?!&|\/dev\/null)[^\s|;&]+|\bsed\s+-i|\btee\b/;
+function firstEditIndex(timeline) {
+  return (timeline || []).findIndex((e) => e.k === 'tool'
+    && (/^(Edit|Write|NotebookEdit|MultiEdit)$/.test(e.name) || (e.name === 'Bash' && EDITING_BASH.test(e.cmd || ''))));
+}
+
 /** Linhas do git status --porcelain. Resultados gravados antes da correcao do run
  *  tinham a primeira linha aparada (' M a' virava 'M a'): devolve o espaco quando a
  *  linha tem um codigo de estado so, seguido de um espaco e do caminho. */
@@ -140,6 +162,8 @@ function runRitoCheck(check, run) {
       const bad = [];
       if ((obs.branches || []).length !== 1) bad.push(`branches: ${(obs.branches || []).join(',')}`);
       if ((obs.worktrees ?? 1) !== 1) bad.push(`worktrees: ${obs.worktrees}`);
+      if (obs.topo && obs.head !== obs.topo) bad.push('HEAD mudou');
+      if (obs.tags) bad.push(`tags: ${obs.tags}`);
       if (statusLines(obs).some((s) => /^[MADRC]/.test(s))) bad.push('index com arquivo staged');
       return { pass: bad.length === 0, detail: bad.join('; ') || 'git intacto' };
     }
@@ -149,7 +173,7 @@ function runRitoCheck(check, run) {
       // SUPERPOWERS_PREPARED_RITO=1. Sao do ambiente, nao da sessao: so nesse caso, e so
       // quando novos (`??`), nao contam. Com a 7.0.1+ instalada a checagem e estrita.
       const paths = statusLines(obs)
-        .filter((s) => obs.hookNoiseExpected === false || !HOOK_NOISE.includes(s))
+        .filter((s) => !isHookNoise(obs, s))
         .map((s) => s.slice(3).replace(/^"|"$/g, ''));
       const allow = new RegExp(check.allow);
       const out = paths.filter((p) => !allow.test(p));
@@ -191,6 +215,14 @@ function runRitoCheck(check, run) {
     case 'verify-ok': {
       if (obs.verifyStatus === undefined) return { pass: false, detail: 'verificacao nao rodou' };
       return { pass: obs.verifyStatus === 0, detail: `saida ${obs.verifyStatus}: ${obs.verifyTail || ''}`.slice(0, 160) };
+    }
+    case 'readback-first': {
+      const re = new RegExp(check.pattern, check.flags ?? 'i');
+      const tl = run.timeline || [];
+      const rb = tl.findIndex((e) => e.k === 'text' && re.test(e.s));
+      const ed = firstEditIndex(tl);
+      const ok = rb >= 0 && (ed < 0 || rb < ed);
+      return { pass: ok, detail: rb < 0 ? 'sem readback' : (ok ? 'readback antes da 1a edicao' : 'readback depois de editar') };
     }
     case 'first-turn-regex': {
       const ok = new RegExp(check.pattern, check.flags ?? 'i').test(run.firstText || '');

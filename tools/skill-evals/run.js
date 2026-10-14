@@ -99,6 +99,22 @@ function assistantText(lines) {
   return out.join('\n');
 }
 
+/** Texto e ferramentas do assistente na ordem do stream: a suite rito confere se o
+ *  readback saiu antes da primeira edicao. Texto ate 2k, comando ate 400. */
+function timeline(lines) {
+  const out = [];
+  for (const line of lines) {
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (ev.type !== 'assistant' || !ev.message?.content) continue;
+    for (const part of ev.message.content) {
+      if (part.type === 'text' && part.text) out.push({ k: 'text', s: part.text.slice(0, 2000) });
+      if (part.type === 'tool_use') out.push({ k: 'tool', name: part.name, cmd: String(part.input?.command || '').slice(0, 400) });
+    }
+  }
+  return out;
+}
+
 /** Chamadas de ferramenta do stream, na ordem — o que a execucao FEZ, nao o que disse. */
 function toolUses(lines) {
   const out = [];
@@ -133,7 +149,7 @@ function runClaude(prompt, opts = {}) {
   const started = Date.now();
   if (DRY) {
     process.stderr.write(`[dry-run ${prompt.length} chars] `);
-    return { text: '', finalText: '', sessionId: null, tools: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, ms: 0, error: null };
+    return { text: '', finalText: '', sessionId: null, tools: [], timeline: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, ms: 0, error: null };
   }
   const res = spawnSync('claude', args, {
     encoding: 'utf8',
@@ -150,6 +166,7 @@ function runClaude(prompt, opts = {}) {
     finalText: info.finalText,
     sessionId: info.sessionId,
     tools: toolUses(lines),
+    timeline: timeline(lines),
     usage: sumStreamUsage(lines),
     ms: Date.now() - started,
     error: res.error ? String(res.error.message || res.error).slice(0, 400)

@@ -28,6 +28,9 @@ const { spawnSync } = require('child_process');
 
 const WRITE_TOOLS = ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'Bash(git log:*)', 'Bash(git status:*)', 'Bash(ls:*)'];
+// Sessao de revisao da onda (C-16): sem Bash nem Edit; le o diff que o forge grava.
+const REVIEW_TOOLS = ['Read', 'Grep', 'Glob', 'Write'];
+const TOOLS = { write: WRITE_TOOLS, read: READ_TOOLS, review: REVIEW_TOOLS };
 const SESSION_TIMEOUT_MS = 25 * 60 * 1000;
 // Toda sessao da suite roda como a sessao de etapa do forge: com a variavel que cala
 // a escrita dos hooks na pasta corrente (contrato C-35 da fase 22).
@@ -56,8 +59,9 @@ function installedHooksWriteInTree(dir) {
     const here = norm(fs.realpathSync.native(dir));
     const applies = entries.filter((e) => e.scope === 'user' || (e.projectPath && (here === norm(e.projectPath) || here.startsWith(norm(e.projectPath) + '/'))));
     return applies.length === 0 ? false : applies.some((e) => olderThan(e.version, HOOKS_SILENCED_SINCE));
-  } catch {
-    return true;
+  } catch (e) {
+    // Sem o arquivo nao ha plugin instalado, logo nenhum hook escreve nada.
+    return e && e.code === 'ENOENT' ? false : true;
   }
 }
 
@@ -100,6 +104,14 @@ function prepareRepo(ctx, c) {
   if (c.topo) {
     fs.cpSync(path.join(fx, c.topo), dir, { recursive: true });
     topo = commitAll(dir, 'topo');
+  }
+  if (c.diff) {
+    // C-16: o forge grava o diff da onda para a sessao de revisao, que nao tem Bash.
+    // Fica fora do git status, como no Produto (.superpowers/ nao e versionado).
+    const diff = git(dir, ['diff', '-U10', base, topo], { raw: true });
+    fs.mkdirSync(path.dirname(path.join(dir, c.diff)), { recursive: true });
+    fs.writeFileSync(path.join(dir, c.diff), diff);
+    fs.appendFileSync(path.join(dir, '.git', 'info', 'exclude'), '\n.superpowers/\n');
   }
   const commits = parseInt(git(dir, ['rev-list', '--count', 'HEAD']), 10);
   return { dir, base, topo, commits };
@@ -161,6 +173,15 @@ function observe(dir, c, repo) {
     out.branches = git(dir, ['branch', '--format=%(refname:short)']).split('\n').filter(Boolean);
     out.worktrees = git(dir, ['worktree', 'list', '--porcelain']).split('\n').filter((l) => l.startsWith('worktree ')).length;
     out.head = git(dir, ['rev-parse', 'HEAD']);
+    out.topo = repo.topo;
+    out.tags = git(dir, ['tag', '--list']).split('\n').filter(Boolean).length;
+    // Conteudo dos arquivos que o hook antigo cria: rito-checks so os tolera se forem
+    // exatamente o que o hook escreve.
+    out.hookFiles = {};
+    for (const f of ['.gitignore', '.harness.config.json']) {
+      const p = path.join(dir, f);
+      if (out.status.includes(`?? ${f}`) && fs.existsSync(p)) out.hookFiles[f] = fs.readFileSync(p, 'utf8');
+    }
   } catch (e) {
     out.error = String(e.message || e).slice(0, 300);
   }
@@ -197,7 +218,7 @@ function runRitoSuite(ctx, checkpoint) {
         const opts = {
           cwd: repo.dir,
           maxTurns: c.maxTurns || cfg.maxTurns,
-          allowedTools: c.tools === 'write' ? WRITE_TOOLS : READ_TOOLS,
+          allowedTools: TOOLS[c.tools] || READ_TOOLS,
           strictMcp: true,
           extraArgs: ['--add-dir', skillDir],
           timeout: SESSION_TIMEOUT_MS,
@@ -211,6 +232,7 @@ function runRitoSuite(ctx, checkpoint) {
           r = {
             text: `${r.text}\n\n---\n\n${r2.text}`, finalText: r2.finalText, firstText: r.text,
             tools: [...r.tools, ...r2.tools], firstTools: r.tools,
+            timeline: [...(r.timeline || []), ...(r2.timeline || [])],
             usage, ms: r.ms + r2.ms, error: r2.error, sessionId: r.sessionId,
           };
         }
@@ -223,7 +245,7 @@ function runRitoSuite(ctx, checkpoint) {
       process.stderr.write(r.error ? `ERRO (${r.ms}ms)\n` : `ok (${r.ms}ms, ${r.usage.total} tok)\n`);
       runs.push({
         caseId: c.id, rep, ...c, text: r.text, finalText: r.finalText, firstText: r.firstText,
-        tools: r.tools, firstTools: r.firstTools, observed, usage: r.usage, ms: r.ms, error: r.error,
+        tools: r.tools, firstTools: r.firstTools, timeline: r.timeline, observed, usage: r.usage, ms: r.ms, error: r.error,
       });
       checkpoint({ suite: 'modo-rito', skill: 'varias', kind: 'checks', runs });
     }

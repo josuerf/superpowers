@@ -758,6 +758,9 @@ async function main() {
  */
 function evaluatePayload(data) {
   if (!data || typeof data !== 'object') return {};
+  // [fork] card C123 (C-35): in rito mode the forge owns commits and logs; no
+  // reminder (TDD, commit, decision log, state.md) may push the session.
+  if (process.env.SUPERPOWERS_PREPARED_RITO === '1') return {};
 
   const cwd = data.cwd || process.cwd();
   const sessionId = data.session_id || null;

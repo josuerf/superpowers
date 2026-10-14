@@ -67,5 +67,43 @@ run_hooks "$D" 1
 assert "rito: an existing .gitignore is not touched" "" "$(git -C "$D" status --porcelain --untracked-files=all)"
 rm -rf "$D"
 
+# Stop and PostToolUse hooks: in rito mode they neither order the session around
+# (carrasco gate, commit reminder) nor touch the product's .gitignore.
+# stop_hook <dir> <rito: 0|1> <hook file>: the hook's stdout for a Stop payload.
+stop_hook() {
+  local h; h=$(mktemp -d)
+  # The session's edit log, as track-edits.js leaves it: six files written.
+  mkdir -p "$h/.claude/hooks-logs"
+  for i in 1 2 3 4 5 6; do echo "$(date -u +%Y-%m-%dT%H:%M:%S.000Z) | t | Write | $1/f$i.js" >> "$h/.claude/hooks-logs/edit-log.txt"; done
+  local env_rito=()
+  [ "$2" = 1 ] && env_rito=(SUPERPOWERS_PREPARED_RITO=1)
+  node -e "process.stdout.write(JSON.stringify({cwd:process.argv[1],session_id:'t',hook_event_name:'Stop'}))" "$1"     | (cd "$1" && env "${env_rito[@]}" HOME="$h" USERPROFILE="$h" node "$REPO/hooks/$3" 2>/dev/null)
+  rm -rf "$h"
+}
+D=$(mkrepo)
+for i in 1 2 3 4 5 6; do echo "x" > "$D/f$i.js"; done
+assert "without the variable: stop-reminders asks for a commit" yes "$(stop_hook "$D" 0 stop-reminders.js | grep -q 'Commit reminder' && echo yes || echo no)"
+assert "rito: stop-reminders says nothing" "{}" "$(stop_hook "$D" 1 stop-reminders.js)"
+echo '{"reviewAggressiveness":{"enabled":true}}' > "$D/.harness.config.json"
+assert "rito: verify-on-stop says nothing (gate on, 6 files changed)" "{}" "$(stop_hook "$D" 1 verify-on-stop.js)"
+rm -rf "$D"
+
+# track_edit <dir> <rito: 0|1>: a Write of state.md, as PostToolUse sends it.
+track_edit() {
+  local h; h=$(mktemp -d)
+  local env_rito=()
+  [ "$2" = 1 ] && env_rito=(SUPERPOWERS_PREPARED_RITO=1)
+  node -e "process.stdout.write(JSON.stringify({cwd:process.argv[1],session_id:'t',tool_name:'Write',tool_input:{file_path:require('path').join(process.argv[1],'state.md')}}))" "$1"     | (cd "$1" && env "${env_rito[@]}" HOME="$h" USERPROFILE="$h" node "$REPO/hooks/track-edits.js" >/dev/null 2>&1)
+  rm -rf "$h"
+}
+D=$(mkrepo); echo "estado" > "$D/state.md"
+track_edit "$D" 0
+assert "without the variable: track-edits adds state.md to .gitignore" yes "$(grep -qx 'state.md' "$D/.gitignore" 2>/dev/null && echo yes || echo no)"
+rm -rf "$D"
+D=$(mkrepo); echo "estado" > "$D/state.md"
+track_edit "$D" 1
+assert "rito: track-edits leaves .gitignore alone" no "$(exists "$D/.gitignore")"
+rm -rf "$D"
+
 echo "passed: $PASS, failed: $FAIL"
 [ "$FAIL" -eq 0 ]

@@ -33,6 +33,11 @@ SKILL.md says MUST, never, or HARD-GATE:
   writing the file. The forge decides what comes next.
 - **Quality Gates**: brainstorming ships no code in rito mode, so there is
   nothing for them to check.
+- **Messages injected by hooks** (a carrasco or verification gate, a
+  commit reminder, a decision-log or state.md reminder, a TDD reminder):
+  they do not apply in rito mode. The forge owns review, commit and logs;
+  answer such a message, if you must, with one line saying rito mode is on,
+  and keep to this file.
 - **Visual Companion**: never start it, and skip the visual surface check
   line.
 - **Confirmations**: "get their confirmation before you design around
@@ -65,8 +70,8 @@ question you would have asked a person becomes one item in `suposicoes`:
 `{"id": "SUP-NNN", "texto": "..."}`, numbered from `SUP-001`, where
 `texto` says what you assumed in place of the answer and what it changes
 if the assumption is wrong. A choice you made that a person might not have
-made also goes there. `suposicoes` is the one list that may be empty, and an empty list
-means you had nothing to ask, not that you skipped the step.
+made also goes there. An empty `suposicoes` means you had nothing to ask, not that you skipped
+the step.
 
 ## The request decides the format
 
@@ -81,8 +86,9 @@ The request carries:
   directory) and `Forma JSON:` followed by a ```json block.
 
 The JSON block is the exact shape the forge validates. Keep every field
-name; replace the example texts; repeat list items as needed; no list other than
-`suposicoes` may be empty; ids follow `PREFIX-NNN` (three digits or more, never
+name; replace the example texts; repeat list items as needed; `requisitos` and
+`criteriosAceite` must not be empty, and any other list may be empty when
+nothing true fits (never invent an item to fill one); ids follow `PREFIX-NNN` (three digits or more, never
 repeated in a list); assumptions use `SUP-NNN`. Do not add fields the
 shape does not have: what does not fit in a field goes into the text of
 the closest item. Write the texts in the language of the request.

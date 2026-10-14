@@ -32,6 +32,11 @@ where they say MUST, never, or REQUIRED:
 - **Commits**: no commit, no `git add`, no stash, no reset, no checkout,
   no rebase, no tag. The SDD trailers do not apply. Git state stays as you
   found it; only the working tree changes.
+- **Messages injected by hooks** (a carrasco or verification gate, a
+  commit reminder, a decision-log or state.md reminder, a TDD reminder):
+  they do not apply in rito mode. The forge owns review, commit and logs;
+  answer such a message, if you must, with one line saying rito mode is on,
+  and keep to this file.
 - **Stopping to ask**, wherever SKILL.md or a template says to: the
   readback does not wait for an answer; "ask them now", "ask before
   removing any filter, guard, or validation" and "stop and ask before you
@@ -43,7 +48,8 @@ where they say MUST, never, or REQUIRED:
 
 - `## Tarefa`: `Id`, `Título`, `Descrição`, `Arquivos`, `Riscos`, then
   `## Regras do forge`.
-- `## Revisão da onda`: `Onda:`, `Base:`, `Topo:`, `Plano:` (the plan or
+- `## Revisão da onda`: `Onda:`, `Base:`, `Topo:`, `Diff:` (the wave's diff,
+  written by the forge), `Plano:` (the plan or
   laudo artifact), `Tarefas:` (each with `Id`, `Título`, `Descrição`,
   `Riscos`) and `Red team: sim|não`, then `## Entrega` with `Destino:` and
   the JSON shape.
@@ -107,10 +113,11 @@ report file, no question.
 You review; you change nothing. The only file you may write in the
 repository is the `Destino:` file.
 
-1. **The diff.** Read `git log --oneline`, `git diff --stat` and
-   `git diff -U10` for `Base..Topo`. If subagents need it as a file, put
-   that file in the system's temporary directory, outside the repository.
-   Leave HEAD, the index and the working tree alone.
+1. **The diff.** Read the file named by `Diff:`: it is the wave's diff
+   (`Base..Topo`), and it is all the git you need. Do not run git in a
+   review session (the forge runs it without a shell). Read any other file
+   of the repository you need to judge the diff. A request with no `Diff:`
+   line: write nothing and say in one line that the diff is missing.
 2. **The batch review.** Apply `task-reviewer-prompt.md` (spec compliance
    against the tasks listed under `Tarefas:`, then code quality) to the
    whole wave. The tasks' requirements are each task's `Descrição` and the
@@ -124,9 +131,8 @@ repository is the `Destino:` file.
    `concorrencia` → `concurrency`, `migracao_dados` → `data-migration`,
    `regulatorio` → `regulatory`, `compatibilidade` → `backward-compat`.
 4. **Subagents.** With a subagent tool, dispatch the reviewer and the red
-   team in parallel on the same package; their prompts name files in the
-   temporary directory for their reports, never the repository, and they
-   change no file. Without a subagent tool, do the two passes yourself,
+   team in parallel, both pointed at the `Diff:` file; they return their
+   findings in their reply, write no file and change nothing. Without a subagent tool, do the two passes yourself,
    one after the other, and judge the red-team pass independently of the
    review.
 5. **"⚠️ Cannot verify from diff"** items: resolve each one by reading the

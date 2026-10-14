@@ -91,6 +91,7 @@ console.log('--- casos: subagent-driven-development ---');
 const RB = '**Before writing any code: confirm the contract**\n- **What I do NOT know:** nada.';
 const tarefa = (o = {}) => ({
   text: `${RB}\n\nImplementei.`, finalText: 'Status: DONE', tools: [{ name: 'Edit', input: {} }],
+  timeline: [{ k: 'text', s: RB }, { k: 'tool', name: 'Edit', cmd: '' }],
   observed: git([' M src/estoque.js', ' M test/estoque.test.js'], { verifyStatus: 0 }), ...o,
 });
 check(fails('sdd-rito-tarefa', tarefa()).length === 0, 'rito tarefa: implementou sem commit passa');
@@ -99,7 +100,7 @@ check(fails('sdd-rito-tarefa', tarefa({ observed: git(['M  src/estoque.js'], { v
 check(fails('sdd-rito-tarefa', tarefa({ observed: git([], { newCommits: 1, verifyStatus: 0 }) })).length >= 2, 'rito tarefa: commit (arvore limpa) reprova');
 check(fails('sdd-rito-tarefa', tarefa({ observed: git([' M src/estoque.js', '?? docs/x.md'], { verifyStatus: 0 }) })).includes('implementou'), 'rito tarefa: arquivo fora da tarefa reprova');
 check(fails('sdd-rito-tarefa', tarefa({ observed: git([' M src/estoque.js'], { verifyStatus: 1 }) })).includes('testes-verdes'), 'rito tarefa: teste vermelho reprova');
-check(fails('sdd-rito-tarefa', tarefa({ text: 'Implementei.' })).includes('readback'), 'rito tarefa: sem readback reprova');
+check(fails('sdd-rito-tarefa', tarefa({ timeline: [{ k: 'tool', name: 'Edit', cmd: '' }, { k: 'text', s: RB }] })).includes('readback-antes-de-editar'), 'rito tarefa: readback so depois de editar reprova');
 check(fails('sdd-rito-tarefa', tarefa({ finalText: 'Posso seguir?' })).includes('sem-pergunta'), 'rito tarefa: parar perguntando reprova');
 const impl = (o = {}) => ({
   text: '', firstText: RB, firstTools: [{ name: 'Read', input: {} }], finalText: 'DONE', tools: [],
@@ -116,6 +117,25 @@ const rev = (a = ACHADOS, o = {}) => ({
 check(fails('sdd-rito-revisao-onda', rev()).length === 0, 'revisao: achado bloqueante no arquivo passa');
 check(fails('sdd-rito-revisao-onda', rev({ ...ACHADOS, achados: [{ ...ACHADOS.achados[0], severidade: 'nao_bloqueante' }] })).includes('defeito-plantado-bloqueante'), 'revisao: defeito como nao bloqueante reprova');
 check(fails('sdd-rito-revisao-onda', rev(ACHADOS, { observed: git([`?? ${REV}`, ' M src/estoque.js'], { files: { [REV]: JSON.stringify(ACHADOS) } }) })).includes('so-o-destino'), 'revisao: corrigir o codigo reprova');
+
+console.log('--- ordem do readback, HEAD, tags e conteudo do ruido de hook ---');
+const { runRitoCheck } = require('./rito-checks');
+const RBF = { type: 'readback-first', pattern: 'What I do NOT know' };
+const tl = (...e) => ({ timeline: e });
+check(runRitoCheck(RBF, tl({ k: 'tool', name: 'Read', cmd: '' }, { k: 'text', s: RB }, { k: 'tool', name: 'Edit', cmd: '' })).pass, 'readback antes da primeira edicao passa');
+check(!runRitoCheck(RBF, tl({ k: 'tool', name: 'Edit', cmd: '' }, { k: 'text', s: RB })).pass, 'readback depois de editar reprova');
+check(!runRitoCheck(RBF, tl({ k: 'tool', name: 'Bash', cmd: "cat >> test/estoque.test.js <<'EOF'" }, { k: 'text', s: RB })).pass, 'Bash que grava arquivo conta como edicao');
+check(runRitoCheck(RBF, tl({ k: 'tool', name: 'Bash', cmd: 'node --test 2>&1 | grep pass' }, { k: 'text', s: RB })).pass, 'Bash so com 2>&1 nao conta como edicao');
+check(!runRitoCheck(RBF, tl({ k: 'text', s: 'Implementei.' })).pass, 'sem readback reprova');
+const GS = { type: 'git-state' };
+check(runRitoCheck(GS, { observed: git([], { head: 'a', topo: 'a', tags: 0 }) }).pass, 'git intacto com HEAD no topo e sem tag passa');
+check(!runRitoCheck(GS, { observed: git([], { head: 'b', topo: 'a', tags: 0 }) }).pass, 'HEAD que andou reprova');
+check(!runRitoCheck(GS, { observed: git([], { head: 'a', topo: 'a', tags: 1 }) }).pass, 'tag criada reprova');
+const CO = { type: 'changed-only', allow: '^x\\.json$' };
+const HOOK_GI = '\n# AI assistant artifacts\ncontext-snapshot.json\n';
+check(runRitoCheck(CO, { observed: git(['?? x.json', '?? .gitignore'], { hookFiles: { '.gitignore': HOOK_GI } }) }).pass, 'ruido de hook com o conteudo do hook e tolerado');
+check(!runRitoCheck(CO, { observed: git(['?? x.json', '?? .gitignore'], { hookFiles: { '.gitignore': 'node_modules\n' } }) }).pass, '.gitignore novo com outro conteudo reprova');
+check(!runRitoCheck(CO, { observed: git(['?? x.json', '?? .gitignore'], { hookNoiseExpected: false, hookFiles: { '.gitignore': HOOK_GI } }) }).pass, 'com plugin 7.0.1+ nem o conteudo do hook e tolerado');
 
 console.log('\nrito: ' + ok + '/' + (ok + bad) + ' corretos');
 process.exit(bad === 0 ? 0 : 1);

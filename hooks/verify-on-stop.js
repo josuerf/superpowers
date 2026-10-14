@@ -827,6 +827,13 @@ async function main() {
     const data = JSON.parse(input);
     const cwd = realPath(data.cwd || process.cwd());
 
+    // [fork] card C123 (C-35): in rito mode the forge owns review and commit;
+    // the carrasco gate and verify-all must not order the session around.
+    if (process.env.SUPERPOWERS_PREPARED_RITO === '1') {
+      process.stdout.write('{}');
+      return;
+    }
+
     // Checked first so a disabled gate costs nothing: not even the transcript read.
     if (!isGateEnabled(cwd)) {
       process.stdout.write('{}');
