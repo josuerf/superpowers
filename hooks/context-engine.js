@@ -9,6 +9,7 @@
  *
  * Writes context-snapshot.json to the project root.
  * Auto-adds context-snapshot.json to .gitignore on first write.
+ * Neither happens with SUPERPOWERS_PREPARED_RITO=1 (rito mode, card C123).
  * Fails silently on any error — never blocks session start.
  *
  * Input:  stdin JSON with { cwd, ... } (falls back to process.cwd())
@@ -265,6 +266,13 @@ async function main() {
     cross_session_files: crossSessionFiles,
     cross_session_commit_count: crossSessionCommitCount,
   };
+
+  // [fork] card C123 (C-35): in rito mode (SUPERPOWERS_PREPARED_RITO=1) the forge's
+  // session must leave the product's tree untouched: no snapshot, no .gitignore.
+  if (process.env.SUPERPOWERS_PREPARED_RITO === '1') {
+    process.stdout.write('');
+    return;
+  }
 
   try {
     fs.writeFileSync(

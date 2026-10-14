@@ -23,6 +23,7 @@
  */
 
 const RISCOS = ['seguranca', 'concorrencia', 'migracao_dados', 'regulatorio', 'compatibilidade'];
+const HOOK_NOISE = ['?? .harness.config.json', '?? .gitignore'];
 const NODE_ID = /^[A-Z]{2,10}-\d{3,}$/;
 
 function lastLine(text) {
@@ -136,7 +137,13 @@ function runRitoCheck(check, run) {
       return { pass: bad.length === 0, detail: bad.join('; ') || 'git intacto' };
     }
     case 'changed-only': {
-      const paths = (obs.status || []).map((s) => s.slice(3).replace(/^"|"$/g, ''));
+      // Plugin instalado anterior a 7.0.1 (observed.hookNoiseExpected, rito.js): os hooks
+      // dele geram estes dois arquivos na pasta da sessao ao iniciar, mesmo com
+      // SUPERPOWERS_PREPARED_RITO=1. Sao do ambiente, nao da sessao: so nesse caso, e so
+      // quando novos (`??`), nao contam. Com a 7.0.1+ instalada a checagem e estrita.
+      const paths = (obs.status || [])
+        .filter((s) => obs.hookNoiseExpected === false || !HOOK_NOISE.includes(s))
+        .map((s) => s.slice(3).replace(/^"|"$/g, ''));
       const allow = new RegExp(check.allow);
       const out = paths.filter((p) => !allow.test(p));
       const req = check.require ? paths.some((p) => new RegExp(check.require).test(p)) : true;

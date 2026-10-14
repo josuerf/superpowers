@@ -29,6 +29,37 @@ const { spawnSync } = require('child_process');
 const WRITE_TOOLS = ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'Bash(git log:*)', 'Bash(git status:*)', 'Bash(ls:*)'];
 const SESSION_TIMEOUT_MS = 25 * 60 * 1000;
+// Toda sessao da suite roda como a sessao de etapa do forge: com a variavel que cala
+// a escrita dos hooks na pasta corrente (contrato C-35 da fase 22).
+const RITO_ENV = { SUPERPOWERS_PREPARED_RITO: '1' };
+const HOOKS_SILENCED_SINCE = [7, 0, 1];
+
+const olderThan = (v, ref) => {
+  const p = String(v).split('.').map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < 3; i++) if ((p[i] || 0) !== ref[i]) return (p[i] || 0) < ref[i];
+  return false;
+};
+
+/**
+ * A sessao carrega o plugin INSTALADO na maquina, nao o desta worktree. Antes da
+ * 7.0.1 os hooks dele ignoram SUPERPOWERS_PREPARED_RITO e gravam .harness.config.json
+ * e .gitignore na pasta da sessao. true quando alguma instalacao que vale para `dir`
+ * (escopo user, ou projeto/local que contem `dir`) e anterior, ou quando nao da para
+ * saber; rito-checks.js so tolera esses dois arquivos novos nesse caso.
+ */
+function installedHooksWriteInTree(dir) {
+  try {
+    const file = path.join(os.homedir(), '.claude', 'plugins', 'installed_plugins.json');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const entries = (data.plugins || data)['superpowers-prepared@superpowers-prepared'] || [];
+    const norm = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const here = norm(fs.realpathSync.native(dir));
+    const applies = entries.filter((e) => e.scope === 'user' || (e.projectPath && (here === norm(e.projectPath) || here.startsWith(norm(e.projectPath) + '/'))));
+    return applies.length === 0 ? false : applies.some((e) => olderThan(e.version, HOOKS_SILENCED_SINCE));
+  } catch {
+    return true;
+  }
+}
 
 function git(dir, args) {
   const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
@@ -120,7 +151,7 @@ ${dispatch}
 }
 
 function observe(dir, c, repo) {
-  const out = { files: {} };
+  const out = { files: {}, hookNoiseExpected: installedHooksWriteInTree(dir) };
   try {
     out.newCommits = parseInt(git(dir, ['rev-list', '--count', '--all']), 10) - repo.commits;
     out.status = git(dir, ['status', '--porcelain', '--untracked-files=all']).split('\n').filter(Boolean);
@@ -167,6 +198,7 @@ function runRitoSuite(ctx, checkpoint) {
           strictMcp: true,
           extraArgs: ['--add-dir', skillDir],
           timeout: SESSION_TIMEOUT_MS,
+          env: RITO_ENV,
         };
         r = ctx.runClaude(prompt, opts);
         if (c.turn2 && !r.error && r.sessionId) {

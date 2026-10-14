@@ -428,6 +428,9 @@ case "$(pwd -P)" in
   "$PLUGIN_ROOT"|"$PLUGIN_ROOT"/*) harness_gen_skip=1 ;;
   *) harness_gen_skip=0 ;;
 esac
+# [fork] card C123 (C-35): a session started by the Iguacu Flow forge in rito mode
+# (SUPERPOWERS_PREPARED_RITO=1) must not write anything in the product's tree.
+if [ "${SUPERPOWERS_PREPARED_RITO:-}" = 1 ]; then harness_gen_skip=1; fi
 [ "$harness_gen_skip" = 1 ] || node -e "
     const fs = require('fs');
     const p = require('path').join(process.cwd(), '.harness.config.json');

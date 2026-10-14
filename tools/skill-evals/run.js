@@ -141,6 +141,7 @@ function runClaude(prompt, opts = {}) {
     input: prompt,
     maxBuffer: 64 * 1024 * 1024,
     timeout: opts.timeout,
+    env: opts.env ? { ...process.env, ...opts.env } : process.env,
   });
   const lines = (res.stdout || '').split('\n').filter((l) => l.trim().startsWith('{'));
   const info = sessionInfo(lines);
