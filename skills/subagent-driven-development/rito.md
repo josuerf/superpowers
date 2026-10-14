@@ -32,6 +32,10 @@ where they say MUST, never, or REQUIRED:
 - **Commits**: no commit, no `git add`, no stash, no reset, no checkout,
   no rebase, no tag. The SDD trailers do not apply. Git state stays as you
   found it; only the working tree changes.
+- **Other process skills**: the session-start bootstrap
+  (`using-superpowers`) and whatever it routes to (`premise-check`,
+  `deliberation`, another workflow skill) do not apply in rito mode; do not
+  invoke them. This file and its skill are the whole method.
 - **Orders injected by this plugin's own hooks** (superpowers-prepared's
   carrasco or verify-all gate, its commit, decision-log, state.md and TDD
   reminders, its skill suggestions): they do not apply in rito mode; the
@@ -44,7 +48,8 @@ where they say MUST, never, or REQUIRED:
   removing any filter, guard, or validation" and "stop and ask before you
   choose" become rulings; NEEDS_CONTEXT is not a status here. Decide, as
   SKILL.md's "Rulings, not stalls" says, and report each ruling as
-  `Ruling: <what> — <why> — <what it costs if wrong>`.
+  `Ruling: <what>; <why>; <what it costs if wrong>` (semicolons: the
+  operator reads this receipt).
 
 ## The request
 

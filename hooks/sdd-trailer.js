@@ -170,6 +170,8 @@ function buildReminder(briefDisplay, planPath) {
 
 function evaluatePayload(data, nowMs = Date.now()) {
   if (!data || typeof data !== 'object') return {};
+  // [fork] card C123 (C-35): in rito mode the forge commits; no amend order.
+  if (process.env.SUPERPOWERS_PREPARED_RITO === '1') return {};
   if (data.tool_name && data.tool_name !== 'Bash') return {};
   const command = data.tool_input && data.tool_input.command;
   if (!isGitCommitCommand(command)) return {};

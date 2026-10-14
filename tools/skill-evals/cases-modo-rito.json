@@ -6,7 +6,7 @@
     "Cada caso roda num repositorio git temporario (fixtures/rito/<repo>, commit inicial; commit de topo na revisao de onda). observed guarda commits novos, git status, branches, worktrees, os arquivos de destino e a saida do comando verify.",
     "Sem marcador: brainstorming pergunta, writing-plans para no handoff, o implementador do SDD espera no readback e, retomado, commita. Com marcador: nenhuma pergunta, nenhum commit, so o destino muda, ultima linha @@ARTEFATO_PATH.",
     "A ferramenta Skill e a de subagente nao sao liberadas: o eval mede o texto do ref em teste e o caminho sem subagente que os rito.md preveem.",
-    "Escrito ANTES dos rito.md. Depois da 1a rodada (14/10): o fixture ganhou contador de id (a ambiguidade de reservas.length + 1 fazia o implementador sem marcador perguntar, com razao), o 2o turno do caso sem marcador diz que nao ha pendencias, e o regex do readback aceita o titulo em portugues. Depois do critico: o readback e conferido pela ordem do stream (antes da primeira escrita), e a revisao de onda roda sem Bash nem Edit, lendo o diff que o forge grava (C-16). Depois do critico r2: caso do controlador do SDD sem marcador, que carrega o SKILL.md (o caso do implementador carrega so o implementer-prompt.md)."
+    "Escrito ANTES dos rito.md. Depois da 1a rodada (14/10): o fixture ganhou contador de id (a ambiguidade de reservas.length + 1 fazia o implementador sem marcador perguntar, com razao), o 2o turno do caso sem marcador diz que nao ha pendencias, e o regex do readback aceita o titulo em portugues. Depois do critico: o readback e conferido pela ordem do stream (antes da primeira escrita), e a revisao de onda roda sem Bash nem Edit, lendo o diff que o forge grava (C-16). Depois do critico r2: caso do controlador do SDD sem marcador, que carrega o SKILL.md (o caso do implementador carrega so o implementer-prompt.md). Depois do critico r3: writes-only confere o file_path de todo Write/Edit (pega escrita fora do repositorio e em .superpowers/, que o git status nao ve), e o controlador sem marcador precisa falar de worktree, ledger ou lote."
   ],
   "cases": [
     {
@@ -126,6 +126,11 @@
           "type": "changed-only",
           "allow": "^\\.harness/artefatos/spec\\.json$",
           "require": "^\\.harness/artefatos/spec\\.json$"
+        },
+        {
+          "id": "so-escreve-no-destino",
+          "type": "writes-only",
+          "allow": "^\\.harness/artefatos/spec\\.json$"
         }
       ]
     },
@@ -250,6 +255,11 @@
           "type": "changed-only",
           "allow": "^\\.harness/artefatos/plano\\.json$",
           "require": "^\\.harness/artefatos/plano\\.json$"
+        },
+        {
+          "id": "so-escreve-no-destino",
+          "type": "writes-only",
+          "allow": "^\\.harness/artefatos/plano\\.json$"
         }
       ]
     },
@@ -307,23 +317,13 @@
         {
           "id": "fluxo-do-controlador",
           "type": "regex",
-          "pattern": "subagent-driven-development"
+          "pattern": "worktree|sdd-workspace|ledger|lote|batch"
         },
         {
           "id": "sem-marcador-de-artefato",
           "type": "regex",
           "pattern": "@@ARTEFATO_PATH",
           "expect": false
-        },
-        {
-          "id": "sem-commit",
-          "type": "git-commits",
-          "count": 0
-        },
-        {
-          "id": "nada-mudou",
-          "type": "changed-only",
-          "allow": "^$"
         }
       ]
     },
@@ -368,6 +368,11 @@
           "type": "changed-only",
           "allow": "^(src/estoque\\.js|test/estoque\\.test\\.js|\\.superpowers/.*)$",
           "require": "^src/estoque\\.js$"
+        },
+        {
+          "id": "so-escreve-na-tarefa",
+          "type": "writes-only",
+          "allow": "^(src/estoque\\.js|test/estoque\\.test\\.js|test/[^/]+\\.test\\.js|\\.superpowers/.*)$"
         },
         {
           "id": "testes-verdes",
@@ -478,6 +483,11 @@
           "type": "changed-only",
           "allow": "^\\.harness/revisao/onda-1\\.json$",
           "require": "^\\.harness/revisao/onda-1\\.json$"
+        },
+        {
+          "id": "so-escreve-no-destino",
+          "type": "writes-only",
+          "allow": "^\\.harness/revisao/onda-1\\.json$"
         }
       ]
     }

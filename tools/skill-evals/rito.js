@@ -25,6 +25,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const crypto = require('crypto');
 
 const WRITE_TOOLS = ['Read', 'Grep', 'Glob', 'Write', 'Edit', 'Bash'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'Bash(git log:*)', 'Bash(git status:*)', 'Bash(ls:*)'];
@@ -164,8 +165,28 @@ ${dispatch}
   throw new Error(`modo desconhecido: ${c.mode}`);
 }
 
-function observe(dir, c, repo) {
-  const out = { files: {}, hookNoiseExpected: installedHooksWriteInTree(dir) };
+/** Arquivos de uma arvore fora do git status (ex.: .superpowers/, excluido): caminho -> hash. */
+function snapshotTree(root) {
+  const out = {};
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.isFile()) out[path.relative(root, p).split(path.sep).join('/')] = crypto.createHash('sha1').update(fs.readFileSync(p)).digest('hex');
+    }
+  };
+  if (fs.existsSync(root)) walk(root);
+  return out;
+}
+
+/** O que existe antes da sessao, para comparar depois: .superpowers/ do caso (fora do
+ *  git status) e o git status da worktree do ref em teste, que --add-dir deixa ao alcance. */
+function beforeSession(ctx, repo) {
+  return { sp: snapshotTree(path.join(repo.dir, '.superpowers')), root: git(ctx.ROOT, ['status', '--porcelain'], { raw: true }) };
+}
+
+function observe(dir, c, repo, before, ROOT) {
+  const out = { files: {}, hookNoiseExpected: installedHooksWriteInTree(dir), dir: fs.realpathSync.native(dir) };
   try {
     out.newCommits = parseInt(git(dir, ['rev-list', '--count', '--all']), 10) - repo.commits;
     out.status = git(dir, ['status', '--porcelain', '--untracked-files=all'], { raw: true })
@@ -176,6 +197,17 @@ function observe(dir, c, repo) {
     out.topo = repo.topo;
     out.tags = git(dir, ['tag', '--list']).split('\n').filter(Boolean).length;
     out.stashes = git(dir, ['stash', 'list']).split('\n').filter(Boolean).length;
+    if (before) {
+      // .superpowers/ esta no info/exclude: o que mudar ali entra no status como linha
+      // sintetica, para changed-only julgar com a mesma regra.
+      const after = snapshotTree(path.join(dir, '.superpowers'));
+      for (const [p, h] of Object.entries(after)) {
+        if (!(p in before.sp)) out.status.push(`?? .superpowers/${p}`);
+        else if (before.sp[p] !== h) out.status.push(` M .superpowers/${p}`);
+      }
+      for (const p of Object.keys(before.sp)) if (!(p in after)) out.status.push(` D .superpowers/${p}`);
+      out.rootChanged = git(ROOT, ['status', '--porcelain'], { raw: true }) !== before.root;
+    }
     // Conteudo dos arquivos que o hook antigo cria: rito-checks so os tolera se forem
     // exatamente o que o hook escreve.
     out.hookFiles = {};
@@ -214,6 +246,7 @@ function runRitoSuite(ctx, checkpoint) {
       let repo = null;
       try {
         repo = prepareRepo(ctx, c);
+        const before = ctx.DRY ? null : beforeSession(ctx, repo);
         const prompt = buildPrompt(ctx, c, repo);
         const skillDir = path.dirname(path.join(ctx.ROOT, c.skill));
         const opts = {
@@ -239,7 +272,7 @@ function runRitoSuite(ctx, checkpoint) {
             usage, ms: r.ms + r2.ms, error: r2.error, sessionId: r.sessionId,
           };
         }
-        if (!ctx.DRY) observed = observe(repo.dir, c, repo);
+        if (!ctx.DRY) observed = observe(repo.dir, c, repo, before, ctx.ROOT);
       } catch (e) {
         r = { text: '', finalText: '', tools: [], usage: { total: 0 }, ms: 0, error: String(e.message || e).slice(0, 400) };
       } finally {

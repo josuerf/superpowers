@@ -19,7 +19,8 @@
  *   json-achado   { path, arquivo, severidade }  algum achado no arquivo, com a severidade
  *   no-tool       { pattern }           nenhuma chamada de ferramenta com nome que case
  *   first-turn-regex   { pattern, expect? }  regex no texto do 1o turno (casos de dois turnos)
- *   first-turn-no-edit {}              nenhuma Edit/Write no 1o turno
+ *   first-turn-no-edit {}              nenhuma escrita no 1o turno (Edit/Write ou Bash que grava)
+ *   writes-only   { allow }            todo Write/Edit do stream cai no repositorio do caso, em caminho que casa allow
  *   readback-first { pattern }         um texto que casa sai antes da primeira escrita
  *                                       (Edit/Write ou Bash que grava arquivo), pela ordem do stream
  */
@@ -38,7 +39,8 @@ function stripFences(text) {
 }
 
 function hasQuestion(text) {
-  return stripFences(text).split('\n').some((l) => /\?\s*\**\s*$/.test(l.trim()));
+  // A pergunta pode fechar com negrito, italico, parentese, aspas ou colchete.
+  return stripFences(text).split('\n').some((l) => /\?[\s*_)"'»\]]*$/.test(l.trim()));
 }
 
 function str(v) { return typeof v === 'string' && v.trim().length > 0; }
@@ -129,12 +131,14 @@ function isHookNoise(obs, line) {
  */
 function bashWritesRepo(cmd) {
   const bare = String(cmd || '').replace(/'[^']*'|"[^"]*"/g, '""');
-  const targets = [...bare.matchAll(/(?:^|[^0-9&<>=-])>{1,2}\s*([^\s|;&<>()]+)/g)].map((m) => m[1]);
+  // `2>arquivo` grava; `2>&1` nao (o alvo comeca por &).
+  const targets = [...bare.matchAll(/(?:^|[^&<>=-])>{1,2}\s*([^\s|;&<>()]+)/g)].map((m) => m[1]);
   const inRepo = (t) => !/^(&|=|\/dev\/|\/tmp\/|~|\$)/.test(t) && (!/^([A-Za-z]:)?[\\/]/.test(t) || /skill-evals-rito-/.test(t));
   if (targets.some(inRepo)) return true;
   if (/\bsed\s+(-[a-zA-Z]*\s+)*-i/.test(bare) || /\btee\b/.test(bare)) return true;
-  if (/(^|[;&|]\s*|\s)(cp|mv)\s/.test(bare) || /\bgit\s+apply\b/.test(bare)) return true;
-  return /\b(writeFileSync|appendFileSync|writeFile)\b/.test(String(cmd || ''));
+  if (/(^|[;&|]\s*|\s)(cp|mv|rm|touch|mkdir)\s/.test(bare)) return true;
+  if (/\bgit\s+(apply\b|restore\b|checkout\s+--(\s|$))/.test(bare) || /\s--(write|fix)\b/.test(bare)) return true;
+  return /\b(writeFileSync|appendFileSync|writeFile)\b|\bopen\([^)]*['"][wa]\+?['"]/.test(String(cmd || ''));
 }
 
 /** Primeira escrita no repositorio: Edit/Write, ou Bash que grava (bashWritesRepo). */
@@ -183,6 +187,7 @@ function runRitoCheck(check, run) {
       // Coluna do index preenchida (staged, conflito): tudo menos espaco, ?? e !!.
       if (statusLines(obs).some((s) => !/^[ ?!]/.test(s))) bad.push('index com arquivo staged ou em conflito');
       if (obs.stashes) bad.push(`stash: ${obs.stashes}`);
+      if (obs.rootChanged) bad.push('a worktree do plugin em teste mudou');
       return { pass: bad.length === 0, detail: bad.join('; ') || 'git intacto' };
     }
     case 'changed-only': {
@@ -247,8 +252,23 @@ function runRitoCheck(check, run) {
       return { pass: ok === expect, detail: ok ? 'casou no 1o turno' : 'nao casou no 1o turno' };
     }
     case 'first-turn-no-edit': {
-      const bad = (run.firstTools || []).filter((t) => /^(Edit|Write|NotebookEdit|MultiEdit)$/.test(t.name));
-      return { pass: bad.length === 0, detail: bad.length ? 'editou no 1o turno' : 'sem edicao no 1o turno' };
+      const tl = (run.firstTools || []).map((t) => ({ k: 'tool', name: t.name, cmd: t.input?.command || '' }));
+      const ed = firstEditIndex(tl);
+      return { pass: ed < 0, detail: ed >= 0 ? 'editou no 1o turno' : 'sem edicao no 1o turno' };
+    }
+    case 'writes-only': {
+      // Write/Edit fora do permitido, pelo file_path do stream (pega escrita fora do
+      // repositorio, que nenhum git status ve). Caminho absoluto no repositorio do caso
+      // vira relativo a ele (observed.dir).
+      const allow = new RegExp(check.allow);
+      const root = String(run.observed?.dir || '').replace(/\\/g, '/').toLowerCase();
+      const bad = (run.tools || []).filter((t) => /^(Edit|Write|NotebookEdit|MultiEdit)$/.test(t.name)).map((t) => {
+        const p = String(t.input?.file_path || t.input?.notebook_path || '').replace(/\\/g, '/');
+        const low = p.toLowerCase();
+        if (root && low.startsWith(root + '/')) return p.slice(root.length + 1);
+        return /^([A-Za-z]:)?\//.test(p) ? `FORA: ${p}` : p;
+      }).filter((p) => !allow.test(p));
+      return { pass: bad.length === 0, detail: bad.length ? `escreveu: ${[...new Set(bad)].join(', ').slice(0, 200)}` : 'so no permitido' };
     }
     case 'no-tool': {
       const re = new RegExp(check.pattern);

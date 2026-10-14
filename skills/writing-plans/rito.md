@@ -24,6 +24,10 @@ These parts of SKILL.md are switched off, even where SKILL.md says MUST or
   no "Stop here", no waiting for a reply, no execution skill invoked.
 - **Confirmation of a departure from the harness**: nobody can confirm it
   now. Record the departure as an assumption item instead.
+- **Other process skills**: the session-start bootstrap
+  (`using-superpowers`) and whatever it routes to (`premise-check`,
+  `deliberation`, another workflow skill) do not apply in rito mode; do not
+  invoke them. This file and its skill are the whole method.
 - **Orders injected by this plugin's own hooks** (superpowers-prepared's
   carrasco or verify-all gate, its commit, decision-log, state.md and TDD
   reminders, its skill suggestions): they do not apply in rito mode; the

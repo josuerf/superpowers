@@ -106,5 +106,23 @@ track_edit "$D" 1
 assert "rito: track-edits leaves .gitignore alone" no "$(exists "$D/.gitignore")"
 rm -rf "$D"
 
+# sdd-trailer.js (PostToolUse on git commit): with an active brief and a commit
+# without the SDD trailer it asks to amend; in rito mode the forge commits, so
+# it stays silent.
+trailer_hook() {
+  local env_rito=()
+  [ "$2" = 1 ] && env_rito=(SUPERPOWERS_PREPARED_RITO=1)
+  node -e "process.stdout.write(JSON.stringify({tool_name:'Bash',tool_input:{command:'git commit -m x'},cwd:process.argv[1]}))" "$1"     | env "${env_rito[@]}" node "$REPO/hooks/sdd-trailer.js"
+}
+D=$(mkrepo)
+mkdir -p "$D/.superpowers/sdd/my-plan"
+printf 'docs/plans/my-plan.md
+' > "$D/.superpowers/sdd/my-plan/plan-path"
+echo "# Batch brief" > "$D/.superpowers/sdd/my-plan/batch-1-3-brief.md"
+echo c >> "$D/a.txt"; git -C "$D" commit -qam "feat: sem trailer"
+assert "without the variable: sdd-trailer asks to amend" yes "$(trailer_hook "$D" 0 | grep -q 'SDD-Plan' && echo yes || echo no)"
+assert "rito: sdd-trailer says nothing" "{}" "$(trailer_hook "$D" 1)"
+rm -rf "$D"
+
 echo "passed: $PASS, failed: $FAIL"
 [ "$FAIL" -eq 0 ]

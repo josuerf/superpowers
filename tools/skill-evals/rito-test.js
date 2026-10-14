@@ -90,7 +90,7 @@ check(fails('writing-plans-sem-marcador', ho('Ready to execute with **Inline**',
 console.log('--- casos: subagent-driven-development ---');
 const RB = '**Before writing any code: confirm the contract**\n- **What I do NOT know:** nada.';
 const tarefa = (o = {}) => ({
-  text: `${RB}\n\nImplementei.`, finalText: 'Status: DONE', tools: [{ name: 'Edit', input: {} }],
+  text: `${RB}\n\nImplementei.`, finalText: 'Status: DONE', tools: [{ name: 'Edit', input: { file_path: 'src/estoque.js' } }],
   timeline: [{ k: 'text', s: RB }, { k: 'tool', name: 'Edit', cmd: '' }],
   observed: git([' M src/estoque.js', ' M test/estoque.test.js'], { verifyStatus: 0 }), ...o,
 });
@@ -149,6 +149,21 @@ const { bashWritesRepo } = require('./rito-checks');
 ].forEach(([cmd, want]) => check(bashWritesRepo(cmd) === want, `${want ? 'grava ' : 'nao grava'}: ${cmd}`));
 check(!runRitoCheck(GS, { observed: git(['UU src/estoque.js'], { head: 'a', topo: 'a', tags: 0 }) }).pass, 'arquivo em conflito reprova');
 check(!runRitoCheck(GS, { observed: git([], { head: 'a', topo: 'a', tags: 0, stashes: 1 }) }).pass, 'stash criado reprova');
+check(!runRitoCheck(GS, { observed: git([], { head: 'a', topo: 'a', tags: 0, rootChanged: true }) }).pass, 'worktree do plugin alterada reprova');
+[
+  ['node --test 2>erros.txt', true], ['touch novo.js', true], ['rm src/a.js', true],
+  ["python -c \"open('a.txt','w').write('x')\"", true], ['git checkout -- src/a.js', true],
+  ['git restore src/a.js', true], ['npx biome check --write .', true], ['git status --short', false],
+].forEach(([cmd, want]) => check(bashWritesRepo(cmd) === want, `${want ? 'grava ' : 'nao grava'}: ${cmd}`));
+['Qual prazo faz sentido?)', 'Posso seguir?"', 'Prefere assim?_', 'Qual dos dois?»'].forEach((q) => check(hasQuestion(q), `pergunta que fecha com sinal: ${q}`));
+check(!runRitoCheck({ type: 'first-turn-no-edit' }, { firstTools: [{ name: 'Bash', input: { command: "cat > src/a.js <<'EOF'" } }] }).pass, 'escrita por Bash no 1o turno reprova a espera');
+const WO = { type: 'writes-only', allow: '^\\.harness/artefatos/spec\\.json$' };
+const DIR = 'C:\\Users\\x\\AppData\\Local\\Temp\\skill-evals-rito-a-1';
+const wr = (fp) => ({ tools: [{ name: 'Write', input: { file_path: fp } }], observed: { dir: DIR } });
+check(runRitoCheck(WO, wr(`${DIR}\\.harness\\artefatos\\spec.json`)).pass, 'escrita no destino, caminho absoluto do caso, passa');
+check(runRitoCheck(WO, wr('.harness/artefatos/spec.json')).pass, 'escrita no destino, caminho relativo, passa');
+check(!runRitoCheck(WO, wr(`${DIR}\\.superpowers\\notas.md`)).pass, 'escrita em .superpowers/ fora do destino reprova');
+check(!runRitoCheck(WO, wr('C:\\Users\\x\\projetos\\fork\\skills\\brainstorming\\rito.md')).pass, 'escrita fora do repositorio do caso reprova');
 
 console.log('\nrito: ' + ok + '/' + (ok + bad) + ' corretos');
 process.exit(bad === 0 ? 0 : 1);

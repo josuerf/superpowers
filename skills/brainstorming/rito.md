@@ -33,6 +33,10 @@ SKILL.md says MUST, never, or HARD-GATE:
   writing the file. The forge decides what comes next.
 - **Quality Gates**: brainstorming ships no code in rito mode, so there is
   nothing for them to check.
+- **Other process skills**: the session-start bootstrap
+  (`using-superpowers`) and whatever it routes to (`premise-check`,
+  `deliberation`, another workflow skill) do not apply in rito mode; do not
+  invoke them. This file and its skill are the whole method.
 - **Orders injected by this plugin's own hooks** (superpowers-prepared's
   carrasco or verify-all gate, its commit, decision-log, state.md and TDD
   reminders, its skill suggestions): they do not apply in rito mode; the
