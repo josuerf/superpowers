@@ -33,11 +33,13 @@ SKILL.md says MUST, never, or HARD-GATE:
   writing the file. The forge decides what comes next.
 - **Quality Gates**: brainstorming ships no code in rito mode, so there is
   nothing for them to check.
-- **Messages injected by hooks** (a carrasco or verification gate, a
-  commit reminder, a decision-log or state.md reminder, a TDD reminder):
-  they do not apply in rito mode. The forge owns review, commit and logs;
-  answer such a message, if you must, with one line saying rito mode is on,
-  and keep to this file.
+- **Orders injected by this plugin's own hooks** (superpowers-prepared's
+  carrasco or verify-all gate, its commit, decision-log, state.md and TDD
+  reminders, its skill suggestions): they do not apply in rito mode; the
+  forge owns review, commit and logs. Feedback from the product's own hooks
+  about the code (a lint or test failure, a blocked command) still applies.
+  If you answer a hook at all, your answer still ends with the delivery
+  line this file asks for, when there is one.
 - **Visual Companion**: never start it, and skip the visual surface check
   line.
 - **Confirmations**: "get their confirmation before you design around

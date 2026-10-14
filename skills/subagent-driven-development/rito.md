@@ -32,11 +32,13 @@ where they say MUST, never, or REQUIRED:
 - **Commits**: no commit, no `git add`, no stash, no reset, no checkout,
   no rebase, no tag. The SDD trailers do not apply. Git state stays as you
   found it; only the working tree changes.
-- **Messages injected by hooks** (a carrasco or verification gate, a
-  commit reminder, a decision-log or state.md reminder, a TDD reminder):
-  they do not apply in rito mode. The forge owns review, commit and logs;
-  answer such a message, if you must, with one line saying rito mode is on,
-  and keep to this file.
+- **Orders injected by this plugin's own hooks** (superpowers-prepared's
+  carrasco or verify-all gate, its commit, decision-log, state.md and TDD
+  reminders, its skill suggestions): they do not apply in rito mode; the
+  forge owns review, commit and logs. Feedback from the product's own hooks
+  about the code (a lint or test failure, a blocked command) still applies.
+  If you answer a hook at all, your answer still ends with the delivery
+  line this file asks for, when there is one.
 - **Stopping to ask**, wherever SKILL.md or a template says to: the
   readback does not wait for an answer; "ask them now", "ask before
   removing any filter, guard, or validation" and "stop and ask before you
@@ -130,6 +132,9 @@ repository is the `Destino:` file.
    reading each task's risks back as flags: `seguranca` → `security`,
    `concorrencia` → `concurrency`, `migracao_dados` → `data-migration`,
    `regulatorio` → `regulatory`, `compatibilidade` → `backward-compat`.
+   If that file cannot be read, run the red-team pass yourself on the
+   same categories: the table names them, and the pass reports each
+   finding as Critical, High or Medium.
 4. **Subagents.** With a subagent tool, dispatch the reviewer and the red
    team in parallel, both pointed at the `Diff:` file; they return their
    findings in their reply, write no file and change nothing. Without a subagent tool, do the two passes yourself,

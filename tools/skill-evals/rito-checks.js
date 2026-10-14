@@ -120,11 +120,27 @@ function isHookNoise(obs, line) {
   return HOOK_CONTENT[file](obs.hookFiles[file]);
 }
 
-/** Primeira escrita no repositorio: Edit/Write, ou Bash que redireciona para arquivo ou usa sed -i/tee. */
-const EDITING_BASH = /(^|[^0-9&])>{1,2}\s*(?!&|\/dev\/null)[^\s|;&]+|\bsed\s+-i|\btee\b/;
+/**
+ * Um comando de shell que grava no repositorio do caso. Texto entre aspas nao conta
+ * (`grep "=>"` nao redireciona nada). Redirecionamento conta quando o alvo e relativo
+ * (a sessao roda na raiz do repositorio) ou fica no diretorio temporario do caso
+ * (`skill-evals-rito-`); /dev/null, /tmp e afins nao. Tambem contam sed -i, tee, cp,
+ * mv, git apply e escrita por node -e (writeFileSync/appendFileSync).
+ */
+function bashWritesRepo(cmd) {
+  const bare = String(cmd || '').replace(/'[^']*'|"[^"]*"/g, '""');
+  const targets = [...bare.matchAll(/(?:^|[^0-9&<>=-])>{1,2}\s*([^\s|;&<>()]+)/g)].map((m) => m[1]);
+  const inRepo = (t) => !/^(&|=|\/dev\/|\/tmp\/|~|\$)/.test(t) && (!/^([A-Za-z]:)?[\\/]/.test(t) || /skill-evals-rito-/.test(t));
+  if (targets.some(inRepo)) return true;
+  if (/\bsed\s+(-[a-zA-Z]*\s+)*-i/.test(bare) || /\btee\b/.test(bare)) return true;
+  if (/(^|[;&|]\s*|\s)(cp|mv)\s/.test(bare) || /\bgit\s+apply\b/.test(bare)) return true;
+  return /\b(writeFileSync|appendFileSync|writeFile)\b/.test(String(cmd || ''));
+}
+
+/** Primeira escrita no repositorio: Edit/Write, ou Bash que grava (bashWritesRepo). */
 function firstEditIndex(timeline) {
   return (timeline || []).findIndex((e) => e.k === 'tool'
-    && (/^(Edit|Write|NotebookEdit|MultiEdit)$/.test(e.name) || (e.name === 'Bash' && EDITING_BASH.test(e.cmd || ''))));
+    && (/^(Edit|Write|NotebookEdit|MultiEdit)$/.test(e.name) || (e.name === 'Bash' && bashWritesRepo(e.cmd))));
 }
 
 /** Linhas do git status --porcelain. Resultados gravados antes da correcao do run
@@ -164,7 +180,9 @@ function runRitoCheck(check, run) {
       if ((obs.worktrees ?? 1) !== 1) bad.push(`worktrees: ${obs.worktrees}`);
       if (obs.topo && obs.head !== obs.topo) bad.push('HEAD mudou');
       if (obs.tags) bad.push(`tags: ${obs.tags}`);
-      if (statusLines(obs).some((s) => /^[MADRC]/.test(s))) bad.push('index com arquivo staged');
+      // Coluna do index preenchida (staged, conflito): tudo menos espaco, ?? e !!.
+      if (statusLines(obs).some((s) => !/^[ ?!]/.test(s))) bad.push('index com arquivo staged ou em conflito');
+      if (obs.stashes) bad.push(`stash: ${obs.stashes}`);
       return { pass: bad.length === 0, detail: bad.join('; ') || 'git intacto' };
     }
     case 'changed-only': {
@@ -242,4 +260,4 @@ function runRitoCheck(check, run) {
   }
 }
 
-module.exports = { runRitoCheck, validateShape, lastLine, hasQuestion };
+module.exports = { bashWritesRepo, runRitoCheck, validateShape, lastLine, hasQuestion };

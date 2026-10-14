@@ -175,6 +175,7 @@ function observe(dir, c, repo) {
     out.head = git(dir, ['rev-parse', 'HEAD']);
     out.topo = repo.topo;
     out.tags = git(dir, ['tag', '--list']).split('\n').filter(Boolean).length;
+    out.stashes = git(dir, ['stash', 'list']).split('\n').filter(Boolean).length;
     // Conteudo dos arquivos que o hook antigo cria: rito-checks so os tolera se forem
     // exatamente o que o hook escreve.
     out.hookFiles = {};
@@ -220,7 +221,9 @@ function runRitoSuite(ctx, checkpoint) {
           maxTurns: c.maxTurns || cfg.maxTurns,
           allowedTools: TOOLS[c.tools] || READ_TOOLS,
           strictMcp: true,
-          extraArgs: ['--add-dir', skillDir],
+          // Pastas do plugin que a skill cita alem da propria (ex.: agents/, onde mora o
+          // red-team.md que a revisao da onda le), como a sessao real as alcanca.
+          extraArgs: ['--add-dir', skillDir, ...(c.addDirs || []).flatMap((d) => ['--add-dir', path.join(ctx.ROOT, d)])],
           timeout: SESSION_TIMEOUT_MS,
           env: RITO_ENV,
         };

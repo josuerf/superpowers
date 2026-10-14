@@ -137,5 +137,18 @@ check(runRitoCheck(CO, { observed: git(['?? x.json', '?? .gitignore'], { hookFil
 check(!runRitoCheck(CO, { observed: git(['?? x.json', '?? .gitignore'], { hookFiles: { '.gitignore': 'node_modules\n' } }) }).pass, '.gitignore novo com outro conteudo reprova');
 check(!runRitoCheck(CO, { observed: git(['?? x.json', '?? .gitignore'], { hookNoiseExpected: false, hookFiles: { '.gitignore': HOOK_GI } }) }).pass, 'com plugin 7.0.1+ nem o conteudo do hook e tolerado');
 
+console.log('--- comando de shell que grava no repositorio ---');
+const { bashWritesRepo } = require('./rito-checks');
+[
+  ['grep -n "=>" src/estoque.js', false], ['rg "x > 0"', false], ['echo hi >/tmp/x', false],
+  ['node --test 2>&1 | grep pass', false], ['if [ a >= b ]', false], ['ls > /dev/null', false],
+  ["cat >> test/estoque.test.js <<'EOF'", true], ['echo x > src/a.js', true],
+  ["node -e \"fs.writeFileSync('a',1)\"", true], ['cp a b', true], ['mv a b', true],
+  ['git apply p.diff', true], ['sed -i s/a/b/ f', true], ['cat x | tee f', true],
+  ['echo > C:/Users/x/AppData/Local/Temp/skill-evals-rito-y/f', true],
+].forEach(([cmd, want]) => check(bashWritesRepo(cmd) === want, `${want ? 'grava ' : 'nao grava'}: ${cmd}`));
+check(!runRitoCheck(GS, { observed: git(['UU src/estoque.js'], { head: 'a', topo: 'a', tags: 0 }) }).pass, 'arquivo em conflito reprova');
+check(!runRitoCheck(GS, { observed: git([], { head: 'a', topo: 'a', tags: 0, stashes: 1 }) }).pass, 'stash criado reprova');
+
 console.log('\nrito: ' + ok + '/' + (ok + bad) + ' corretos');
 process.exit(bad === 0 ? 0 : 1);

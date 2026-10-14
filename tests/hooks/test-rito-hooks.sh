@@ -85,6 +85,7 @@ for i in 1 2 3 4 5 6; do echo "x" > "$D/f$i.js"; done
 assert "without the variable: stop-reminders asks for a commit" yes "$(stop_hook "$D" 0 stop-reminders.js | grep -q 'Commit reminder' && echo yes || echo no)"
 assert "rito: stop-reminders says nothing" "{}" "$(stop_hook "$D" 1 stop-reminders.js)"
 echo '{"reviewAggressiveness":{"enabled":true}}' > "$D/.harness.config.json"
+assert "without the variable: verify-on-stop blocks (gate on, 6 files changed)" yes "$(stop_hook "$D" 0 verify-on-stop.js | grep -q '"decision":"block"' && echo yes || echo no)"
 assert "rito: verify-on-stop says nothing (gate on, 6 files changed)" "{}" "$(stop_hook "$D" 1 verify-on-stop.js)"
 rm -rf "$D"
 

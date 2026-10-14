@@ -24,11 +24,13 @@ These parts of SKILL.md are switched off, even where SKILL.md says MUST or
   no "Stop here", no waiting for a reply, no execution skill invoked.
 - **Confirmation of a departure from the harness**: nobody can confirm it
   now. Record the departure as an assumption item instead.
-- **Messages injected by hooks** (a carrasco or verification gate, a
-  commit reminder, a decision-log or state.md reminder, a TDD reminder):
-  they do not apply in rito mode. The forge owns review, commit and logs;
-  answer such a message, if you must, with one line saying rito mode is on,
-  and keep to this file.
+- **Orders injected by this plugin's own hooks** (superpowers-prepared's
+  carrasco or verify-all gate, its commit, decision-log, state.md and TDD
+  reminders, its skill suggestions): they do not apply in rito mode; the
+  forge owns review, commit and logs. Feedback from the product's own hooks
+  about the code (a lint or test failure, a blocked command) still applies.
+  If you answer a hook at all, your answer still ends with the delivery
+  line this file asks for, when there is one.
 - **Scope Check's suggestion** to break the work into separate plans:
   write one plan, and record the suggestion as an assumption item.
 
