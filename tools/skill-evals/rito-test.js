@@ -163,6 +163,7 @@ const wr = (fp) => ({ tools: [{ name: 'Write', input: { file_path: fp } }], obse
 check(runRitoCheck(WO, wr(`${DIR}\\.harness\\artefatos\\spec.json`)).pass, 'escrita no destino, caminho absoluto do caso, passa');
 check(runRitoCheck(WO, wr('.harness/artefatos/spec.json')).pass, 'escrita no destino, caminho relativo, passa');
 check(!runRitoCheck(WO, wr(`${DIR}\\.superpowers\\notas.md`)).pass, 'escrita em .superpowers/ fora do destino reprova');
+check(runRitoCheck(WO, wr('C:/Users/X~1.FRE/AppData/Local/Temp/skill-evals-rito-a-1/.harness/artefatos/spec.json')).pass, 'destino pelo nome curto 8.3 da pasta do caso passa');
 check(!runRitoCheck(WO, wr('C:\\Users\\x\\projetos\\fork\\skills\\brainstorming\\rito.md')).pass, 'escrita fora do repositorio do caso reprova');
 
 console.log('\nrito: ' + ok + '/' + (ok + bad) + ' corretos');

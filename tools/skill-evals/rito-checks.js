@@ -261,11 +261,14 @@ function runRitoCheck(check, run) {
       // repositorio, que nenhum git status ve). Caminho absoluto no repositorio do caso
       // vira relativo a ele (observed.dir).
       const allow = new RegExp(check.allow);
-      const root = String(run.observed?.dir || '').replace(/\\/g, '/').toLowerCase();
+      // O nome da pasta temporaria do caso e unico (mkdtemp); casar por ele, e nao pelo
+      // caminho inteiro, porque a sessao pode usar o nome curto 8.3 do Windows
+      // (JOSUE~1.FRE) onde o realpath tem o longo.
+      const caseDir = String(run.observed?.dir || '').replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
       const bad = (run.tools || []).filter((t) => /^(Edit|Write|NotebookEdit|MultiEdit)$/.test(t.name)).map((t) => {
         const p = String(t.input?.file_path || t.input?.notebook_path || '').replace(/\\/g, '/');
-        const low = p.toLowerCase();
-        if (root && low.startsWith(root + '/')) return p.slice(root.length + 1);
+        const i = caseDir ? p.toLowerCase().indexOf(`/${caseDir.toLowerCase()}/`) : -1;
+        if (i >= 0) return p.slice(i + caseDir.length + 2);
         return /^([A-Za-z]:)?\//.test(p) ? `FORA: ${p}` : p;
       }).filter((p) => !allow.test(p));
       return { pass: bad.length === 0, detail: bad.length ? `escreveu: ${[...new Set(bad)].join(', ').slice(0, 200)}` : 'so no permitido' };

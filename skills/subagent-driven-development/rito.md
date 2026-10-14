@@ -69,6 +69,12 @@ templates.
 
 ## Implementing one task
 
+**Output order, no exceptions:** (1) the contract readback, written out as
+text in your answer; (2) the work: tests, code, verification; (3) the
+receipt. Reading files may come before the readback; writing anything,
+tests included, may not. A task whose answer has no readback text before
+the first write is a failed task, however good the code.
+
 The forge already gave this task a fresh session: you are the implementer
 `implementer-prompt.md` describes, not a controller. Do not dispatch an
 implementer or a reviewer. Read `implementer-prompt.md` in this directory
