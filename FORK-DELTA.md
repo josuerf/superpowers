@@ -29,14 +29,18 @@ upstream tira a linha desta tabela.
 | `.gitignore` | ignora `dist/`, artefatos do harness e relatórios locais (`todo`, `loss-report.md`...) | o git lê um `.gitignore` por diretório; o da raiz é compartilhado | nenhum (pré-convenção) |
 | `.hermes-plugin/__init__.py` | marcador de bootstrap e mensagens com `superpowers-prepared`; instalação `josuerf/superpowers-prepared` | o nome do plugin está embutido no código do loader | nenhum (pré-convenção) |
 | `.hermes-plugin/plugin.yaml` | nome `superpowers-prepared`, versão, autor `josuerf` | manifesto do plugin para Hermes | nenhum (pré-convenção) |
+| `.kimi-plugin/plugin.json` | só a versão do fork (7.0.1, card C123); o resto é igual ao upstream | o manifesto é único e carrega a versão | nenhum (JSON não tem comentário) |
+| `.muse-plugin/marketplace.json` | só a versão do fork (7.0.1, card C123); o resto é igual ao upstream | o manifesto é único e carrega a versão | nenhum (JSON não tem comentário) |
+| `.muse-plugin/plugin.json` | só a versão do fork (7.0.1, card C123); o resto é igual ao upstream | o manifesto é único e carrega a versão | nenhum (JSON não tem comentário) |
 | `.opencode/INSTALL.md` | instalação reescrita para o repositório e o plugin do fork (Unix/Windows) | é o documento que o OpenCode aponta para instalar | nenhum (pré-convenção) |
 | `README.md` | README do fork: badges, harness, `.harness.config.json`, duplicação/complexidade, carrasco | a página inicial do repositório é única | nenhum (pré-convenção) |
 | `RELEASE-NOTES.md` | notas de release do fork (v6.x "Superpowers Optimized"), inclusive os syncs com o upstream | histórico de versões é um arquivo só | nenhum (pré-convenção) |
 | `docs/README.opencode.md` | URLs e nomes de arquivo do plugin trocados para `superpowers-prepared` | documento de instalação do upstream, com o nome do pacote | nenhum (pré-convenção) |
+| `gemini-extension.json` | só a versão do fork (7.0.1, card C123); o resto é igual ao upstream | o manifesto é único e carrega a versão | nenhum (JSON não tem comentário) |
 | `hooks/hooks-cursor.json` | session-start com matcher `startup\|clear\|compact`, `context-engine.js` e `bash-compress-hook.js` (matcher `Bash`) no Cursor | o manifesto de hooks do Cursor é único | nenhum (JSON; pré-convenção) |
 | `hooks/hooks.json` | card IAF-533: registra `sdd-trailer.js` (PreToolUse `Bash`) e `inject-harness-context.js` (PreToolUse `Task\|Agent`, opt-in por config); antes: `session-start` chamado direto por `bash`, verify-on-stop, stop-reminders e hooks do harness/carrasco | o manifesto de hooks do Claude Code é único | nenhum (JSON não tem comentário) |
 | `hooks/run-hook.cmd` | 3 linhas `REM NOTE` sobre o limite de 8 argumentos | comentário no próprio wrapper | nenhum (pré-convenção) |
-| `hooks/session-start` | checagem de atualização (git/marketplace), geração de `.harness.config.json`, contexto do harness no início da sessão; sync v7.0.0: bootstrap lido em bash puro (`$(<file)` + expansão, sem `awk`) para sobreviver a `PATH` quebrado | o upstream injeta o bootstrap neste script; não há ponto de extensão | nenhum (pré-convenção) |
+| `hooks/session-start` | card C123 (C-35): com `SUPERPOWERS_PREPARED_RITO=1` não gera `.harness.config.json` (a sessão do forge não escreve na árvore do Produto); checagem de atualização (git/marketplace), geração de `.harness.config.json`, contexto do harness no início da sessão; sync v7.0.0: bootstrap lido em bash puro (`$(<file)` + expansão, sem `awk`) para sobreviver a `PATH` quebrado | o upstream injeta o bootstrap neste script; não há ponto de extensão | `# [fork]` (card C123); pré-convenção no resto |
 | `package.json` | card IAF-533: script `sdd:metrics` (`tools/sdd-metrics/collect.ts`); antes: nome/versão do fork, `main` do plugin OpenCode, scripts `harness:*`/`patterns:*`, config do Jest | npm lê um `package.json` só | nenhum (JSON não tem comentário) |
 | `skills/brainstorming/SKILL.md` | card C123: uma linha abaixo do título, `@@RITO:` no pedido → ler `rito.md` desta pasta; sync v7.0.0 (esqueleto do upstream): blocos `[fork]` com opt-out que não pula os Quality Gates, harness como default do "how it gets made", leitura do repo/harness sem oferecer recon, diagrama junto do playback de fluxos, apelidos quick/bounded/architectural, mini-envelope (IAF-533), failure-mode check, caminho `docs/superpowers-prepared/specs/`, Quality Gates, red flags, checagem de superfície visual ampliada para fluxos/mapas mentais, companion local × Artifact; `description` de roteamento | a instrução precisa estar no texto que a skill carrega | `<!-- [fork] -->` em todos os blocos |
 | `skills/brainstorming/builder-check-prompt.md` | sync v7.0.0: parágrafo "Count as guesses too" (regra do harness, invariante dos dados, regra regulatória/exportação) | é o prompt do construtor; o critério de chute mora nele | `<!-- [fork] -->` acima do bloco |
@@ -100,6 +104,10 @@ Flow depende deles e o sync precisa preservar as linhas que apontam para eles.
 - `tools/skill-evals/rito.js`, `rito-checks.js`, `rito-test.js`,
   `cases-modo-rito.json` e `fixtures/rito/` (card C123): a suíte
   `modo-rito`, que prova os dois lados (com e sem o marcador).
+- `SUPERPOWERS_PREPARED_RITO=1` (card C123, contrato C-35 da fase 22): o forge
+  passa a variável em toda sessão de etapa; `hooks/session-start` (linha da
+  tabela) e `hooks/context-engine.js` (arquivo só do fork) deixam de escrever
+  na pasta corrente. Teste: `tests/hooks/test-rito-hooks.sh`.
 
 ## Arquivos que o upstream apagou e o fork manteve
 

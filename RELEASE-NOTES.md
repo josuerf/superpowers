@@ -1,5 +1,31 @@
 # Superpowers Optimized Release Notes
 
+## v7.0.1 (2026-10-14)
+
+### Rito mode for brainstorming, writing-plans and subagent-driven-development
+
+- **A tool can now call these skills as one step of its own process.** When
+  the request has a line starting with `@@RITO:`, the skill reads `rito.md`
+  from its own folder: no questions (each question it would ask becomes an
+  assumption item, `SUP-NNN`, in the output), no approval wait, no commit,
+  no branch or worktree, and the artifact goes as JSON, in the shape the
+  request carries, to the path the request names, with
+  `@@ARTEFATO_PATH: <path>` as the last line. The Iguaçu Flow forge is the
+  first caller.
+- **Without the marker nothing changes.** Each `SKILL.md` gained one
+  paragraph below its title and nothing else; the rest of the text is
+  untouched, and callers that never send `@@RITO:` never read `rito.md`.
+- brainstorming in rito mode always writes the spec (the opt-out branch and
+  the HARD-GATE do not apply); writing-plans maps Risk flags to the forge's
+  risk names and skips the Execution Handoff; subagent-driven-development
+  either implements one task as the implementer (readback without waiting,
+  no commit) or reviews one wave (batch review, plus the red team when
+  asked) into a findings file, changing nothing else.
+- **New eval suite `modo-rito`** (`run.js --suite rito`): each case runs in
+  a temporary git repository and checks what the session wrote and
+  committed, both with and without the marker. `rito-test.js` tests the
+  checks.
+
 ## v7.0.0 (2026-10-11)
 
 Sync with upstream `obra/superpowers` v6.4.2 and v7.0.0 (their notes are
