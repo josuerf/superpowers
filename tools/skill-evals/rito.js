@@ -61,10 +61,12 @@ function installedHooksWriteInTree(dir) {
   }
 }
 
-function git(dir, args) {
+function git(dir, args, { raw = false } = {}) {
   const r = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${(r.stderr || '').slice(0, 300)}`);
-  return (r.stdout || '').trim();
+  // raw: o git status --porcelain comeca a linha com espaco (" M arquivo"); trim()
+  // comeria o da primeira linha e a faria parecer staged.
+  return raw ? (r.stdout || '') : (r.stdout || '').trim();
 }
 
 function commitAll(dir, msg) {
@@ -154,7 +156,8 @@ function observe(dir, c, repo) {
   const out = { files: {}, hookNoiseExpected: installedHooksWriteInTree(dir) };
   try {
     out.newCommits = parseInt(git(dir, ['rev-list', '--count', '--all']), 10) - repo.commits;
-    out.status = git(dir, ['status', '--porcelain', '--untracked-files=all']).split('\n').filter(Boolean);
+    out.status = git(dir, ['status', '--porcelain', '--untracked-files=all'], { raw: true })
+      .split('\n').map((l) => l.replace(/\r$/, '')).filter(Boolean);
     out.branches = git(dir, ['branch', '--format=%(refname:short)']).split('\n').filter(Boolean);
     out.worktrees = git(dir, ['worktree', 'list', '--porcelain']).split('\n').filter((l) => l.startsWith('worktree ')).length;
     out.head = git(dir, ['rev-parse', 'HEAD']);

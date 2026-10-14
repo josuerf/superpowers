@@ -6,7 +6,7 @@
     "Cada caso roda num repositorio git temporario (fixtures/rito/<repo>, commit inicial; commit de topo na revisao de onda). observed guarda commits novos, git status, branches, worktrees, os arquivos de destino e a saida do comando verify.",
     "Sem marcador: brainstorming pergunta, writing-plans para no handoff, o implementador do SDD espera no readback e, retomado, commita. Com marcador: nenhuma pergunta, nenhum commit, so o destino muda, ultima linha @@ARTEFATO_PATH.",
     "A ferramenta Skill e a de subagente nao sao liberadas: o eval mede o texto do ref em teste e o caminho sem subagente que os rito.md preveem.",
-    "Escrito ANTES dos rito.md."
+    "Escrito ANTES dos rito.md. Depois da 1a rodada (14/10): o fixture ganhou contador de id (a ambiguidade de reservas.length + 1 fazia o implementador sem marcador perguntar, com razao), o 2o turno do caso sem marcador diz que nao ha pendencias, e o regex do readback aceita o titulo em portugues."
   ],
   "cases": [
     {
@@ -268,13 +268,13 @@
         "node",
         "--test"
       ],
-      "turn2": "Li o seu readback. Está certo, nada a acrescentar: siga com a implementação.",
+      "turn2": "Li o seu readback. Sem pendências: onde faltar algo, decida como achar melhor e registre no relatório. Siga com a implementação e o commit, como o brief manda.",
       "why": "como hoje: o implementador emite o readback e espera; retomado, implementa e commita",
       "checks": [
         {
           "id": "readback-no-1o-turno",
           "type": "first-turn-regex",
-          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei"
+          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei|confirm the contract|confirm(o|ar) o contrato"
         },
         {
           "id": "espera-no-readback",
@@ -325,7 +325,7 @@
         {
           "id": "readback",
           "type": "regex",
-          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei"
+          "pattern": "What I do NOT know|O que (eu )?N[AÃ]O sei|confirm the contract|confirm(o|ar) o contrato"
         },
         {
           "id": "implementou",

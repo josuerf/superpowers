@@ -63,8 +63,11 @@ and follow its "Required behavior", "Your Job", "Code Organization", "When
 You're in Over Your Head" and "Before Reporting Back: Self-Review", with
 these changes:
 
-1. **Readback without waiting.** Before any Edit or Write, your first text
-   output is the contract readback, built from the `## Tarefa` section
+1. **Readback without waiting.** The readback is required in rito mode
+   too: the forge asked for the SDD cycle, and the cycle starts with it.
+   Skipping it is a defect even when the code comes out right. Before any
+   Edit or Write, and before any test you write, print the contract
+   readback as text in your answer, built from the `## Tarefa` section
    (it is your brief), under the heading "Before writing any code: confirm
    the contract", with these items: **Objective**, **Allowed files**,
    **Forbidden files**, **Invariants I will preserve** (rewritten in your
@@ -138,9 +141,11 @@ repository is the `Destino:` file.
    | red team | Critical, High | `bloqueante` |
    | red team | Medium (or lower) | `nao_bloqueante` |
 
-   `origem` is `revisao` for the review and `red_team` for the red team.
-   Each finding names `arquivo` (path relative to the repository root),
-   `linha` when there is one, and `texto` (what is wrong and why, in the
+   Every finding carries all of these fields: `id`, `severidade`,
+   `arquivo`, `texto`, `origem`, and `linha` when there is one. A
+   finding without `origem` makes the whole file invalid. `origem` is
+   `revisao` for the review and `red_team` for the red team.
+   `arquivo` is the path relative to the repository root, and `texto` (what is wrong and why, in the
    language of the request). Ids are `ACH-001`, `ACH-002`, ... A clean
    wave is an empty `achados` list, not an invented finding.
 7. **No fix loop.** Do not fix anything: the forge reopens the task when a

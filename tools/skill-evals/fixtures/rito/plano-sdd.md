@@ -28,7 +28,7 @@
 ## Invariants
 
 - O saldo de um item nunca passa do saldo antes das reservas: cancelar a mesma reserva duas vezes nao devolve a quantidade duas vezes (EST-7).
-- `reservar` continua recusando quantidade invalida e saldo insuficiente (src/estoque.js:13-19).
+- `reservar` continua recusando quantidade invalida e saldo insuficiente (src/estoque.js:14-21).
 
 ## Review Focus
 

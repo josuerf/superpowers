@@ -105,6 +105,13 @@ function validateShape(shape, obj) {
   return [`forma desconhecida: ${shape}`];
 }
 
+/** Linhas do git status --porcelain. Resultados gravados antes da correcao do run
+ *  tinham a primeira linha aparada (' M a' virava 'M a'): devolve o espaco quando a
+ *  linha tem um codigo de estado so, seguido de um espaco e do caminho. */
+function statusLines(obs) {
+  return (obs.status || []).map((s) => (/^[MADRCU?!] [^ ]/.test(s) ? ' ' + s : s));
+}
+
 function readJson(run, path) {
   const raw = run.observed?.files?.[path];
   if (raw === undefined || raw === null) return { error: `${path} nao existe` };
@@ -133,7 +140,7 @@ function runRitoCheck(check, run) {
       const bad = [];
       if ((obs.branches || []).length !== 1) bad.push(`branches: ${(obs.branches || []).join(',')}`);
       if ((obs.worktrees ?? 1) !== 1) bad.push(`worktrees: ${obs.worktrees}`);
-      if ((obs.status || []).some((s) => /^[MADRC]/.test(s))) bad.push('index com arquivo staged');
+      if (statusLines(obs).some((s) => /^[MADRC]/.test(s))) bad.push('index com arquivo staged');
       return { pass: bad.length === 0, detail: bad.join('; ') || 'git intacto' };
     }
     case 'changed-only': {
@@ -141,7 +148,7 @@ function runRitoCheck(check, run) {
       // dele geram estes dois arquivos na pasta da sessao ao iniciar, mesmo com
       // SUPERPOWERS_PREPARED_RITO=1. Sao do ambiente, nao da sessao: so nesse caso, e so
       // quando novos (`??`), nao contam. Com a 7.0.1+ instalada a checagem e estrita.
-      const paths = (obs.status || [])
+      const paths = statusLines(obs)
         .filter((s) => obs.hookNoiseExpected === false || !HOOK_NOISE.includes(s))
         .map((s) => s.slice(3).replace(/^"|"$/g, ''));
       const allow = new RegExp(check.allow);

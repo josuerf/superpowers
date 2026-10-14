@@ -94,6 +94,8 @@ const tarefa = (o = {}) => ({
   observed: git([' M src/estoque.js', ' M test/estoque.test.js'], { verifyStatus: 0 }), ...o,
 });
 check(fails('sdd-rito-tarefa', tarefa()).length === 0, 'rito tarefa: implementou sem commit passa');
+check(fails('sdd-rito-tarefa', tarefa({ observed: git(['M src/estoque.js', ' M test/estoque.test.js'], { verifyStatus: 0 }) })).length === 0, 'rito tarefa: primeira linha do status aparada (resultado antigo) nao vira staged');
+check(fails('sdd-rito-tarefa', tarefa({ observed: git(['M  src/estoque.js'], { verifyStatus: 0 }) })).includes('git-intacto'), 'rito tarefa: arquivo staged de verdade reprova');
 check(fails('sdd-rito-tarefa', tarefa({ observed: git([], { newCommits: 1, verifyStatus: 0 }) })).length >= 2, 'rito tarefa: commit (arvore limpa) reprova');
 check(fails('sdd-rito-tarefa', tarefa({ observed: git([' M src/estoque.js', '?? docs/x.md'], { verifyStatus: 0 }) })).includes('implementou'), 'rito tarefa: arquivo fora da tarefa reprova');
 check(fails('sdd-rito-tarefa', tarefa({ observed: git([' M src/estoque.js'], { verifyStatus: 1 }) })).includes('testes-verdes'), 'rito tarefa: teste vermelho reprova');

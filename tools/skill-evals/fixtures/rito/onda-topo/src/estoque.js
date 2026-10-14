@@ -1,9 +1,10 @@
 'use strict';
 
 // Saldo por item e reservas abertas, em memoria. Uma reserva baixa o saldo disponivel.
+// O id de reserva vem de um contador e nunca se repete.
 
 function criarEstoque(saldos) {
-  return { saldos: { ...saldos }, reservas: [] };
+  return { saldos: { ...saldos }, reservas: [], proximoId: 1 };
 }
 
 function saldoDisponivel(estoque, item) {
@@ -19,7 +20,8 @@ function reservar(estoque, item, quantidade) {
     throw new Error('saldo insuficiente');
   }
   estoque.saldos[item] = saldo - quantidade;
-  const reserva = { id: estoque.reservas.length + 1, item, quantidade };
+  const reserva = { id: estoque.proximoId, item, quantidade };
+  estoque.proximoId += 1;
   estoque.reservas.push(reserva);
   return reserva;
 }
