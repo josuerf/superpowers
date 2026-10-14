@@ -7,6 +7,8 @@
  *   2. writing-plans escolhe inline ou subagentes no handoff, e justifica?
  *   3. (--suite business) o carrasco reencontra achados business-rule reais
  *      no diff do MR? Fora de "both": cada caso e uma revisao inteira.
+ *   4. (--suite rito) as skills com e sem o marcador @@RITO: (card C123): o que a
+ *      sessao gravou e commitou num repositorio git temporario. Ver rito.js.
  *
  * Como funciona: o conteudo da SKILL.md sob teste e injetado no prompt e o
  * cenario e apresentado logo depois. Isso mede exatamente o que estamos
@@ -19,10 +21,10 @@
  * ativacao.
  *
  * Uso:
- *   node tools/skill-evals/run.js --suite visual|execution|both|blast|readback|risk|all|business
+ *   node tools/skill-evals/run.js --suite visual|execution|both|blast|readback|risk|all|business|rito
  *                                 [--reps N] [--model NOME] [--label TEXTO] [--case ID] [--dry-run]
  *
- *   `all` nao inclui `business` (cada caso e uma revisao inteira): rode-a a parte.
+ *   `all` nao inclui `business` nem `rito` (sessoes longas, com escrita): rode-as a parte.
  *   --dry-run monta todos os prompts (inclusive task-brief e build-review-prompt)
  *   sem chamar o modelo e sem gravar resultado — confere a fiacao de cada suite.
  */
@@ -68,6 +70,19 @@ function sumStreamUsage(lines) {
     cacheWrite += u.cache_creation_input_tokens || 0;
   }
   return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
+}
+
+/** Id da sessao (evento init) e texto final (evento result): a suite rito retoma a
+ *  sessao com --resume e pontua a ultima mensagem. */
+function sessionInfo(lines) {
+  let sessionId = null, finalText = null;
+  for (const line of lines) {
+    let ev;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (!sessionId && ev.session_id) sessionId = ev.session_id;
+    if (ev.type === 'result' && typeof ev.result === 'string') finalText = ev.result;
+  }
+  return { sessionId, finalText };
 }
 
 function assistantText(lines) {
@@ -118,21 +133,26 @@ function runClaude(prompt, opts = {}) {
   const started = Date.now();
   if (DRY) {
     process.stderr.write(`[dry-run ${prompt.length} chars] `);
-    return { text: '', tools: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, ms: 0, error: null };
+    return { text: '', finalText: '', sessionId: null, tools: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, ms: 0, error: null };
   }
   const res = spawnSync('claude', args, {
     encoding: 'utf8',
     cwd: opts.cwd || ROOT,
     input: prompt,
     maxBuffer: 64 * 1024 * 1024,
+    timeout: opts.timeout,
   });
   const lines = (res.stdout || '').split('\n').filter((l) => l.trim().startsWith('{'));
+  const info = sessionInfo(lines);
   return {
     text: assistantText(lines),
+    finalText: info.finalText,
+    sessionId: info.sessionId,
     tools: toolUses(lines),
     usage: sumStreamUsage(lines),
     ms: Date.now() - started,
-    error: res.status !== 0 ? (res.stderr || res.stdout || '').slice(0, 400) : null,
+    error: res.error ? String(res.error.message || res.error).slice(0, 400)
+      : res.status !== 0 ? (res.stderr || res.stdout || `saida ${res.status}`).slice(0, 400) : null,
   };
 }
 
@@ -452,6 +472,10 @@ function main() {
 
   if (SUITE === 'business') {
     suites.push(runBusinessRule(flush));
+  }
+  if (SUITE === 'rito') {
+    const { runRitoSuite } = require('./rito');
+    suites.push(runRitoSuite({ HERE, ROOT, BASH, REPS, ONLY, DRY, runClaude, buildExecutionPrompt }, flush));
   }
 
   if (DRY) {

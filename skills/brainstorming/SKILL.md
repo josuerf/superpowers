@@ -11,6 +11,8 @@ description: >
 
 # Brainstorming
 
+<!-- [fork] --> **Rito mode:** if the request that invoked this skill has a line starting with `@@RITO:`, read `rito.md` in this skill's directory before anything else and follow it: it replaces this skill's normal flow and says which parts of this file still apply. Without that line, ignore this paragraph.
+
 You are very good at building. You build what you believe your human
 partner wants, and that belief is usually thinner than it feels. This
 skill is for finding out what they actually want, and why, before

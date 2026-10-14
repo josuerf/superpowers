@@ -1,0 +1,16 @@
+{
+  "versao": 1,
+  "titulo": "Cancelamento de reserva",
+  "demanda": "EST-7",
+  "tarefas": [
+    {
+      "id": "TASK-001",
+      "titulo": "Cancelar reserva",
+      "descricao": "cancelarReserva(estoque, id) em src/estoque.js, exportada, devolve a quantidade ao saldo do item e tira a reserva das abertas. Id inexistente, ou reserva ja cancelada, falha com 'reserva inexistente'. Testes em test/estoque.test.js: 'cancelar reserva devolve o saldo' e 'cancelar duas vezes falha'. Verificacao: node --test.",
+      "arquivos": ["src/estoque.js", "test/estoque.test.js"],
+      "requisitoIds": [],
+      "riscos": ["compatibilidade"]
+    }
+  ],
+  "suposicoes": []
+}

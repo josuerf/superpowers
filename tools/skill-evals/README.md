@@ -19,6 +19,7 @@ custo muito menor.
 | `readback` | O implementador emite o readback antes de editar, reescreve os invariantes e declara a lacuna plantada? O revisor de plano nomeia o que o refutaria? | emissão, fidelidade (n-gramas copiados), honestidade, desconfirmação |
 | `risk-flags` | O planejador atribui a `Risk flag` certa — e nenhuma onde não há risco? | casos aprovados; `trivial-none` mede falso positivo |
 | `business-rule` | O carrasco reencontra achados business-rule reais (HIGH/CRITICAL) no diff do MR? | reencontro: achado no arquivo esperado, linha na tolerância, `category: business-rule` |
+| `modo-rito` | Com `@@RITO:`, as skills trabalham sem perguntar, sem commit, e gravam o JSON do pedido no destino? Sem o marcador, fazem o que faziam? | casos aprovados (todos os checks), observando o repositório git temporário do caso |
 
 ## Como funciona
 
@@ -40,9 +41,9 @@ node tools/skill-evals/score.js results/<arquivo>.json
 node tools/skill-evals/score.js results/<antes>.json results/<depois>.json   # comparação
 ```
 
-Opções de `run.js`: `--suite visual|execution|both|blast|readback|risk|all|business`,
+Opções de `run.js`: `--suite visual|execution|both|blast|readback|risk|all|business|rito`,
 `--reps N`, `--case ID`, `--model NOME`, `--label TEXTO`, `--dry-run`. `all` roda
-todas as suítes menos `business` (ver abaixo). `--dry-run` monta todos os prompts
+todas as suítes menos `business` e `rito` (ver abaixo). `--dry-run` monta todos os prompts
 — inclusive o `task-brief` do `readback` e o `build-review-prompt.ts` do
 `business` — sem chamar o modelo e sem gravar resultado: confere a fiação de
 cada suíte de graça.
@@ -75,6 +76,27 @@ prompt). Rode com `--suite business` e, para fumaça, `--case ID --reps 1`.
 - O detector fica em `business-rule-detector.js` e é testado de verdade por
   `detector-test.js`. Resposta sem bloco `REVIEWER_DECISION` parseável conta
   como "sem bloco", não como "não achou".
+
+### Suíte modo-rito
+
+Não entra em `all`: são sessões com escrita, algumas longas. Rode com
+`--suite rito` (card C123 do Iguaçu Flow).
+
+- Cada caso roda num repositório git temporário montado de
+  `fixtures/rito/<repo>` (commit inicial; a revisão de onda ganha um commit de
+  topo com um defeito plantado). Depois da sessão, `observed` guarda os commits
+  novos, o `git status`, as branches, as worktrees, os arquivos de destino e a
+  saída do comando `verify` do caso. `rito-checks.js` pontua isso;
+  `node tools/skill-evals/rito-test.js` testa as checagens com casos sintéticos.
+- Casos com marcador: o pedido do forge vem primeiro e a skill depois, como a
+  ferramenta Skill entrega ("Base directory for this skill"); a pasta da skill
+  no ref em teste fica legível por `--add-dir`, e é lá que está o `rito.md`.
+- Casos sem marcador: a primeira mensagem do `brainstorming`, o handoff do
+  `writing-plans` e o implementador do SDD em dois turnos (o readback, e a
+  retomada por `--resume` que implementa e commita).
+- As ferramentas Skill e de subagente não são liberadas: a primeira carregaria
+  o plugin instalado na máquina, não o ref; a segunda é o caminho que a suíte
+  deixa de medir, por custo.
 
 ## Como comparar antes/depois honestamente
 

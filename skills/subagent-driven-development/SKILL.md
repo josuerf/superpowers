@@ -9,6 +9,8 @@ description: >
 
 # Subagent-Driven Development
 
+<!-- [fork] --> **Rito mode:** if the request that invoked this skill has a line starting with `@@RITO:`, read `rito.md` in this skill's directory before anything else and follow it: it replaces this skill's normal flow and says which parts of this file still apply. Without that line, ignore this paragraph.
+
 Execute plan by grouping its tasks into a few cohesive batches, dispatching a fresh implementer subagent per batch, a review (spec compliance + code quality) after each, strict review gates and a broad whole-branch review at the end.
 
 ## Required Start

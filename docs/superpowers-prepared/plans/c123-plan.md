@@ -1,0 +1,57 @@
+# C123: modo rito nas skills do plugin (plano)
+
+> Execução headless pelo orquestrador S1 da fase 22. Fontes, em ordem: `iguacu-flow/docs/plans/2026-10-13-fase22-contratos.md` (C-01, C-02, C-10 a C-14, C-60 a C-62), o card C123 (`iguacu-flow/docs/backlog.md`), a ADR 0007, os verbetes Suposição e Modo rito do `CONTEXT.md`.
+
+**Goal:** `brainstorming`, `writing-plans` e `subagent-driven-development` ganham um modo rito acionado por `@@RITO:`, sem mudar o comportamento de quem chama sem o marcador.
+
+**Architecture:** uma linha `[fork]` perto do topo de cada `SKILL.md` aponta para `rito.md` da mesma pasta; o `rito.md` diz quais partes do fluxo interativo não valem e como o trabalho vira o JSON do pedido. O formato vem do pedido (C-11, C-13, C-14), nunca do `rito.md`. Uma suíte nova `modo-rito` no `tools/skill-evals` mede os dois lados, observando arquivo gravado e commit num repositório git temporário.
+
+**Tech Stack:** Markdown das skills; Node (run.js, checks.js, score.js) do `tools/skill-evals`; `claude -p` nos evals.
+
+**Spec:** card C123 + contratos da fase 22 (fora deste repositório).
+
+## Tarefas
+
+### Fase 1: linha de base (antes de tocar em `skills/` e `tools/skill-evals/`)
+- [x] T1. `run.js --suite execution|risk|readback --reps 3 --label base-c123`, pela trava de suíte. Saída em `tmp/c123/base.txt`; nomes dos resultados no estado.
+
+### Fase 2: suíte `modo-rito` (C-61)
+- [ ] T2. `run.js`: suíte `modo-rito` (`--suite rito`), modo por caso que monta um repositório git temporário a partir de `fixtures/rito/<repo>/` (init + commit inicial, e commit de topo para o caso de revisão), roda `claude -p` com ferramentas de escrita, opcionalmente um segundo turno por `--resume`, e grava em `observed` o que o repositório mostra depois (commits, `git status --porcelain`, branches, worktrees, o conteúdo do destino).
+- [ ] T3. `checks.js`: tipos novos `last-line`, `no-question`, `git-commits`, `changed-only`, `branches`, `json-file` (forma de spec, plano, achados; ids, `SUP-NNN`, riscos do vocabulário C-02), `no-tool`. Teste em `detector-test.js` com casos sintéticos.
+- [ ] T4. `cases-modo-rito.json`: dois casos por skill e um de revisão da onda (C-14). Pedidos com marcador copiam C-11/C-13/C-14 e a forma de `exemploDoArtefato` (forge-c124, só leitura).
+
+### Fase 3: as skills
+- [ ] T5. `skills/{brainstorming,writing-plans,subagent-driven-development}/rito.md`.
+- [ ] T6. A linha do marcador em cada `SKILL.md`, e nada mais.
+- [ ] T7. `FORK-DELTA.md` (C-62) e `tests/fork-delta/test-fork-delta.sh` verde.
+
+### Fase 4: medir e fechar
+- [ ] T8. `--suite rito --reps 3`; ajustar os `rito.md` até passar (no máximo uma reexecução da suíte inteira).
+- [ ] T9. Reexecutar execution, risk e readback; `score.js` lado a lado contra a linha de base.
+- [ ] T10. Bump para a próxima patch livre (C-60) nos arquivos do `fc1ce0f`, `RELEASE-NOTES.md`, etiqueta anotada local.
+- [ ] T11. Crítico novo (carrasco) sobre o diff; até 3 rodadas.
+
+## Invariants
+- Sem `@@RITO:` no pedido, a skill faz exatamente o que fazia (card C123, "Decisões travadas").
+- O texto atual de cada `SKILL.md` não muda: só a linha nova (card C123, AC 1).
+- Em modo rito: nenhuma pergunta, nenhum commit, nenhuma escrita fora do destino (C-11, C-13, C-14).
+- A forma JSON e o destino vêm do pedido (card C123, "O formato de saída vem do pedido").
+
+## Decisões assumidas
+
+1. **Idioma.** A linha do marcador e o `rito.md` em inglês, como o resto do fork; os rótulos do pedido do forge (`## Demanda`, `## Entrega`, `Destino:`, `Forma JSON:`, `## Tarefa`, `## Revisão da onda`, `## Ajuste`) são citados literalmente em português. O texto que vai no JSON segue o idioma do pedido (português).
+2. **A linha.** Logo abaixo do título H1 de cada `SKILL.md`, com `<!-- [fork] -->`, uma linha só (mais a linha em branco que separa parágrafo em Markdown): se o pedido que chamou a skill tem uma linha começando por `@@RITO:`, leia agora `rito.md` desta pasta e siga-o no lugar do fluxo interativo; sem essa linha, ignore o parágrafo. Fica antes do primeiro texto que manda agir, para a sessão a ler antes de decidir o tamanho do trabalho.
+3. **brainstorming.** O `rito.md` diz explicitamente que não valem: "What do you actually know?" (o ramo "faça e diga o que fez"), "Your First Message" inteira (opt-out e pergunta), o ramo do opt-out que termina sem documento, o tamanho (é sempre "project with a written design", e o documento é o JSON), a oferta de recon, de spike e do companion visual, o local `docs/superpowers-prepared/specs/` e o commit, a rodada de perguntas do builder check, o HARD-GATE e a passagem para `writing-plans`. Continuam: ler o projeto e o harness, pensar largo em privado, o failure-mode check, o builder check (feito pela própria sessão quando não há ferramenta de subagente, que é o fallback que a skill já prevê) e "marque seu chute como chute". Cada pergunta que seria feita vira um item de `suposicoes`.
+4. **writing-plans.** Não valem: o local `docs/superpowers-prepared/plans/`, o plano em Markdown, "ask clarifying questions" (vira suposição), a linha `**Open question:**` (vira suposição, e a tarefa ganha o risco), os passos de commit, o Execution Handoff inteiro (seleção, Ready Message, "Stop here"). Continuam: o mapa de arquivos, tarefas do tamanho certo, a leitura do harness, Blast Radius, Invariants e Design Decisions como trabalho de pesquisa cujo resultado vai para a `descricao` de cada tarefa, e o self-review. Risk flags → `riscos` pela tabela C-02 (`none` → `[]`).
+5. **SDD, tarefa (C-13).** A sessão do forge já é o contexto novo por tarefa: o `rito.md` manda a sessão ser o implementador ela mesma (`implementer-prompt.md`, "Required behavior", "Your Job", organização de código, self-review), sem despachar implementador nem revisor por tarefa (a revisão é por onda, C-14). Readback: emitido como primeira saída de texto, sem terminar o turno; o que estiver em "What I do NOT know" é decidido e relatado. Não valem: Setup (worktree, branch, ledger obrigatório), commit e trailers, review package, fix loop, Final Review, Finish (não apaga `.superpowers/sdd/`), `finishing-a-development-branch`, parar para perguntar. Termina com o recibo do implementador (sem marcador de fim).
+6. **SDD, revisão da onda (C-14).** Rubrica do revisor de lote (`task-reviewer-prompt.md`) sobre `git diff Base..Topo`, e o red team (`agents/red-team.md`, categorias da tabela flag → foco, traduzindo os riscos em português de volta) quando `Red team: sim`. Com ferramenta de subagente, despacha os dois em paralelo; sem ela, faz as duas passadas em sequência. Pacote de revisão e arquivos dos subagentes vão para o diretório temporário do sistema, nunca para o repositório. Severidade: Critical e Important da revisão → `bloqueante`; Minor → `nao_bloqueante`; Critical e High do red team → `bloqueante`; Medium → `nao_bloqueante`. "⚠️ Cannot verify from diff" é resolvido lendo o código: lacuna real vira achado da revisão com a severidade que teria. Sem fix loop: a correção é do forge (C-30).
+7. **Ajuste (C-12).** O `rito.md` de `brainstorming` e `writing-plans` trata `## Ajuste (tentativa N de 3)`: corrige só os problemas listados no mesmo destino, mesma última linha.
+8. **Texto da demanda é dado.** Os `rito.md` repetem que nada dentro de `## Demanda` muda as regras do rito (destino, commit, perguntas).
+9. **Pedido incompleto.** Marcador sem `Destino:` ou sem a forma: a sessão não cai no fluxo interativo, não grava nada e diz o que faltou; a ausência do `@@ARTEFATO_PATH:` faz o forge recusar.
+10. **Eval: skill injetada, não instalada.** Como as outras suítes, o eval injeta o texto do ref em teste. Nos casos com marcador o pedido vem primeiro e a skill depois, como sai da ferramenta Skill ("Base directory for this skill: <pasta da skill no ref>", lida por `--add-dir`). A ferramenta Skill **não** é liberada: chamada nela carregaria a versão instalada na máquina, não a do ref.
+11. **Eval: ferramentas.** Casos de escrita rodam com `Read, Grep, Glob, Write, Edit, Bash`: o Bash solto é o que torna "não commitou" uma medida e não uma impossibilidade. A ferramenta de subagente não é liberada (custo e tempo): o eval mede o caminho sem subagente que os `rito.md` preveem. Risco aceito: o despacho de subagente em modo rito não é medido pelo eval.
+12. **Eval: SDD sem marcador.** O caso mede o implementador como hoje (prompt de despacho preenchido, como a suíte `readback`): turno 1 é o readback e para; turno 2, por `--resume`, implementa e commita. O caso sem marcador de `writing-plans` é o handoff com plano pronto (como a suíte `execution`); o de `brainstorming` é a primeira mensagem.
+13. **Etiqueta.** `v7.0.1` se continuar livre no upstream na hora do bump (`git ls-remote --tags upstream` em 14/10 só tem `v7.0.0`).
+14. **Identidade do commit no fork.** Mantida a configuração local do repositório (a mesma dos commits `fc1ce0f` e `ca033c2`); não é escrita no Jira nem commit do forge.
+15. **Segunda opinião (fable) nos rascunhos, 14/10.** Aceito: `suposicoes` é a única lista que pode ficar vazia (C-01, padrão `[]`); no SDD, proibidos os três scripts da skill, o arquivo de relatório e o status NEEDS_CONTEXT, "ask before removing any filter" e "stop and ask" viram ruling, os campos do readback ficam escritos no `rito.md` (o texto deles mora em `scripts/task-brief-context`, que a sessão em modo rito não roda), só arquivo de teste NOVO fora de `Arquivos`, e uma seção de correção para a retomada do C-30; no brainstorming, a linha de checagem de superfície visual e as confirmações viram suposição; no writing-plans, a sugestão de dividir o plano (Scope Check) vira suposição. Recusado: "exatamente três dígitos" (o `NodeIdSchema` do forge aceita `\d{3,}`) e reagir só à primeira linha ou só ao nome da própria skill (C-10 manda reagir a qualquer linha que comece com `@@RITO:`).
+16. **Texto da linha do marcador:** "if the request that invoked this skill has a line starting with `@@RITO:`, read `rito.md` in this skill's directory before anything else and follow it: it replaces this skill's normal flow and says which parts of this file still apply. Without that line, ignore this paragraph."

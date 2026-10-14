@@ -15,6 +15,7 @@
  *   no-edit-tool   a execucao NAO chamou Edit/Write/NotebookEdit
  *   no-literal-copy { phrases, n?, max?, section?, until? }  cada frase: fracao de
  *                  n-gramas copiados literalmente < max
+ *   (demais)       tipos da suite modo-rito, em rito-checks.js
  */
 
 // Um "campo" em negrito (**X:**) ou um cabecalho encerram a secao corrente.
@@ -93,8 +94,11 @@ function runCheck(check, run) {
       const worst = Math.max(...fr);
       return { pass: worst < max, detail: `copia maxima ${(worst * 100).toFixed(0)}%` };
     }
-    default:
-      return { pass: false, detail: `tipo desconhecido: ${check.type}` };
+    default: {
+      // Tipos da suite modo-rito (estado do repositorio, JSON no destino): rito-checks.js.
+      const rito = require('./rito-checks').runRitoCheck(check, run);
+      return rito || { pass: false, detail: `tipo desconhecido: ${check.type}` };
+    }
   }
 }
 

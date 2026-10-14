@@ -1,0 +1,20 @@
+{
+  "versao": 1,
+  "titulo": "Estoque compartilhado entre os caixas do almoxarifado",
+  "demanda": "EST-21",
+  "requisitos": [
+    { "id": "REQ-001", "texto": "O estoque passa a ser gravado no arquivo dados/estoque.json, e nao mais so em memoria: cada caixa le o arquivo ao comecar uma reserva e grava o saldo novo ao terminar." },
+    { "id": "REQ-002", "texto": "Varios processos de caixa rodam ao mesmo tempo na mesma maquina e reservam itens do mesmo arquivo; duas reservas simultaneas do mesmo item nunca deixam o saldo negativo nem perdem a baixa de uma delas." },
+    { "id": "REQ-003", "texto": "Um comando de linha `node src/cli.js reservar <item> <quantidade>` faz uma reserva e imprime o saldo restante." }
+  ],
+  "criteriosAceite": [
+    { "id": "CA-001", "texto": "Depois de reiniciar o processo, o saldo lido de dados/estoque.json e o mesmo de antes.", "requisitoId": "REQ-001" },
+    { "id": "CA-002", "texto": "Vinte processos reservando 1 unidade de um item com saldo 10 terminam com exatamente 10 reservas aceitas, 10 recusadas e saldo 0.", "requisitoId": "REQ-002" },
+    { "id": "CA-003", "texto": "`node src/cli.js reservar papel 2` imprime `saldo de papel: 8` quando o saldo era 10.", "requisitoId": "REQ-003" }
+  ],
+  "regrasNegocio": [
+    { "id": "RN-001", "texto": "O saldo de um item nunca fica negativo." }
+  ],
+  "foraDeEscopo": ["Banco de dados.", "Reservas entre maquinas diferentes."],
+  "suposicoes": []
+}
