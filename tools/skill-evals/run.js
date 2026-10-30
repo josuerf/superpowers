@@ -244,8 +244,19 @@ Execute agora a etapa de Execution Handoff da skill: produza a mensagem que voce
 enviaria ao seu parceiro humano neste momento, e apenas ela.`;
 }
 
-function readSkill(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+// `references` (na config do caso ou da suite): arquivos que a skill manda ler
+// do disco na etapa medida (ex.: references/execution-handoff.md). O agente real
+// os leria com Read; aqui vao anexados ao texto da skill, cada um com o caminho.
+function readSkill(rel, references = []) {
+  const dir = path.dirname(path.join(ROOT, rel));
+  let text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  for (const ref of references) {
+    text += `
+
+<!-- arquivo lido do disco: ${ref} -->
+` + fs.readFileSync(path.join(dir, ref), 'utf8');
+  }
+  return text;
 }
 
 function currentRef() {
@@ -256,7 +267,7 @@ function currentRef() {
 
 function runSuite(name, cfgFile, buildPrompt, checkpoint, buildFollowUp) {
   const cfg = JSON.parse(fs.readFileSync(path.join(HERE, cfgFile), 'utf8'));
-  const skillText = readSkill(cfg.skill);
+  const skillText = readSkill(cfg.skill, cfg.references);
   const cases = ONLY ? cfg.cases.filter((c) => c.id === ONLY) : cfg.cases;
   const runs = [];
   let n = 0;
@@ -383,7 +394,7 @@ function runCheckSuite(name, cfgFile, checkpoint) {
   const total = cases.length * REPS;
   for (const c of cases) {
     const mode = c.mode || cfg.mode;
-    const skillText = readSkill(c.skill || cfg.skill);
+    const skillText = readSkill(c.skill || cfg.skill, c.references || (c.skill ? [] : cfg.references));
     const brief = c.brief || cfg.brief;
     for (let rep = 1; rep <= REPS; rep++) {
       n += 1;
