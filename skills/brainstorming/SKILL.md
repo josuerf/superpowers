@@ -96,6 +96,9 @@ brainstorming:
 
 That's the whole message.
 
+<!-- [fork] --> Your reply to their first answer starts with the **Visual
+surface** line (see Visual Companion); on yes, that reply is the offer.
+
 ## The Conversation
 
 Each message ends with one question: a single sentence with no list of
@@ -348,11 +351,15 @@ browser.
 that test rarely fires. After reading the project, and before you reply to
 their first answer, write one line:
 
-> **Visual surface: yes/no.** Will this create or change something a person
-> looks at (a screen, a flow across screens, a component, navigation, a
-> layout, a printed or exported document), or is it a process, flow, or
-> structure of three or more parts that a diagram or mind map would show
-> faster than text?
+> **Visual surface: yes/no.** Will this create something a person looks at,
+> or change its layout (a screen, a flow across screens, a component,
+> navigation, a printed or exported document)? Or is it a new process or
+> flow of three or more steps or hand-offs that they have to decide on,
+> which a diagram or mind map would show faster than text?
+
+A field, column, or filter added to a screen or report that keeps its
+layout is no. So is the internal structure of code you are refactoring or
+explaining: say it in text.
 
 Yes: your reply to their first answer is the offer, on its own; don't wait
 for a playback chunk. No: stay in text unless a playback chunk trips the
