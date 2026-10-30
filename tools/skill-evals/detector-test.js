@@ -14,9 +14,9 @@ const scorePath = path.join(__dirname, 'score.js');
 // score.js roda ao ser carregado; reimplementamos so as regex, mantidas em
 // sincronia manualmente. Se divergirem, este teste passa e o eval mente — por
 // isso as constantes abaixo sao copia literal das de score.js.
-const VISUAL_TERM = /(mockup|wireframe|prot[oó]tipo|visual companion|companion visual|preview|pr[eé]-?visualiza|esbo[cç]o|tela de exemplo|maquete|diagrama|diagram|mapa mental|mind map|aba no navegador|browser tab)/i;
+const VISUAL_TERM = /(mockup|wireframe|prot[oó]tipo|visual companion|companion visual|preview|pr[eé]-?visualiza|esbo[cç]o|tela de exemplo|maquete|diagrama|diagram|mapa mental|mind map|rascunho|aba (no|do) navegador|browser tab)/i;
 const OFFER_MARK = /(quer que|gostaria|posso (montar|fazer|preparar|gerar|criar)|te mostr|lhe mostr|mostrar para voc|want me|shall i|i can put together|montar (um|uma)|prefere)/i;
-const SURFACE_CHECK = /superf[ií]cie visual\s*[:\-]\s*(sim|n[aã]o|yes|no)/i;
+const SURFACE_CHECK = /(?:superf[ií]cie visual|visual surface)\s*[:\-]\s*(sim|n[aã]o|yes|no)/i;
 
 const splitSentences = (t) => t.split(/(?<=[.!?…])\s+|\n{2,}|\n(?=[-*>#])/).filter(Boolean);
 
@@ -69,6 +69,7 @@ console.log('--- oferta do companion: deve DETECTAR ---');
   'Isso fica mais fácil se eu mostrar. Quer que eu abra uma aba no navegador com alguns mockups?',
   'Posso montar um diagrama do fluxo de aprovação para você corrigir antes de seguirmos. Quer?',
   'This might be easier if I show you. Want me to open a browser tab with some mockups?',
+  'Isso talvez fique mais fácil se eu mostrar. Quer que eu abra uma aba do navegador com alguns rascunhos da tela?',
 ].forEach((t) => check(detectOffer(t), t.slice(0, 62)));
 
 console.log('--- oferta do companion: NAO deve detectar ---');
@@ -85,6 +86,7 @@ console.log('--- oferta do companion: NAO deve detectar ---');
 console.log('--- marcador da checagem de superficie ---');
 check(SURFACE_CHECK.test('**Superfície visual: sim** — cria uma tela nova.'), 'superficie: sim');
 check(SURFACE_CHECK.test('Superfície visual: não (backend apenas).'), 'superficie: nao');
+check(SURFACE_CHECK.test('**Visual surface: sim.** É uma tela nova.'), 'visual surface em ingles, resposta em portugues');
 check(!SURFACE_CHECK.test('A superfície visual do sistema é consistente.'), 'mencao casual nao conta');
 
 console.log('--- escolha de execucao: subagentes ---');
