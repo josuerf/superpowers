@@ -1,5 +1,54 @@
 # Superpowers Optimized Release Notes
 
+## v7.0.2 (2026-10-30)
+
+Sync with upstream `obra/superpowers` v7.0.1 (their notes are further
+down). The fork already used 7.0.1 for rito mode, so this sync is 7.0.2.
+
+### Brainstorming
+
+- **Upstream's retune, with the fork's blocks on top.** It reads the project
+  and whatever you pointed at before its first message, plays a detailed
+  request back instead of asking a generic opener, offers to skip the
+  questions only when it started on its own, and lays out two or three
+  approaches before it writes anything.
+- **A small change now gets a short design doc you approve.** Upstream
+  measured the doc being skipped without asking in 24 of 24 runs before this
+  change. The fork's mini-envelope (invariants and blast radius for query
+  filters, native queries and regulatory exports) now goes in that short doc,
+  and the Quality Gates still run for every size, the quick task included.
+- The fork's "reading the repo and harness is not recon" block became part of
+  upstream's Look Before You Ask: harness documents are context to read first.
+
+### Skills that survive compaction
+
+After a compaction, Claude Code re-attaches each skill cut at 20,000
+characters (upstream #2481). The fork's `subagent-driven-development` was
+56,751 bytes, so everything from batching through the fix loop's
+three-round cap, the breaker, waves and the final review was lost after the
+first compaction of a long run.
+
+- **`subagent-driven-development`** follows upstream's structure: SKILL.md
+  (now 19,854 bytes) keeps the flow and points at `references/` at the step
+  that needs each file, to be read from disk every time. The references carry
+  the fork's rules, not upstream's: batches, three rounds, findings passed by
+  path, red team by `Risk flags`, Review Focus, and committing SDD artifacts.
+- **`executing-plans`** drops its Example Workflow, like upstream, and moves
+  the final review's code-reviewer path to `references/final-review.md`.
+- **`writing-plans`** moves the Execution Handoff to
+  `references/execution-handoff.md` and merges its duplicated plan header;
+  **`frontend-design`** moves its style, industry, page-structure, token and
+  dark-mode tables to `references/`.
+- `tests/skill-size/test-skill-size.sh` (upstream) now passes for every skill.
+  The skill evals can attach a skill's reference files (`"references"` in the
+  case config); the execution-choice suite uses it.
+
+### Also from upstream
+
+- `writing-skills` moves its supporting docs to `references/`.
+- `diagnosing-superpowers` asks for a human-written summary before filing,
+  and the issue and PR templates ask the same.
+
 ## v7.0.1 (2026-10-14)
 
 ### Rito mode for brainstorming, writing-plans and subagent-driven-development
