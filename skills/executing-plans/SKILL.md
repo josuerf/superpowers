@@ -288,65 +288,13 @@ one's — on a context that inline execution has already spent.
   `reviewAggressiveness.enabled`): `superpowers-prepared:carrasco-review` **is**
   this run's whole-branch review. Follow its protocol — plan, dispatch,
   aggregate, and on BLOCK fix ASI-first then `review recheck`, at most three
-  rechecks — in place of the fix pass below. The Stop-hook gate
+  rechecks — in place of the code-reviewer path. The Stop-hook gate
   (`verify-on-stop`) asks for this review regardless, so running it here is the
   same seat, not an extra one. Skip to step 3 when it clears.
-- **Otherwise:** the fresh code-reviewer below is the review. Continue here.
-
-Run `bash ../subagent-driven-development/scripts/review-package PLAN_FILE MERGE_BASE HEAD`
-(MERGE_BASE = the commit the branch started from, e.g.
-`git merge-base main HEAD`) and review from the file it prints.
-
-**With a subagent tool:** dispatch the reviewer on the most capable
-available model — the whole-branch review is a judgment task — using
-superpowers-prepared:requesting-code-review's
-[code-reviewer.md](../requesting-code-review/code-reviewer.md), with the
-package path, the plan and spec paths, the plan's Review Focus section
-verbatim if it has one (the input classes and failure modes the plan's
-tests do not exercise — the reviewer checks each deliberately), and a
-pointer to the ledger's `Ruling:` lines so it can weigh the calls you
-made. Specify the model
-explicitly; an omitted model inherits the session's, which may not be the
-most capable. This is the one fresh context the whole run buys. Do not
-skip it, and do not replace it with your own read of the diff.
-
-**Without a subagent tool:** read code-reviewer.md and perform that review
-yourself against the package, as a separate pass after the last task's
-ledger line. Write `Final review: self-review (no subagent tool)` to the
-ledger, and say so in your final message: a self-review by the author is
-weaker than a fresh reviewer, and your human partner decides whether that
-is enough before merge.
-
-Sort the findings before you act on any of them. The reviewer's severity
-labels are advice; the gate is yours. Its "Declined to judge" list is
-yours too: every line there is a ruling you make and ledger, exactly like
-a plan conflict — `Final: Ruling: <behavior the reviewer set aside> —
-<what a reasonable person using this software gets, and why that stands
-or why it is now a finding> — <cost if wrong>`. Re-grade first, by effect: the
-spec is a vision document, and a finding's grade is what a reasonable
-person using this software gets if it ships, not whether the spec names
-the input that triggers it — a reviewer who set a finding at Minor
-because the spec was silent has graded the spec, not the effect. Then:
-
-- **Critical and Important** enter the fix pass.
-- **Minor** goes to the ledger as `Final: minor (deferred): <one-liner>`
-  and to your final message under "Deferred minors". Minors never enter
-  the fix pass, and never become rulings — a ruling is a decision about a
-  conflict, not a note that you declined a polish suggestion.
-
-Fix the Critical and Important findings yourself — you are the
-implementer here — in ONE pass. Each fix is verified by TDD, not by a
-second reviewer: write the test that reproduces the finding, watch it
-fail, make it pass, then run the whole suite. Record each in the ledger as
-`Final: fixed <finding> — <test name> RED→GREEN, suite <N>/<N>`. A fix
-without a test that failed first is not verified; a suite that is not
-green after the pass means the pass is not over. Do not dispatch a
-re-review: it would re-read a diff whose covering tests already answer
-"addressed" and whose suite run already answers "broke nothing".
-
-A finding you decide not to fix is a ruling — `Final: Ruling: <finding> —
-<why the code stands> — <cost if wrong>` — and reaches your human partner
-in the rulings list. There is no second fix pass.
+- **Otherwise:** a fresh code-reviewer is the review. Read
+  [references/final-review.md](references/final-review.md) and follow it: it
+  covers the dispatch, how to sort and re-grade the findings, and the single
+  fix pass with the ledger line each fix writes.
 
 ### 3. `verification-before-completion`
 
@@ -387,55 +335,3 @@ Use superpowers-prepared:finishing-a-development-branch.
 | "The reviewer said Minor, so it's Minor" | The label graded the spec's silence. Grade what the person gets. Re-grade, then gate. |
 | "The fix is obvious, no need for a failing test first" | The failing test is the only proof the finding was real and is now gone. Without it you have a diff and a hope. |
 | "I'll fix the minors too while I'm in there" | Every minor you fix is a test, a fix, and a suite run your partner did not ask for. Ledger them; your partner decides. |
-
-## Example Workflow
-
-```
-You: I'm using the executing-plans skill to implement this plan inline.
-
-[Setup: worktree verified]
-[Read plan once: docs/superpowers-prepared/plans/feature-plan.md; spec read]
-[Resolve workspace: bash ../subagent-driven-development/scripts/sdd-workspace docs/superpowers-prepared/plans/feature-plan.md — no ledger inside, fresh start]
-[Pre-flight scan: 2 shared-interface rows, 4 self-consistency rows, clean; written to ledger]
-[Create todos for all tasks]
-
-Task 1: Hook installation script
-
-[task-start plan 1 → brief read; BASE a1b2c3d]
-[Step 1: write failing test — written]
-[Step 2: run it — FAIL: install_hook not defined. Matches Expected.]
-[Step 3: implement — written]
-[Step 4: run it — PASS 1/1. Matches Expected.]
-[Step 5: commit — d4e5f6a]
-[Contract: tests ran, output read, no deviations]
-[task-done plan 1 a1b2c3d -- npm test -- hooks → ledger: Task 1: complete (commits a1b2c3d..d4e5f6a, tests: npm test -- hooks → 1/1 pass)]
-
-Task 2: Recovery modes
-
-[task-start plan 2 → brief read; BASE d4e5f6a]
-[Step 2: run failing test — FAIL, but on an import error: Task 1 exported
- installHook, brief consumes install_hook]
-[Ruling: brief's consumer name is a typo against Task 1's Produces block;
- use installHook — Ledger: Task 2: Ruling: install_hook → installHook — matches Task 1 Produces — cost if wrong: one rename]
-[Steps 2-5 as planned; commit b7c8d9e]
-[task-done plan 2 d4e5f6a -- npm test -- recovery → ledger: Task 2: complete (commits d4e5f6a..b7c8d9e, tests: npm test -- recovery → 8/8 pass)]
-
-...
-
-[After all tasks: review-package plan MERGE_BASE HEAD; dispatch code-reviewer, most capable model]
-Reviewer: One Important finding — progress reporting interval hardcoded. Two Minor.
-[Re-grade: Important stands; minors → ledger as deferred]
-[Fix pass: test_progress_interval_configurable RED → extract PROGRESS_INTERVAL → GREEN; suite 12/12; commit]
-[Ledger: Final: fixed hardcoded interval — test_progress_interval_configurable RED→GREEN, suite 12/12]
-
-Rulings I made:
-- Task 2: install_hook → installHook (brief typo; cost if wrong: one rename)
-
-Deferred minors:
-- README lacks a usage example
-- recovery.js could split verify/repair into two files
-
-[Delete this plan's workspace — the record now lives in git]
-
-Using superpowers-prepared:finishing-a-development-branch.
-```

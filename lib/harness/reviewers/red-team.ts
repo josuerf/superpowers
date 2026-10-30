@@ -3,8 +3,8 @@ import { getFocusGuidance } from "./aggressiveness";
 
 /**
  * Which red-team focus categories each plan `Risk flags` value turns on. The
- * same table lives in subagent-driven-development/SKILL.md ("3. Review the
- * task"), where the controller dispatches the red team per batch; this copy
+ * same table lives in subagent-driven-development/references/red-team.md (read at step "3. Review the
+ * batch"), where the controller dispatches the red team per batch; this copy
  * drives the harness `review plan` path. Keep the two aligned.
  */
 export const RISK_FLAG_FOCUS: Readonly<Record<string, readonly string[]>> = {
