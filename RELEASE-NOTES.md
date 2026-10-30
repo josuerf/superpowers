@@ -1,5 +1,54 @@
 # Superpowers Optimized Release Notes
 
+## v7.0.2 (2026-10-30)
+
+Sync with upstream `obra/superpowers` v7.0.1 (their notes are further
+down). The fork already used 7.0.1 for rito mode, so this sync is 7.0.2.
+
+### Brainstorming
+
+- **Upstream's retune, with the fork's blocks on top.** It reads the project
+  and whatever you pointed at before its first message, plays a detailed
+  request back instead of asking a generic opener, offers to skip the
+  questions only when it started on its own, and lays out two or three
+  approaches before it writes anything.
+- **A small change now gets a short design doc you approve.** Upstream
+  measured the doc being skipped without asking in 24 of 24 runs before this
+  change. The fork's mini-envelope (invariants and blast radius for query
+  filters, native queries and regulatory exports) now goes in that short doc,
+  and the Quality Gates still run for every size, the quick task included.
+- The fork's "reading the repo and harness is not recon" block became part of
+  upstream's Look Before You Ask: harness documents are context to read first.
+
+### Skills that survive compaction
+
+After a compaction, Claude Code re-attaches each skill cut at 20,000
+characters (upstream #2481). The fork's `subagent-driven-development` was
+56,751 bytes, so everything from batching through the fix loop's
+three-round cap, the breaker, waves and the final review was lost after the
+first compaction of a long run.
+
+- **`subagent-driven-development`** follows upstream's structure: SKILL.md
+  (now 19,854 bytes) keeps the flow and points at `references/` at the step
+  that needs each file, to be read from disk every time. The references carry
+  the fork's rules, not upstream's: batches, three rounds, findings passed by
+  path, red team by `Risk flags`, Review Focus, and committing SDD artifacts.
+- **`executing-plans`** drops its Example Workflow, like upstream, and moves
+  the final review's code-reviewer path to `references/final-review.md`.
+- **`writing-plans`** moves the Execution Handoff to
+  `references/execution-handoff.md` and merges its duplicated plan header;
+  **`frontend-design`** moves its style, industry, page-structure, token and
+  dark-mode tables to `references/`.
+- `tests/skill-size/test-skill-size.sh` (upstream) now passes for every skill.
+  The skill evals can attach a skill's reference files (`"references"` in the
+  case config); the execution-choice suite uses it.
+
+### Also from upstream
+
+- `writing-skills` moves its supporting docs to `references/`.
+- `diagnosing-superpowers` asks for a human-written summary before filing,
+  and the issue and PR templates ask the same.
+
 ## v7.0.1 (2026-10-14)
 
 ### Rito mode for brainstorming, writing-plans and subagent-driven-development
@@ -1116,6 +1165,38 @@ Added two missing routing entries: `frontend-design` for UI/frontend implementat
 Step 6 "Run integration verification" now specifies: execute the full project test suite plus any cross-domain checks, and do not mark the wave complete until integration passes. Removes ambiguity about what "integration verification" means in practice.
 
 ---
+
+## v7.0.1 (2026-10-21)
+
+This release retunes brainstorming after its rebuild in v7.0.0. Many of you told us, rightly, that the new default questions got annoying fast and felt formulaic. Brainstorming now digs for context before it asks anything, and tries to ask better questions. We expect to keep tuning it, but we think it's better than it was.
+
+It also trims three long skills so they better survive compaction on Claude Code, and changes the issue and PR templates to ask for a summary written by a human.
+
+### Brainstorming
+
+- **It digs for context first.** In an existing project, or when you point it at a spec, plan, or files, it reads them before its first message and doesn't ask what they already answer. (#2560)
+- **It tries to ask better questions.** v7.0.0 opened every session the same way: an offer to skip the questions, then a generic question about "the moment you wished this existed." Now, when you've already said what you want, it plays your request back with what it found in the project and asks about the one thing still open. Later questions build on your answers and on what it found, and say what the answer would change. (#2560, #2571)
+- **It offers to skip the questions only when it started on its own.** If you asked for brainstorming by name or with `/brainstorming`, it no longer offers to skip it. (#2560)
+- **It lays out the approaches and writes a design doc before building.** It presents two or three ways to build the thing, recommends one, and asks you to pick. Then it writes a design doc, a short one for a small change, and builds nothing until you approve it. Some of you saw it skip the doc and start building; in one of our test scenarios, it skipped the doc without asking in 24 of 24 runs before this change and 3 of 24 after. (#2571)
+
+Thanks to @mbcrawfo for opening #2530, and to @katyatitkova, @ertra, @blorenz, @Biomaj, @fsalum, @technicalpickles, @orochi235, @alexxburg, @fcavalieri, @CelesteCunha, and @zzzzz9999 for the reports, transcripts, and testing there.
+
+If brainstorming's questions in 7.0.1 still don't feel right, please comment on #2530. Examples help most: what you asked, what it asked back, and what you wish it had asked.
+
+### Skills better survive compaction on Claude Code
+
+After a compaction, Claude Code re-attaches each skill cut off at 20,000 characters, so anything past that point is gone for the rest of the session. In one reported session, subagent-driven development lost its five-round limit and ran 18 fix rounds on one task. Thanks @dan-1492 for the report. (#2481)
+
+- **`subagent-driven-development`** moves the fix loop, final review, report handling, resuming, preflight, batching, and cannot-verify guidance into `references/`. It reads each file from disk at the step that needs it. (#2565)
+- **`writing-skills`** moves its supporting docs, the SKILL.md template and discovery guidance, bulletproofing, and flowchart conventions into `references/`. (#2564)
+- **`executing-plans`** drops its Example Workflow, which repeated rules stated above it. (#2563)
+- `tests/skill-size/test-skill-size.sh` fails when any `SKILL.md` reaches 20,000 bytes. (#2565)
+
+### Contributing
+
+- **Issue and PR templates now ask who is filing and what their human partner asked for, plus a summary of under 200 words written by a human.** The bug report also asks how you confirmed the problem doesn't happen without Superpowers. (#2569)
+- **We don't accept agent-written PRs that fix someone else's issue unless a maintainer asked for one.** If your human partner hit the same problem, add their report to the existing issue. The PR template, `AGENTS.md`, and the README say so. (#2569)
+- **`diagnosing-superpowers` adds the same two sections to the issues it drafts** and won't file one while the summary is a placeholder. Its prefilled link now opens the Bug Report template; we removed the Session Diagnosis Report template. (#2569)
 
 ## v7.0.0 (2026-10-09)
 

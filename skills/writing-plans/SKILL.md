@@ -36,21 +36,6 @@ silent, the plan names the good practice it relies on.
 Save to `docs/superpowers-prepared/plans/YYYY-MM-DD-<feature-name>.md`.
 - User preferences for plan location override this default.
 
-## Plan Header
-
-```markdown
-# <Feature Name> Implementation Plan
-
-> **For agentic workers:** REQUIRED SUB-SKILL: implement this plan task-by-task with superpowers-prepared:subagent-driven-development (one subagent per cohesive batch) or superpowers-prepared:executing-plans (inline, in one context). The plan author picked one at the handoff and said why; that choice stands unless the human partner changes it. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** <single sentence>
-**Architecture:** <2-4 sentences>
-**Tech Stack:** <languages/libraries/tools>
-**Assumptions:** <list the key assumptions this plan rests on. For each, state what it excludes: "Assumes X — will NOT work if Y."> *(skip only if the plan contains zero conditional logic)*
-
----
-```
-
 ## Scope Check
 
 If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
@@ -126,6 +111,10 @@ independently testable deliverable.
 **Architecture:** [2-3 sentences about approach]
 
 **Tech Stack:** [Key technologies/libraries]
+
+**Assumptions:** [the key assumptions this plan rests on, each with what it
+excludes: "Assumes X — will NOT work if Y." Skip only if the plan contains
+zero conditional logic.]
 
 **Spec:** [path to the spec/design doc this plan implements — the plan
 argues from the spec, so the spec travels with it; executors read both]
@@ -356,77 +345,8 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 ## Execution Handoff
 
-After saving the plan and completing self-review, select the execution approach
-with the logic below, then output the ready message and **stop**. Do not invoke
-any execution skill until the user replies.
-
-### Selection Logic
-
-Start from the default. It is a presumption, not a verdict: you must test it
-against this plan before accepting it, and you may overrule it — with the
-reason written down.
-
-**Step 1 — the default, by size.** Count the tasks in the plan you just wrote.
-
-| Plan | Default |
-|---|---|
-| ≤ 6 tasks, one phase | **Inline** (`executing-plans`) |
-| 7+ tasks, or 2+ phases | **Subagent-Driven**, in ~3 cohesive batches |
-| Context window ≥ 60% full | **Subagent-Driven**, whatever the size |
-
-The cut is not arbitrary, and the reason belongs here so the next edit does not
-erase it as a stray number. Measured on a 17-task plan: inline finished with
-**74% of the window used and a 0.93 quality score**; three cohesive batches
-finished with **26% and 0.95**, at the same wall clock and the same token cost.
-What inline gives up is not the first task — it is the headroom for the fix
-round that comes after the review. Correcting on a full window is where cost
-and quality collapse together.
-
-**Step 2 — criticize the default.** One sentence each, before you decide:
-
-1. **Coupling.** Do the tasks share interfaces? Tight coupling favors inline —
-   one context sees every signature. Independent tasks favor batches.
-2. **Cost of a miss.** What does a defect reaching production cost here? High
-   cost favors batches, which review per batch instead of only at the end.
-3. **Diff size.** How much code does this touch? Five tasks that rewrite forty
-   files is a large review, however short the plan looks.
-4. **Context pressure.** Is this session already loaded?
-
-**Step 3 — decide.** If the critique contradicts the default, overrule it and
-say why. **Overruling with a written reason is the correct behavior, not an
-exception.** Following a default you have just concluded is wrong is the error;
-so is departing from it without saying why.
-
-**Fan-out follows the phase count, not the task count.** When Subagent-Driven is
-selected, it groups tasks into a few cohesive batches — starting from your
-phases — and dispatches one subagent per batch. Do not let fan-out scale with
-the number of tasks; that is the configuration that measured slowest,
-costliest, and worst (43 min, 25M tokens, 0.81). Phases sized 4-8 tasks are
-what let the executor keep it that way.
-
-**On cost:** the controller seat is the expensive part of Subagent-Driven. In
-Claude Code it can run one layer down, on a mid-tier model — see
-`../using-superpowers/references/claude-code-tools.md`. Offer that when your
-human partner's objection to subagents is cost.
-
-### Ready Message
-
-```
-Plan saved to `docs/superpowers-prepared/plans/<filename>.md`. Ready to execute with **[Subagent-Driven / Inline Execution]** (<N> tasks in <P> phases) — <one sentence: the reason, naming which of the four checks decided it>. Reply to start, or say "inline" / "subagent" to switch.
-```
-
-When you overruled the default, the sentence says so: *"18 tasks would default
-to subagents, but every task edits the same pipeline signature, so one context
-is worth more here than per-batch review."*
-
-**Stop here.** Do not invoke any execution skill until the user replies.
-
-### On User Reply
-
-**If Subagent-Driven:**
-- **REQUIRED SUB-SKILL:** Use superpowers-prepared:subagent-driven-development
-- Fresh subagent per batch of tasks (formed from the plan's phases) + two-stage review
-
-**If Inline Execution:**
-- **REQUIRED SUB-SKILL:** Use superpowers-prepared:executing-plans
-- Continuous execution with checkpoints for review
+After saving the plan and completing self-review, read
+[references/execution-handoff.md](references/execution-handoff.md) from disk
+and follow it: the default by plan size, the critique that may overrule it,
+and the ready message. Then **stop**: invoke no execution skill until the
+user replies.

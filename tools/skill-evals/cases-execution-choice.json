@@ -1,5 +1,6 @@
 {
   "skill": "skills/writing-plans/SKILL.md",
+  "references": ["references/execution-handoff.md"],
   "notes": [
     "Mede a escolha entre execucao inline (executing-plans) e subagentes (subagent-driven-development)",
     "no handoff de writing-plans, dado um plano ja escrito.",
