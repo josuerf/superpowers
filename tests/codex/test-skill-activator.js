@@ -887,6 +887,120 @@ test('Non-execution prompt + high pressure → no pressure block', () => {
   assert.ok(!ctx.includes('context-pressure-gate'), 'Non-execution prompt should never get pressure block');
 });
 
+// ── Known-issues layout by repository (known-issues/) ─────────────────────────
+
+const kiLayout = require('../../hooks/skill-activator');
+
+function entry(slug, resumo, body) {
+  return `### ${slug}  hits:1  seen:2026-11  last:2026-11  raio:medio\n**Resumo:** ${resumo}\n**Sintoma:** ${body} **Causa:** x **Solucao:** y\n`;
+}
+
+function makeLayout(files) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ki-layout-'));
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content);
+  }
+  return dir;
+}
+
+console.log('\nKnown-issues layout — searchKnownIssues em known-issues/');
+
+test('Acha entrada ### em known-issues/<repo>/<area>.md', () => {
+  const dir = makeLayout({
+    'known-issues.md': '# indice\n',
+    'known-issues/api/banco.md': entry('pool-esgota', 'pool de conexoes esgota', 'timeout hikari pool'),
+  });
+  const r = searchKnownIssues(dir, ['hikari']);
+  assert.strictEqual(r.length, 1);
+  assert.ok(r[0].includes('### pool-esgota'));
+});
+
+test('Ignora INDICE.md e _arquivo.md no recall quente', () => {
+  const dir = makeLayout({
+    'known-issues/api/INDICE.md': '- [hikari-x](banco.md#hikari-x) hikari no indice\n### hikari-indice\nhikari\n',
+    'known-issues/_arquivo.md': entry('hikari-frio', 'frio', 'hikari frio'),
+  });
+  assert.deepStrictEqual(searchKnownIssues(dir, ['hikari']), []);
+});
+
+test('Prioriza a pasta do repo citado no prompt', () => {
+  const dir = makeLayout({
+    'known-issues/_global/geral.md': entry('g1', 'hikari global', 'hikari global'),
+    'known-issues/api/a.md': entry('a1', 'hikari api', 'hikari api'),
+    'known-issues/web/w.md': entry('w1', 'hikari web', 'hikari web'),
+  });
+  const r = searchKnownIssues(dir, ['hikari'], 'erro hikari no repo web');
+  assert.ok(r[0].includes('### w1'), 'repo citado deveria vir primeiro: ' + r[0]);
+});
+
+test('Prioriza projects/<repo> do cwd', () => {
+  const dir = makeLayout({
+    'known-issues/api/a.md': entry('a1', 'hikari api', 'hikari api'),
+    'known-issues/web/w.md': entry('w1', 'hikari web', 'hikari web'),
+  });
+  const cwd = path.join(dir, 'projects', 'web', 'src');
+  fs.mkdirSync(cwd, { recursive: true });
+  const r = kiLayout.searchKnownIssues(dir, ['hikari'], 'erro hikari', cwd);
+  assert.ok(r[0].includes('### w1'));
+});
+
+test('No maximo 2 entradas', () => {
+  const dir = makeLayout({
+    'known-issues/api/a.md': entry('a1', 'k', 'hikari') + entry('a2', 'k', 'hikari') + entry('a3', 'k', 'hikari'),
+  });
+  assert.ok(searchKnownIssues(dir, ['hikari']).length <= 2);
+});
+
+test('Arquivo vazio e repo inexistente nao derrubam', () => {
+  const dir = makeLayout({
+    'known-issues/api/vazio.md': '',
+    'known-issues/api/a.md': entry('a1', 'k', 'hikari'),
+  });
+  const r = searchKnownIssues(dir, ['hikari'], 'repo fantasma hikari');
+  assert.strictEqual(r.length, 1);
+});
+
+test('Layout antigo continua: known-issues.md com secoes', () => {
+  const dir = makeTmpKnownIssues('## Hook quebra\nhooks falham\n');
+  assert.strictEqual(searchKnownIssues(dir, ['hooks']).length, 1);
+});
+
+test('Layout novo nao le o known-issues.md raiz como secoes', () => {
+  const dir = makeLayout({
+    'known-issues.md': '## Raiz\nhikari na raiz\n',
+    'known-issues/api/a.md': entry('a1', 'k', 'outra coisa'),
+  });
+  assert.deepStrictEqual(searchKnownIssues(dir, ['hikari']), []);
+});
+
+test('Layout misto: known-issues-by-domain continua valendo junto', () => {
+  const dir = makeLayout({
+    'known-issues/api/a.md': entry('a1', 'k', 'hikari'),
+    'known-issues-by-domain/svc.md': '### Licao\nhikari dominio\n',
+  });
+  assert.strictEqual(searchKnownIssues(dir, ['hikari']).length, 1);
+  assert.strictEqual(kiLayout.searchKnownIssuesByDomain(dir, ['hikari']).entries.length, 1);
+});
+
+console.log('\nKnown-issues layout — recall frio');
+
+test('Layout novo: recall frio le known-issues/_arquivo.md', () => {
+  const dir = makeLayout({
+    'known-issues/_arquivo.md': '## Frio\n' + entry('frio1', 'k', 'hikari antigo'),
+    'known-issues-archive.md': '### velho\nhikari do layout antigo\n',
+  });
+  const r = searchKnownIssuesArchive(dir, ['hikari']);
+  assert.strictEqual(r.length, 1);
+  assert.ok(r[0].includes('frio1'));
+});
+
+test('Sem pasta nova: known-issues-archive.md como antes', () => {
+  const dir = makeLayout({ 'known-issues-archive.md': '### velho\nhikari do layout antigo\n' });
+  assert.ok(searchKnownIssuesArchive(dir, ['hikari'])[0].includes('velho'));
+});
+
 // ── Result ────────────────────────────────────────────────────────────────────
 
 console.log(`\n${'─'.repeat(50)}`);

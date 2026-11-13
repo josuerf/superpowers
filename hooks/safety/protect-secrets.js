@@ -130,6 +130,7 @@ const CONTENT_SCAN_ALLOWLIST = [
   /\.env\.sample$/i,
   /\.env\.template$/i,
   /known-issues\.md$/i,       // Error documentation may reference key formats
+  /(^|[\\/])known-issues[\\/].+\.md$/i, // same, in the per-repository layout (known-issues/<repo>/<area>.md)
   /SKILL\.md$/i,              // Skill files may document patterns
   /RELEASE-NOTES\.md$/i,      // Release notes may reference patterns
 ];

@@ -358,7 +358,7 @@ const FILE_ALLOWLIST = [
 ];
 const CONTENT_SCAN_ALLOWLIST = [
   /\.env(\..*)?$/i, /\.env\.example$/i, /\.env\.sample$/i, /\.env\.template$/i,
-  /known-issues\.md$/i, /SKILL\.md$/i, /RELEASE-NOTES\.md$/i,
+  /known-issues\.md$/i, /(^|[\\/])known-issues[\\/].+\.md$/i, /SKILL\.md$/i, /RELEASE-NOTES\.md$/i,
 ];
 
 function safetyCheckBash(cmd) {

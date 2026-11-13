@@ -321,6 +321,39 @@ else
     fail "session-start pipes its JSON through cat when cat is on PATH"
 fi
 
+# known-issues/ layout: the root known-issues.md is injected whole up to 8 KB
+ki_home="$(make_home ki)"
+ki_cwd="$TEST_ROOT/ki/work"
+mkdir -p "$ki_cwd/known-issues/api"
+{ echo "# Indice raiz"; for i in 1 2 3 4 5 6 7 8; do printf '## Secao %s\nlinha\n' "$i"; done; } > "$ki_cwd/known-issues.md"
+ki_out="$(cd "$ki_cwd" && env -i PATH="${PATH:-}" HOME="$ki_home" CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK_UNDER_TEST" 2>&1 || true)"
+if printf '%s' "$ki_out" | grep -q 'Secao 1' && printf '%s' "$ki_out" | grep -q 'Secao 8'; then
+    pass "session-start injects the whole root index when known-issues/ exists"
+else
+    fail "session-start injects the whole root index when known-issues/ exists"
+fi
+{ echo "# Indice raiz"; head -c 20000 /dev/zero | tr '\0' 'x'; echo; echo FIM-DO-ARQUIVO; } > "$ki_cwd/known-issues.md"
+ki_out="$(cd "$ki_cwd" && env -i PATH="${PATH:-}" HOME="$ki_home" CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK_UNDER_TEST" 2>&1 || true)"
+if ! printf '%s' "$ki_out" | grep -q 'FIM-DO-ARQUIVO' && printf '%s' "$ki_out" | grep -q '8 KB'; then
+    pass "session-start cuts a root index above 8 KB and warns"
+else
+    fail "session-start cuts a root index above 8 KB and warns"
+fi
+ki_nl="$(printf '%s' "$ki_out" | grep -o '\\n' | wc -l)"
+if [ "$ki_nl" -gt 50 ]; then
+    pass "session-start keeps the line breaks of using-superpowers ($ki_nl)"
+else
+    fail "session-start keeps the line breaks of using-superpowers ($ki_nl)"
+fi
+rm -rf "$ki_cwd/known-issues"
+printf '## Aberta 1\ncorpo\n' > "$ki_cwd/known-issues.md"
+ki_out="$(cd "$ki_cwd" && env -i PATH="${PATH:-}" HOME="$ki_home" CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK_UNDER_TEST" 2>&1 || true)"
+if printf '%s' "$ki_out" | grep -q 'Aberta 1'; then
+    pass "session-start keeps the old behaviour without known-issues/"
+else
+    fail "session-start keeps the old behaviour without known-issues/"
+fi
+
 if [[ "$FAILURES" -gt 0 ]]; then
     echo "STATUS: FAILED ($FAILURES failure(s))"
     exit 1

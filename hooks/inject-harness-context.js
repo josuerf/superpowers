@@ -66,13 +66,43 @@ function isEnabled(config) {
   return !!(config && config.injectHarnessContext && config.injectHarnessContext.enabled === true);
 }
 
+/**
+ * Layout by repository (known-issues/ folder): point at the folder and, for the
+ * repo the prompt cites or the working directory sits in (projects/<repo>),
+ * at its INDICE.md. Paths only, like the rest of this hook. Never throws.
+ */
+function layoutCandidates(root, prompt, workingDir) {
+  try {
+    const base = path.join(root, 'known-issues');
+    if (!fs.statSync(base).isDirectory()) return [];
+    const out = [{ rel: 'known-issues', note: 'per-repository lessons: read the INDICE.md of the repo first' }];
+    const text = String(prompt || '').toLowerCase();
+    let fromCwd = null;
+    const relCwd = path.relative(root, path.resolve(workingDir || root)).split(path.sep).join('/');
+    const m = /^projects\/([^/]+)/.exec(relCwd);
+    if (m) fromCwd = m[1];
+    for (const d of fs.readdirSync(base, { withFileTypes: true })) {
+      if (!d.isDirectory() || d.name.startsWith('_')) continue;
+      const re = new RegExp('(^|[^a-z0-9_-])' + d.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9_-])');
+      if (re.test(text) || d.name === fromCwd) {
+        const rel = `known-issues/${d.name}/INDICE.md`;
+        if (fs.existsSync(path.join(root, rel))) out.push({ rel, note: `lessons of ${d.name}` });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** Configured or default candidates that exist, as { abs, rel, note }. */
-function resolveContextPaths(root, config) {
+function resolveContextPaths(root, config, prompt, workingDir) {
   const custom = config && config.injectHarnessContext && config.injectHarnessContext.paths;
-  const candidates = Array.isArray(custom)
+  let candidates = Array.isArray(custom)
     ? custom.filter(p => typeof p === 'string' && p.length > 0).map(rel => ({ rel, note: '' }))
     : DEFAULT_PATHS;
   const out = [];
+  if (!Array.isArray(custom)) candidates = candidates.concat(layoutCandidates(root, prompt, workingDir));
   for (const c of candidates) {
     const abs = path.resolve(root, c.rel);
     // Stay inside the workspace: a config must not point dispatches elsewhere.
@@ -96,7 +126,7 @@ function evaluatePayload(data) {
 
   const toolInput = data.tool_input && typeof data.tool_input === 'object' ? data.tool_input : {};
   const prompt = String(toolInput.prompt || '');
-  const paths = resolveContextPaths(found.dir, found.config).filter(
+  const paths = resolveContextPaths(found.dir, found.config, prompt, data.cwd || process.cwd()).filter(
     p => !prompt.includes(p.rel) && !prompt.includes(toSlash(p.abs)),
   );
   if (paths.length === 0) return {};

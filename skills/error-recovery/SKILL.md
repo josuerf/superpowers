@@ -17,12 +17,23 @@ Maintain a project-level error→solution mapping to avoid rediscovering known p
 
 `known-issues.md` at the project root (same level as `package.json`, `Cargo.toml`, etc.).
 
+**Layout by repository (when a `known-issues/` folder exists next to it):**
+`known-issues.md` is then only the root index (globals plus one line per repo).
+The entries live in `known-issues/_global/<area>.md` (applies to 2+ repos or to
+the platform) and `known-issues/<repo>/<area>.md`; each repo folder has an
+`INDICE.md` (one line per entry). `known-issues/_arquivo.md` is the cold layer:
+read it only when nothing else matches. Never edit an `INDICE.md` or the root
+index by hand.
+
 ## When to Consult
 
 Before starting any debugging investigation:
 1. Check if `known-issues.md` exists.
 2. Search it for the error message, error code, or failing test name.
 3. If a match is found, try the documented solution first before full investigation.
+
+With the folder layout, read the root index, then the `INDICE.md` of the repo
+you are working in (`projects/<repo>`), then open only the matching area file.
 
 ## When to Update
 
@@ -61,9 +72,27 @@ exact command or steps to resolve
 **Context:** When this typically occurs (e.g., "after fresh clone", "on Windows", "when DB is not running").
 ```
 
+## Entry Format (layout by repository)
+
+Write the entry into the area file of the repo (`known-issues/<repo>/<area>.md`,
+or `_global/` when it applies to 2+ repos), at most 6 lines:
+
+```markdown
+### <slug>  hits:N  seen:YYYY-MM  last:YYYY-MM  raio:alto|medio|baixo
+**Resumo:** <up to 90 characters; becomes the index line>
+**Sintoma:** ... **Causa:** ... **Solução:** ...
+```
+
+The slug is lowercase with hyphens and unique in the whole `known-issues/` tree.
+If the issue already exists, raise `hits` and `last` instead of duplicating it.
+Afterwards, if `scripts/known-issues.js` exists, run
+`node scripts/known-issues.js indice` to regenerate the indexes, and
+`node scripts/known-issues.js validar` to check budgets (index 4 KB per repo,
+area file 8 KB, root 8 KB). If the script does not exist, leave the indexes alone.
+
 ## File Management
 
-- Keep `known-issues.md` under 50 entries. If it grows beyond that, prune entries that haven't been relevant in months.
+- Single-file layout: keep `known-issues.md` under 50 entries. If it grows beyond that, prune entries that haven't been relevant in months.
 - Group entries by category (Environment, Dependencies, Tests, Build, Platform).
 - When a known issue is permanently fixed (e.g., the root cause was removed from the codebase), delete the entry.
 

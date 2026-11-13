@@ -173,8 +173,21 @@ function assembleState(cwd) {
     : '';
 }
 
+const KNOWN_ISSUES_ROOT_MAX_BYTES = 8 * 1024;
+
 function assembleKnownIssues(cwd) {
-  const raw = readFileSafe(path.join(cwd, 'known-issues.md'));
+  // Layout by repository (known-issues/ present): known-issues.md is the root
+  // index, injected whole up to 8 KB; above that it is cut with a warning.
+  let layout = false;
+  try { layout = fs.statSync(path.join(cwd, 'known-issues')).isDirectory(); } catch { /* old layout */ }
+  let raw = readFileSafe(path.join(cwd, 'known-issues.md'));
+  if (layout && raw) {
+    const buf = Buffer.from(raw, 'utf8');
+    if (buf.length > KNOWN_ISSUES_ROOT_MAX_BYTES) {
+      raw = buf.subarray(0, KNOWN_ISSUES_ROOT_MAX_BYTES).toString('utf8').replace(/\uFFFD+$/, '')
+        + '\n\n*(known-issues.md is over the 8 KB budget and was cut here: curate the index)*';
+    }
+  }
   return raw ? `\n\n<known-issues>\n${raw}\n</known-issues>` : '';
 }
 
