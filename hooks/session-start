@@ -498,8 +498,7 @@ skill_md="${PLUGIN_ROOT}/skills/using-superpowers/SKILL.md"
 using_superpowers_content="Error reading using-superpowers skill"
 if [ -r "$skill_md" ]; then
     using_superpowers_content="$(<"$skill_md")"
-    using_superpowers_content="${using_superpowers_content//$'
-'/}"
+    using_superpowers_content="${using_superpowers_content//$''/}"
     if [[ "$using_superpowers_content" == "---"$'
 '* ]]; then
         rest="${using_superpowers_content#*$'

@@ -339,6 +339,12 @@ if ! printf '%s' "$ki_out" | grep -q 'FIM-DO-ARQUIVO' && printf '%s' "$ki_out" |
 else
     fail "session-start cuts a root index above 8 KB and warns"
 fi
+ki_nl="$(printf '%s' "$ki_out" | grep -o '\\n' | wc -l)"
+if [ "$ki_nl" -gt 50 ]; then
+    pass "session-start keeps the line breaks of using-superpowers ($ki_nl)"
+else
+    fail "session-start keeps the line breaks of using-superpowers ($ki_nl)"
+fi
 rm -rf "$ki_cwd/known-issues"
 printf '## Aberta 1\ncorpo\n' > "$ki_cwd/known-issues.md"
 ki_out="$(cd "$ki_cwd" && env -i PATH="${PATH:-}" HOME="$ki_home" CLAUDE_PLUGIN_ROOT="$REPO_ROOT" bash "$HOOK_UNDER_TEST" 2>&1 || true)"
