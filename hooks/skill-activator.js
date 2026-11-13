@@ -64,6 +64,18 @@ const KNOWN_ISSUES_DOMAIN_DIR = 'known-issues-by-domain';
 const MAX_DOMAIN_ENTRIES = 2;
 const MAX_DOMAIN_FILE_BYTES = 8 * 1024;
 
+// Per-repository layout (known-issues/): known-issues.md becomes the root
+// index (session-start injects it), the entries live in
+// known-issues/<repo>/<area>.md and known-issues/_global/<area>.md, and the
+// cold layer is known-issues/_arquivo.md. INDICE.md and _arquivo.md are never
+// part of the hot recall. A file is read up to MAX_LAYOUT_FILE_BYTES.
+const KNOWN_ISSUES_DIR = 'known-issues';
+const KNOWN_ISSUES_GLOBAL = '_global';
+const KNOWN_ISSUES_COLD_FILE = '_arquivo.md';
+const MAX_LAYOUT_FILE_BYTES = 16 * 1024;
+const MAX_LAYOUT_FILES = 400;
+const MAX_LAYOUT_DEPTH = 4;
+
 // Common English words that produce noisy false-positive matches
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -303,6 +315,147 @@ function buildMemoryContext(entries) {
   ].join('\n');
 }
 
+
+// ── Known-issues layout by repository ─────────────────────────────────────────
+
+function hasKnownIssuesLayout(cwd) {
+  try {
+    return fs.statSync(path.join(cwd, KNOWN_ISSUES_DIR)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Hot entry files under known-issues/, as [{ rel, repo }]. Never throws. */
+function listLayoutFiles(cwd) {
+  const root = path.join(cwd, KNOWN_ISSUES_DIR);
+  const out = [];
+  function walk(dir, relParts, depth) {
+    if (depth > MAX_LAYOUT_DEPTH || out.length >= MAX_LAYOUT_FILES) return;
+    let items;
+    try {
+      items = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    items.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const it of items) {
+      if (out.length >= MAX_LAYOUT_FILES) return;
+      if (it.isSymbolicLink()) continue; // no loops, no escape from the tree
+      if (it.isDirectory()) {
+        walk(path.join(dir, it.name), relParts.concat(it.name), depth + 1);
+      } else if (it.isFile() && it.name.endsWith('.md')) {
+        if (it.name === 'INDICE.md' || it.name === KNOWN_ISSUES_COLD_FILE) continue;
+        out.push({
+          abs: path.join(dir, it.name),
+          rel: [KNOWN_ISSUES_DIR, ...relParts, it.name].join('/'),
+          repo: relParts.length > 0 ? relParts[0] : null,
+        });
+      }
+    }
+  }
+  walk(root, [], 0);
+  return out;
+}
+
+/** Repo folders under known-issues/ (without _global and `_`-prefixed ones). */
+function listLayoutRepos(cwd) {
+  try {
+    return fs.readdirSync(path.join(cwd, KNOWN_ISSUES_DIR), { withFileTypes: true })
+      .filter(d => d.isDirectory() && !d.name.startsWith('_'))
+      .map(d => d.name);
+  } catch {
+    return [];
+  }
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Repo folders (known-issues/<repo>/) the prompt cites by name, or that the
+ * current directory sits in (projects/<repo>). Used only to prioritise.
+ */
+function detectLayoutRepos(cwd, prompt, workingDir) {
+  const repos = listLayoutRepos(cwd);
+  if (repos.length === 0) return new Set();
+  const found = new Set();
+  const text = String(prompt || '').toLowerCase();
+  for (const repo of repos) {
+    const re = new RegExp('(^|[^a-z0-9_-])' + escapeRegex(repo.toLowerCase()) + '($|[^a-z0-9_-])');
+    if (text && re.test(text)) found.add(repo);
+  }
+  // Prefer the path relative to the workspace root (an ancestor named
+  // "projects" must not count); outside it, the innermost projects/<repo> wins.
+  let where = String(workingDir || cwd || '');
+  const rel = path.relative(cwd, where);
+  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  where = (inside ? rel : where).split(path.sep).join('/');
+  const all = [...where.matchAll(/(?:^|\/)projects\/([^/]+)/g)];
+  const m = inside ? all[0] : all[all.length - 1];
+  if (m && repos.includes(m[1])) found.add(m[1]);
+  return found;
+}
+
+/** Splits a markdown text into `### ` entries; skips struck-through ones. */
+function splitHashEntries(content) {
+  const entries = [];
+  let current = null;
+  for (const line of String(content).split('\n')) {
+    if (line.startsWith('### ')) {
+      if (current !== null) entries.push(current.trim());
+      current = /^### ~~/.test(line) ? null : line;
+    } else if (/^#{1,2} /.test(line)) {
+      if (current !== null) entries.push(current.trim());
+      current = null;
+    } else if (current !== null) {
+      current += '\n' + line;
+    }
+  }
+  if (current !== null) entries.push(current.trim());
+  return entries;
+}
+
+function readCapped(abs, maxBytes) {
+  const buf = fs.readFileSync(abs);
+  return (buf.length > maxBytes
+    ? buf.subarray(0, maxBytes).toString('utf8').replace(/�+$/, '')
+    : buf.toString('utf8'));
+}
+
+/**
+ * Hot recall over known-issues/**\/*.md. The folder of the cited repo (or of
+ * projects/<repo> in the cwd) ranks first; _global applies to everyone.
+ */
+function searchKnownIssuesLayout(cwd, keywords, prompt, workingDir) {
+  const priority = detectLayoutRepos(cwd, prompt, workingDir);
+  const scored = [];
+  for (const f of listLayoutFiles(cwd)) {
+    let content;
+    try {
+      content = readCapped(f.abs, MAX_LAYOUT_FILE_BYTES);
+    } catch {
+      continue;
+    }
+    const entries = splitHashEntries(content);
+    for (let i = 0; i < entries.length; i++) {
+      const lower = entries[i].toLowerCase();
+      const hits = keywords.filter(kw => lower.includes(kw)).length;
+      if (hits === 0) continue;
+      const density = hits / keywords.length;
+      const recency = (i + 1) / entries.length;
+      const boost = f.repo && priority.has(f.repo) ? 1 : 0;
+      const text = entries[i].length > MAX_ENTRY_CHARS
+        ? entries[i].slice(0, MAX_ENTRY_CHARS).trimEnd() + '\n*(entry truncated)*'
+        : entries[i];
+      scored.push({ entry: `*(${f.rel})*\n${text}`, score: boost + density * 0.7 + recency * 0.3 });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, MAX_MEMORY_ENTRIES).map(s => s.entry);
+}
+
 // ── Known-issues recall ───────────────────────────────────────────────────────
 
 /**
@@ -310,8 +463,17 @@ function buildMemoryContext(entries) {
  * Fixed entries (## ~~...~~) are skipped. Returns up to MAX_MEMORY_ENTRIES matches,
  * most recent first. Each entry is trimmed to MAX_ENTRY_CHARS.
  */
-function searchKnownIssues(cwd, keywords) {
+function searchKnownIssues(cwd, keywords, prompt, workingDir) {
   if (!keywords || keywords.length === 0) return [];
+
+  // Per-repository layout: known-issues.md is only the root index.
+  if (hasKnownIssuesLayout(cwd)) {
+    try {
+      return searchKnownIssuesLayout(cwd, keywords, prompt, workingDir);
+    } catch {
+      return [];
+    }
+  }
 
   const filePath = path.join(cwd, 'known-issues.md');
   let content;
@@ -393,12 +555,17 @@ function buildKnownIssuesContext(entries) {
 function searchKnownIssuesArchive(cwd, keywords) {
   if (!keywords || keywords.length === 0) return [];
 
-  const filePath = path.join(cwd, 'known-issues-archive.md');
+  // Layout by repository: the cold layer is known-issues/_arquivo.md; fall
+  // back to the old known-issues-archive.md when it is not there.
   let content;
   try {
-    content = fs.readFileSync(filePath, 'utf8');
+    content = readCapped(path.join(cwd, KNOWN_ISSUES_DIR, KNOWN_ISSUES_COLD_FILE), 256 * 1024);
   } catch {
-    return []; // File absent — silent no-op
+    try {
+      content = fs.readFileSync(path.join(cwd, 'known-issues-archive.md'), 'utf8');
+    } catch {
+      return []; // File absent — silent no-op
+    }
   }
 
   // Parse into individual entries (### headers), skipping ## section titles
@@ -722,7 +889,7 @@ async function main() {
     const matches = matchSkills(prompt);
     const keywords = extractKeywords(prompt);
     const memoryEntries = searchSessionLog(cwd, keywords);
-    const knownIssueEntries = searchKnownIssues(cwd, keywords);
+    const knownIssueEntries = searchKnownIssues(cwd, keywords, prompt, process.cwd());
     const domainFound = searchKnownIssuesByDomain(cwd, keywords);
     // Only probe the archive when neither the HOT file nor the per-domain
     // lessons found anything — avoids paying the extra read+scan on every
@@ -771,6 +938,8 @@ if (require.main === module) {
     searchSessionLog,
     buildMemoryContext,
     searchKnownIssues,
+    searchKnownIssuesLayout,
+    detectLayoutRepos,
     buildKnownIssuesContext,
     searchKnownIssuesArchive,
     buildKnownIssuesArchiveContext,

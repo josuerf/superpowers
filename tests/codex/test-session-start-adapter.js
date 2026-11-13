@@ -165,6 +165,39 @@ test('known-issues.md injected when present', () => {
   } finally { cleanup(dir); }
 });
 
+test('known-issues/ present: injects the whole root index, not the last 5 sections', () => {
+  const dir = makeTempDir();
+  try {
+    fs.mkdirSync(path.join(dir, 'known-issues', 'api'), { recursive: true });
+    const sections = Array.from({ length: 8 }, (_, i) => `## Secao ${i}\nlinha ${i}`).join('\n');
+    fs.writeFileSync(path.join(dir, 'known-issues.md'), '# Indice raiz\n' + sections + '\n');
+    const ctx = runAdapter({ source: 'startup' }, dir)._rawPlainText || '';
+    assert.ok(ctx.includes('<known-issues>'));
+    assert.ok(ctx.includes('Secao 0') && ctx.includes('Secao 7'), 'raiz deveria entrar inteira');
+  } finally { cleanup(dir); }
+});
+
+test('known-issues/ present: root above 8 KB is cut with a warning', () => {
+  const dir = makeTempDir();
+  try {
+    fs.mkdirSync(path.join(dir, 'known-issues'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'known-issues.md'), '# Indice\n' + 'x'.repeat(20000) + '\nFIM-DO-ARQUIVO\n');
+    const ctx = runAdapter({ source: 'startup' }, dir)._rawPlainText || '';
+    assert.ok(ctx.includes('<known-issues>'));
+    assert.ok(!ctx.includes('FIM-DO-ARQUIVO'));
+    assert.ok(/8 KB/.test(ctx), 'aviso de corte ausente');
+  } finally { cleanup(dir); }
+});
+
+test('known-issues/ present without root file: nothing injected, no crash', () => {
+  const dir = makeTempDir();
+  try {
+    fs.mkdirSync(path.join(dir, 'known-issues'), { recursive: true });
+    const ctx = runAdapter({ source: 'startup' }, dir)._rawPlainText || '';
+    assert.ok(!ctx.includes('<known-issues>'));
+  } finally { cleanup(dir); }
+});
+
 test('session-log.md: only [saved] entries injected, not [auto]', () => {
   const dir = makeTempDir();
   try {

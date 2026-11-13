@@ -1,5 +1,31 @@
 # Superpowers Optimized Release Notes
 
+## v7.0.3 (2026-11-13)
+
+Known issues by repository (IAF-2495). A workspace can now keep its lessons in
+a `known-issues/` folder instead of one growing `known-issues.md`.
+
+- **Layout.** `known-issues.md` becomes the root index; the entries live in
+  `known-issues/_global/<area>.md` and `known-issues/<repo>/<area>.md`, each
+  repo with an `INDICE.md`, and the cold layer is `known-issues/_arquivo.md`.
+- **Session start** (Claude Code hook and Codex adapter): with the folder
+  present, the whole root `known-issues.md` is injected, up to 8 KB (above
+  that it is cut with a warning). Without the folder nothing changes: the
+  5 latest open sections, as before.
+- **Recall** (`skill-activator.js`): walks `known-issues/**/*.md` (not
+  `INDICE.md`, not `_arquivo.md`), splits entries by `### `, ranks the folder
+  of the repo the prompt names or the `projects/<repo>` of the working
+  directory first, and returns at most 2. The cold recall reads
+  `known-issues/_arquivo.md`. The old `known-issues.md` sections,
+  `known-issues-archive.md` and `known-issues-by-domain/` keep working.
+- **`inject-harness-context.js`** names the `known-issues/` folder and the
+  `INDICE.md` of the cited repo (paths only).
+- **`error-recovery`** writes into the area file and runs
+  `node scripts/known-issues.js indice` when that script exists.
+- The content-scan allowlist of the secret guard (hook and OpenCode plugin)
+  covers `known-issues/**/*.md` like it covers `known-issues.md`.
+- All readers are fail-open: a read error never stops the session.
+
 ## v7.0.2 (2026-10-30)
 
 Sync with upstream `obra/superpowers` v7.0.1 (their notes are further

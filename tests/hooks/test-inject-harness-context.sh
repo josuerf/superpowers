@@ -95,6 +95,23 @@ cfg "$D" '{broken'
 assert "malformed config -> {}" "{}" "$(run "$D")"
 rm -rf "$D"
 
+# 8. Layout by repo (known-issues/): the folder is named, and so is the INDICE.md
+#    of the repo the prompt cites; a missing repo adds nothing
+D=$(mkws); cfg "$D" '{"injectHarnessContext":{"enabled":true}}'
+mkdir -p "$D/known-issues/web" "$D/known-issues/api"
+echo "- [x](a.md#x) y" > "$D/known-issues/web/INDICE.md"
+echo "- [x](a.md#x) y" > "$D/known-issues/api/INDICE.md"
+OUT=$(run "$D" Agent 'corrigir o repo web')
+assert "layout -> names known-issues/ folder" "true" "$(has "$OUT" 'known-issues/')"
+assert "cited repo -> its INDICE.md" "true" "$(has "$OUT" 'known-issues/web/INDICE.md')"
+assert "other repo not named" "false" "$(has "$OUT" 'known-issues/api/INDICE.md')"
+OUT=$(run "$D/projects/app" Agent 'implement task 1')
+assert "no cited repo -> no repo INDICE.md" "false" "$(has "$OUT" '/INDICE.md')"
+mkdir -p "$D/projects/web"
+OUT=$(run "$D/projects/web" Agent 'implement task 1')
+assert "cwd projects/web -> its INDICE.md" "true" "$(has "$OUT" 'known-issues/web/INDICE.md')"
+rm -rf "$D"
+
 echo ""
 echo "test-inject-harness-context: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

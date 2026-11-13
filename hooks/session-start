@@ -350,7 +350,29 @@ fi
 # unconditional noise. If more exist, a count note is appended. Full file is
 # always greppable via the UserPromptSubmit hook's keyword-recall feature.
 known_issues_content=""
-if [ -f "known-issues.md" ]; then
+if [ -d "known-issues" ]; then
+    # [fork] IAF-2495. Layout by repository: known-issues.md is the root index and goes in whole,
+    # up to 8 KB (above that it is cut with a warning). Entries are recalled by
+    # keyword from known-issues/<repo>/ by the UserPromptSubmit hook.
+    if [ -f "known-issues.md" ]; then
+        known_raw=$(node -e "
+            try {
+                const fs = require('fs');
+                const MAX = 8 * 1024;
+                const buf = fs.readFileSync('known-issues.md');
+                if (buf.length <= MAX) {
+                    process.stdout.write(buf.toString('utf8'));
+                } else {
+                    const cut = buf.subarray(0, MAX).toString('utf8').replace(/\\uFFFD+\$/, '');
+                    process.stdout.write(cut + '\n\n*(known-issues.md is over the 8 KB budget and was cut here: curate the index)*');
+                }
+            } catch(e) {}
+        " 2>/dev/null || echo "")
+        if [ -n "$known_raw" ]; then
+            known_issues_content="\n\n<known-issues>\n${known_raw}\n</known-issues>"
+        fi
+    fi
+elif [ -f "known-issues.md" ]; then
     known_raw=$(node -e "
         try {
             const lines = require('fs').readFileSync('known-issues.md','utf8').split('\n');
@@ -476,7 +498,8 @@ skill_md="${PLUGIN_ROOT}/skills/using-superpowers/SKILL.md"
 using_superpowers_content="Error reading using-superpowers skill"
 if [ -r "$skill_md" ]; then
     using_superpowers_content="$(<"$skill_md")"
-    using_superpowers_content="${using_superpowers_content//$''/}"
+    using_superpowers_content="${using_superpowers_content//$'
+'/}"
     if [[ "$using_superpowers_content" == "---"$'
 '* ]]; then
         rest="${using_superpowers_content#*$'
